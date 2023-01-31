@@ -8,7 +8,7 @@ module whirpool::oracle {
 
   use whirpool::utils::{get_coin_info};
 
-  struct AdminCap has key {
+  struct OracleAdminCap has key {
     id: UID,
   }
 
@@ -18,21 +18,21 @@ module whirpool::oracle {
     decimals: u8
   }
 
-  struct Oracle has key {
+  struct OracleStorage has key {
       id: UID,
       price_table: Table<String, PriceData>
   }
 
   fun init(ctx: &mut TxContext) {
       transfer::transfer(
-        AdminCap { 
+        OracleAdminCap { 
           id: object::new(ctx)
         }, 
         tx_context::sender(ctx)
       );
 
       transfer::share_object(
-        Oracle {
+        OracleStorage {
           id: object::new(ctx),
           price_table: table::new<String, PriceData>(ctx)
         }
@@ -40,19 +40,28 @@ module whirpool::oracle {
   }
 
   public fun set_price<T>(
-    _: &AdminCap,
-    oracle: &mut Oracle, 
+    _: &OracleAdminCap,
+    storage: &mut OracleStorage, 
     price: u256, 
-    decimals: u8
-    
+    decimals: u8,
+    ctx: &mut TxContext
     ) {
-      let data = table::borrow_mut(&mut oracle.price_table, get_coin_info<T>());
+      let key = get_coin_info<T>();
 
-      data.price = price;
-      data.decimals = decimals;
+      if (table::contains(&storage.price_table, key)) {
+        let data = table::borrow_mut(&mut storage.price_table, key);
+        data.price = price;
+        data.decimals = decimals;
+      } else {
+        table::add(&mut storage.price_table, key, PriceData {
+          id: object::new(ctx),
+          price,
+          decimals
+        });
+      }
   }
 
-  public fun get_price<T>(oracle: &Oracle): &PriceData  {
-    table::borrow(&oracle.price_table, get_coin_info<T>())
+  public fun get_price<T>(storage: &OracleStorage): &PriceData  {
+    table::borrow(&storage.price_table, get_coin_info<T>())
   }
 }
