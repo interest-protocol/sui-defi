@@ -10,6 +10,10 @@ module whirpool::math {
     ((((x as u256) * SCALAR ) / (y as u256)) as u64)
   }
 
+  public fun fmul_u256(x: u256, y: u256): u256 {
+    (x * y) / SCALAR
+  }
+
   public fun one(): u64 {
     (SCALAR as u64)
   }
