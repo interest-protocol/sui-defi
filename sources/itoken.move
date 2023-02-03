@@ -7,7 +7,9 @@ module whirpool::itoken {
   use sui::object::{Self, UID};
   use sui::bag::{Self, Bag};
   use sui::balance::{Self, Supply, Balance};
+  use sui::coin::{Self, Coin};
 
+  use whirpool::controller::{deposit_allowed};
   use whirpool::interest_rate_model::{Self, InterestRateModelStorage};
   use whirpool::utils::{get_coin_info};
   use whirpool::math::{fmul, fdiv, fmul_u256};
@@ -15,10 +17,15 @@ module whirpool::itoken {
 
   const RESERVE_FACTOR_MANTISSA: u64 = 200000000; // 0.2e9 or 20%
   const PROTOCOL_SEIZE_SHARE_MANTISSA: u64 = 28000000; // 0.028e9 or 2.8%
+  const INITIAL_EXCHANGE_RATE_MANTISSA: u64 = 10000000000; // 1e10
+
+  const ERROR_DEPOSIT_NOT_ALLOWED: u64 = 1;
 
   struct ITokenAdminCap has key {
     id: UID
   }
+
+  struct IToken<phantom T> has drop {}
 
   struct Market<phantom T> has key, store {
     total_reserves: u64,
@@ -27,6 +34,8 @@ module whirpool::itoken {
     accrued_epoch: u64,
     borrow_index: u256,
     balance: Balance<T>,
+    asset_off_set: u32,
+    supply: Supply<IToken<T>>
   }
 
   struct ITokenStorage has key {
@@ -56,6 +65,27 @@ module whirpool::itoken {
     ctx: &TxContext
   ) {
     accrue_internal<T>(borrow_mut_market<T>(itoken_storage), interest_rate_model_storage, ctx);
+  }
+
+  public fun deposit<T>(
+    itoken_storage: &mut ITokenStorage, 
+    interest_rate_model_storage: &mut InterestRateModelStorage,
+    asset: Coin<T>,
+    ctx: &mut TxContext
+  ): Coin<IToken<T>> {
+      let market = borrow_mut_market<T>(itoken_storage);
+
+      accrue_internal<T>(market, interest_rate_model_storage, ctx);
+
+      assert!(!deposit_allowed<T>(), ERROR_DEPOSIT_NOT_ALLOWED);
+
+      let coin_value = coin::value(&asset);
+
+      let shares = fdiv(coin_value, get_current_exchange_rate<T>(market));
+
+      balance::join(&mut market.balance, coin::into_balance(asset));
+
+      coin::from_balance(balance::increase_supply(&mut market.supply, shares), ctx)
   }
 
   public fun get_borrow_rate_per_epoch<T>(
@@ -115,6 +145,15 @@ module whirpool::itoken {
     )
   } 
 
+  fun get_current_exchange_rate<T>(market: &Market<T>): u64 {
+    let supply_value = balance::supply_value(&market.supply);
+      if (supply_value == 0) {
+        INITIAL_EXCHANGE_RATE_MANTISSA
+      } else {
+        let cash = balance::value(&market.balance);
+        fmul(cash + market.total_borrows - market.total_reserves, supply_value)
+      }
+  }
 
   fun borrow_market<T>(itoken_storage: &ITokenStorage): &Market<T> {
     bag::borrow(&itoken_storage.markets, get_coin_info<T>())
