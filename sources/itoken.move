@@ -17,7 +17,7 @@ module whirpool::itoken {
 
   const RESERVE_FACTOR_MANTISSA: u64 = 200000000; // 0.2e9 or 20%
   const PROTOCOL_SEIZE_SHARE_MANTISSA: u64 = 28000000; // 0.028e9 or 2.8%
-  const INITIAL_EXCHANGE_RATE_MANTISSA: u64 = 10000000000; // 1e10
+  const INITIAL_EXCHANGE_RATE_MANTISSA: u64 = 2000000000; // 1e11
 
   const ERROR_DEPOSIT_NOT_ALLOWED: u64 = 1;
 
@@ -28,6 +28,7 @@ module whirpool::itoken {
   struct IToken<phantom T> has drop {}
 
   struct Market<phantom T> has key, store {
+    id: UID,
     total_reserves: u64,
     total_reserves_shares: u64,
     total_borrows: u64,
@@ -144,6 +145,27 @@ module whirpool::itoken {
       ctx
     )
   } 
+
+  public fun create_market<T>(
+    _: &ITokenAdminCap, 
+    itoken_storage: &mut ITokenStorage, 
+    ctx: &mut TxContext
+    ) {
+    bag::add(
+      &mut itoken_storage.markets, 
+      get_coin_info<T>(),
+      Market {
+      id: object::new(ctx),
+      total_reserves: 0,
+      total_reserves_shares: 0,
+      total_borrows: 0,
+      accrued_epoch: tx_context::epoch(ctx),
+      borrow_index: 0,
+      balance: balance::zero<T>(),
+      asset_off_set: 0,
+      supply: balance::create_supply(IToken<T> {})
+    });
+  }
 
   fun get_current_exchange_rate<T>(market: &Market<T>): u64 {
     let supply_value = balance::supply_value(&market.supply);
