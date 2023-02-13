@@ -14,6 +14,10 @@ module whirpool::math {
     (x * y) / SCALAR
   }
 
+  public fun fdiv_u256(x: u256, y: u256): u256 {
+    (x * SCALAR) / y
+  }
+
   public fun one(): u64 {
     (SCALAR as u64)
   }

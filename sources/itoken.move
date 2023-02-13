@@ -1,15 +1,14 @@
 module whirpool::itoken {
   
-  use std::ascii::{String}; 
-
   use sui::tx_context::{Self, TxContext};
   use sui::transfer;
   use sui::object::{Self, UID};
   use sui::bag::{Self, Bag};
   use sui::balance::{Self, Supply, Balance};
   use sui::coin::{Self, Coin};
+  use sui::pay;
 
-  use whirpool::controller::{deposit_allowed};
+  use whirpool::controller::{deposit_allowed, withdraw_allowed, borrow_allowed, repay_allowed};
   use whirpool::interest_rate_model::{Self, InterestRateModelStorage};
   use whirpool::utils::{get_coin_info};
   use whirpool::math::{fmul, fdiv, fmul_u256};
@@ -20,6 +19,11 @@ module whirpool::itoken {
   const INITIAL_EXCHANGE_RATE_MANTISSA: u64 = 2000000000; // 1e11
 
   const ERROR_DEPOSIT_NOT_ALLOWED: u64 = 1;
+  const ERROR_WITHDRAW_NOT_ALLOWED: u64 = 2;
+  const ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW: u64 = 3;
+  const ERROR_NOT_ENOUGH_CASH_TO_LEND: u64 = 4;
+  const ERROR_BORROW_NOT_ALLOWED: u64 = 5;
+  const ERROR_REPAY_NOT_ALLOWED: u64 = 6;
 
   struct ITokenAdminCap has key {
     id: UID
@@ -44,6 +48,18 @@ module whirpool::itoken {
     markets: Bag
   }
 
+  struct Account<phantom T> has key, store {
+    id: UID,
+    balance_value: u64,
+    borrow_index: u256,
+    principal: u256
+  }
+
+  struct AccountStorage has key {
+     id: UID,
+     accounts: Bag // get_coin_info -> address -> Account
+  }
+
   fun init(ctx: &mut TxContext) {
     transfer::transfer(
       ITokenAdminCap {
@@ -58,6 +74,13 @@ module whirpool::itoken {
         markets: bag::new(ctx)
       }
     );
+
+    transfer::share_object(
+      AccountStorage {
+        id: object::new(ctx),
+        accounts: bag::new(ctx)
+      }
+    );
   }
 
   public fun accrue<T>(
@@ -70,15 +93,31 @@ module whirpool::itoken {
 
   public fun deposit<T>(
     itoken_storage: &mut ITokenStorage, 
+    accounts_storage: &mut AccountStorage, 
     interest_rate_model_storage: &mut InterestRateModelStorage,
     asset: Coin<T>,
     ctx: &mut TxContext
   ): Coin<IToken<T>> {
       let market = borrow_mut_market<T>(itoken_storage);
 
+      let sender = tx_context::sender(ctx);
+
+      if (!account_exists<T>(accounts_storage, sender)) {
+          bag::add(
+            bag::borrow_mut(&mut accounts_storage.accounts, get_coin_info<T>()),
+            sender,
+            Account<T> {
+              id: object::new(ctx),
+              balance_value: 0,
+              borrow_index: 0,
+              principal: 0
+            }
+          );
+      };
+
       accrue_internal<T>(market, interest_rate_model_storage, ctx);
 
-      assert!(!deposit_allowed<T>(), ERROR_DEPOSIT_NOT_ALLOWED);
+      assert!(deposit_allowed<T>(), ERROR_DEPOSIT_NOT_ALLOWED);
 
       let coin_value = coin::value(&asset);
 
@@ -86,7 +125,90 @@ module whirpool::itoken {
 
       balance::join(&mut market.balance, coin::into_balance(asset));
 
+      let account = borrow_mut_account<T>(accounts_storage, sender);
+
+      account.balance_value = account.balance_value + coin_value;
+
       coin::from_balance(balance::increase_supply(&mut market.supply, shares), ctx)
+  }
+
+  public fun withdraw<T>(
+    itoken_storage: &mut ITokenStorage, 
+    accounts_storage: &mut AccountStorage, 
+    interest_rate_model_storage: &mut InterestRateModelStorage,
+    itoken_coin: Coin<IToken<T>>,
+    ctx: &mut TxContext
+  ): Coin<T> {
+     let market = borrow_mut_market<T>(itoken_storage);
+     accrue_internal<T>(market, interest_rate_model_storage, ctx);
+
+    let underlying_to_redeem = fmul(coin::value(&itoken_coin), get_current_exchange_rate<T>(market));
+
+    assert!(withdraw_allowed<T>(), ERROR_DEPOSIT_NOT_ALLOWED);
+    assert!(balance::value(&market.balance) >= underlying_to_redeem , ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW);
+
+    balance::decrease_supply(&mut market.supply, coin::into_balance(itoken_coin));
+
+    let sender = tx_context::sender(ctx);
+
+    let account = borrow_mut_account<T>(accounts_storage, sender);
+
+    account.balance_value = account.balance_value - underlying_to_redeem; 
+
+    coin::take(&mut market.balance, underlying_to_redeem, ctx)
+  }
+
+  public fun borrow<T>(
+    itoken_storage: &mut ITokenStorage, 
+    accounts_storage: &mut AccountStorage, 
+    interest_rate_model_storage: &mut InterestRateModelStorage,
+    borrow_value: u64,
+    ctx: &mut TxContext
+  ): Coin<T> {
+    let market = borrow_mut_market<T>(itoken_storage);
+    accrue_internal<T>(market, interest_rate_model_storage, ctx);
+
+    assert!(balance::value(&market.balance) >= borrow_value, ERROR_NOT_ENOUGH_CASH_TO_LEND);
+    assert!(borrow_allowed<T>(), ERROR_BORROW_NOT_ALLOWED);
+
+    let account = borrow_mut_account<T>(accounts_storage, tx_context::sender(ctx));
+
+    let new_borrow_balance = calculate_borrow_balance_of(account, market.borrow_index) + borrow_value;
+
+    account.principal = (new_borrow_balance as u256);
+    account.borrow_index = market.borrow_index;
+    market.total_borrows = market.total_borrows + borrow_value;
+
+    coin::take(&mut market.balance, borrow_value, ctx)
+  }
+
+  public fun repay<T>(
+    itoken_storage: &mut ITokenStorage, 
+    accounts_storage: &mut AccountStorage, 
+    interest_rate_model_storage: &mut InterestRateModelStorage,
+    asset: Coin<T>,
+    ctx: &mut TxContext    
+  ) {
+    let market = borrow_mut_market<T>(itoken_storage);
+    accrue_internal<T>(market, interest_rate_model_storage, ctx);
+    
+    assert!(repay_allowed<T>(),ERROR_REPAY_NOT_ALLOWED);
+
+    let sender = tx_context::sender(ctx);
+
+    let account = borrow_mut_account<T>(accounts_storage, sender);
+
+    let coin_value = coin::value(&asset);
+
+    let repay_amount = if (coin_value > (account.principal as u64)) { (account.principal as u64) } else { coin_value };
+
+    if (coin_value > repay_amount) pay::split_and_transfer(&mut asset, coin_value - repay_amount, sender, ctx);
+
+    balance::join(&mut market.balance, coin::into_balance(asset));
+
+    account.principal = account.principal - (repay_amount as u256);
+    account.borrow_index = market.borrow_index;
+    market.total_borrows = market.total_borrows - repay_amount;
   }
 
   public fun get_borrow_rate_per_epoch<T>(
@@ -124,6 +246,40 @@ module whirpool::itoken {
       tx_context::epoch(ctx) - market.accrued_epoch
   }
 
+  fun get_current_exchange_rate<T>(market: &Market<T>): u64 {
+    let supply_value = balance::supply_value(&market.supply);
+      if (supply_value == 0) {
+        INITIAL_EXCHANGE_RATE_MANTISSA
+      } else {
+        let cash = balance::value(&market.balance);
+        fmul(cash + market.total_borrows - market.total_reserves, supply_value)
+      }
+  }
+
+  fun borrow_market<T>(itoken_storage: &ITokenStorage): &Market<T> {
+    bag::borrow(&itoken_storage.markets, get_coin_info<T>())
+  }
+
+  fun borrow_mut_market<T>(itoken_storage: &mut ITokenStorage): &mut Market<T> {
+    bag::borrow_mut(&mut itoken_storage.markets, get_coin_info<T>())
+  }
+
+  fun borrow_account<T>(accounts_storage: &AccountStorage, user: address): &Account<T> {
+    bag::borrow(bag::borrow(&accounts_storage.accounts, get_coin_info<T>()), user)
+  }
+
+  fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, user: address): &mut Account<T> {
+    bag::borrow_mut(bag::borrow_mut(&mut accounts_storage.accounts, get_coin_info<T>()), user)
+  }
+
+  fun account_exists<T>(accounts_storage: &AccountStorage, user: address): bool {
+    bag::contains(bag::borrow(&accounts_storage.accounts, get_coin_info<T>()), user)
+  }
+
+  fun calculate_borrow_balance_of<T>(account: &Account<T>, borrow_index: u256): u64 {
+    if (account.principal == 0) { 0 } else { ((account.principal * borrow_index / account.borrow_index ) as u64) }
+  }
+
   public fun set_interest_rate_data<T>(
     _: &ITokenAdminCap,
     itoken_storage: &mut ITokenStorage, 
@@ -148,40 +304,33 @@ module whirpool::itoken {
 
   public fun create_market<T>(
     _: &ITokenAdminCap, 
-    itoken_storage: &mut ITokenStorage, 
+    itoken_storage: &mut ITokenStorage,
+    accounts_storage: &mut AccountStorage, 
     ctx: &mut TxContext
     ) {
+    let key = get_coin_info<T>();
+    
+    // Add the market
     bag::add(
       &mut itoken_storage.markets, 
-      get_coin_info<T>(),
+      key,
       Market {
-      id: object::new(ctx),
-      total_reserves: 0,
-      total_reserves_shares: 0,
-      total_borrows: 0,
-      accrued_epoch: tx_context::epoch(ctx),
-      borrow_index: 0,
-      balance: balance::zero<T>(),
-      asset_off_set: 0,
-      supply: balance::create_supply(IToken<T> {})
-    });
-  }
+        id: object::new(ctx),
+        total_reserves: 0,
+        total_reserves_shares: 0,
+        total_borrows: 0,
+        accrued_epoch: tx_context::epoch(ctx),
+        borrow_index: 0,
+        balance: balance::zero<T>(),
+        asset_off_set: 0,
+        supply: balance::create_supply(IToken<T> {})
+      });
 
-  fun get_current_exchange_rate<T>(market: &Market<T>): u64 {
-    let supply_value = balance::supply_value(&market.supply);
-      if (supply_value == 0) {
-        INITIAL_EXCHANGE_RATE_MANTISSA
-      } else {
-        let cash = balance::value(&market.balance);
-        fmul(cash + market.total_borrows - market.total_reserves, supply_value)
-      }
-  }
-
-  fun borrow_market<T>(itoken_storage: &ITokenStorage): &Market<T> {
-    bag::borrow(&itoken_storage.markets, get_coin_info<T>())
-  }
-
-  fun borrow_mut_market<T>(itoken_storage: &mut ITokenStorage): &mut Market<T> {
-    bag::borrow_mut(&mut itoken_storage.markets, get_coin_info<T>())
+    // Add bag to store address -> account
+    bag::add(
+      &mut accounts_storage.accounts,
+      key,
+      bag::new(ctx)
+    );  
   }
 }
