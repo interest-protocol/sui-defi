@@ -1,4 +1,6 @@
 module whirpool::itoken {
+  use std::ascii::{String};
+  use std::vector;
   
   use sui::tx_context::{Self, TxContext};
   use sui::transfer;
@@ -8,11 +10,9 @@ module whirpool::itoken {
   use sui::coin::{Self, Coin};
   use sui::pay;
 
-  use whirpool::controller::{deposit_allowed, withdraw_allowed, borrow_allowed, repay_allowed};
   use whirpool::interest_rate_model::{Self, InterestRateModelStorage};
   use whirpool::utils::{get_coin_info};
   use whirpool::math::{fmul, fdiv, fmul_u256};
-
 
   const RESERVE_FACTOR_MANTISSA: u64 = 200000000; // 0.2e9 or 20%
   const PROTOCOL_SEIZE_SHARE_MANTISSA: u64 = 28000000; // 0.028e9 or 2.8%
@@ -24,6 +24,7 @@ module whirpool::itoken {
   const ERROR_NOT_ENOUGH_CASH_TO_LEND: u64 = 4;
   const ERROR_BORROW_NOT_ALLOWED: u64 = 5;
   const ERROR_REPAY_NOT_ALLOWED: u64 = 6;
+  const ERROR_MARKET_IS_PAUSED: u64 = 7;
 
   struct ITokenAdminCap has key {
     id: UID
@@ -40,7 +41,8 @@ module whirpool::itoken {
     borrow_index: u256,
     balance: Balance<T>,
     asset_off_set: u32,
-    supply: Supply<IToken<T>>
+    supply: Supply<IToken<T>>,
+    is_paused: bool,
   }
 
   struct ITokenStorage has key {
@@ -52,12 +54,13 @@ module whirpool::itoken {
     id: UID,
     balance_value: u64,
     borrow_index: u256,
-    principal: u256
+    principal: u256,
   }
 
   struct AccountStorage has key {
      id: UID,
-     accounts: Bag // get_coin_info -> address -> Account
+     accounts: Bag, // get_coin_info -> address -> Account
+     collateral_markets: Bag  // address -> vector<String> 
   }
 
   fun init(ctx: &mut TxContext) {
@@ -78,7 +81,8 @@ module whirpool::itoken {
     transfer::share_object(
       AccountStorage {
         id: object::new(ctx),
-        accounts: bag::new(ctx)
+        accounts: bag::new(ctx),
+        collateral_markets: bag::new(ctx)
       }
     );
   }
@@ -110,14 +114,14 @@ module whirpool::itoken {
               id: object::new(ctx),
               balance_value: 0,
               borrow_index: 0,
-              principal: 0
+              principal: 0,
             }
           );
       };
 
       accrue_internal<T>(market, interest_rate_model_storage, ctx);
 
-      assert!(deposit_allowed<T>(), ERROR_DEPOSIT_NOT_ALLOWED);
+      assert!(deposit_allowed<T>(market), ERROR_DEPOSIT_NOT_ALLOWED);
 
       let coin_value = coin::value(&asset);
 
@@ -144,12 +148,12 @@ module whirpool::itoken {
 
     let underlying_to_redeem = fmul(coin::value(&itoken_coin), get_current_exchange_rate<T>(market));
 
-    assert!(withdraw_allowed<T>(), ERROR_DEPOSIT_NOT_ALLOWED);
+    let sender = tx_context::sender(ctx);
+
+    assert!(withdraw_allowed<T>(market, accounts_storage, sender, underlying_to_redeem), ERROR_WITHDRAW_NOT_ALLOWED);
     assert!(balance::value(&market.balance) >= underlying_to_redeem , ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW);
 
     balance::decrease_supply(&mut market.supply, coin::into_balance(itoken_coin));
-
-    let sender = tx_context::sender(ctx);
 
     let account = borrow_mut_account<T>(accounts_storage, sender);
 
@@ -223,6 +227,33 @@ module whirpool::itoken {
     )
   }
 
+  public fun enter_market<T>(account_storage: &mut AccountStorage, ctx: &mut TxContext) {
+    let sender = tx_context::sender(ctx);
+    if (!bag::contains(&account_storage.collateral_markets, sender)) {
+      bag::add(
+       &mut account_storage.collateral_markets,
+       sender,
+       vector::empty<String>()
+      );
+    };
+
+   let user_collateral_markets = borrow_mut_user_collateral_markets(account_storage, sender);
+
+   let market_key = get_coin_info<T>();
+
+   if (!vector::contains(user_collateral_markets, &market_key)) { 
+      vector::push_back(user_collateral_markets, market_key);
+    };
+  }
+
+  public fun exit_market<T>(account_storage: &mut AccountStorage, ctx: &mut TxContext) {
+   let (is_present, index) = vector::index_of(borrow_user_collateral_markets(account_storage, tx_context::sender(ctx)), &get_coin_info<T>());
+
+   if (is_present) { 
+      vector::remove<String>(borrow_mut_user_collateral_markets(account_storage, tx_context::sender(ctx)), index);
+    };
+  }
+
   fun accrue_internal<T>(
     market: &mut Market<T>, 
     interest_rate_model_storage: &InterestRateModelStorage, 
@@ -270,6 +301,14 @@ module whirpool::itoken {
 
   fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, user: address): &mut Account<T> {
     bag::borrow_mut(bag::borrow_mut(&mut accounts_storage.accounts, get_coin_info<T>()), user)
+  }
+
+  fun borrow_user_collateral_markets(accounts_storage: &AccountStorage, user: address): &vector<String> {
+    bag::borrow<address, vector<String>>(&accounts_storage.collateral_markets, user)
+  }
+
+  fun borrow_mut_user_collateral_markets(accounts_storage: &mut AccountStorage, user: address): &mut vector<String> {
+    bag::borrow_mut<address, vector<String>>(&mut accounts_storage.collateral_markets, user)
   }
 
   fun account_exists<T>(accounts_storage: &AccountStorage, user: address): bool {
@@ -323,7 +362,8 @@ module whirpool::itoken {
         borrow_index: 0,
         balance: balance::zero<T>(),
         asset_off_set: 0,
-        supply: balance::create_supply(IToken<T> {})
+        supply: balance::create_supply(IToken<T> {}),
+        is_paused: false
       });
 
     // Add bag to store address -> account
@@ -332,5 +372,51 @@ module whirpool::itoken {
       key,
       bag::new(ctx)
     );  
+  }
+
+  public fun pause_market<T>(_: &ITokenAdminCap, itoken_storage: &mut ITokenStorage) {
+    let market = borrow_mut_market<T>(itoken_storage);
+    market.is_paused = true;
+  }
+
+  public fun unpause_market<T>(_: &ITokenAdminCap, itoken_storage: &mut ITokenStorage) {
+    let market = borrow_mut_market<T>(itoken_storage);
+    market.is_paused = false;
+  }
+
+  // Controller
+
+  fun deposit_allowed<T>(market: &Market<T>): bool {
+    assert!(!market.is_paused, ERROR_MARKET_IS_PAUSED);
+    true
+  }
+
+  fun withdraw_allowed<T>(market: &Market<T>, account_storage: &AccountStorage, user: address, coin_value: u64): bool {
+    assert!(!market.is_paused, ERROR_MARKET_IS_PAUSED);
+
+    if (!bag::contains(&account_storage.collateral_markets, user)) return true;
+
+    let user_collateral_market = borrow_user_collateral_markets(account_storage, user);
+
+    if (!vector::contains(user_collateral_market, &get_coin_info<T>())) return true;
+
+    if (does_user_have_enough_liquidity<T>(account_storage, user, coin_value)) return true;
+
+    false
+  }
+
+  fun borrow_allowed<T>(): bool {
+    true
+  }
+
+  fun repay_allowed<T>(): bool {
+    true
+  }
+
+  fun does_user_have_enough_liquidity<T>(account_storage: &AccountStorage, user: address, coin_value: u64): bool {
+    let user_collateral_markets = borrow_user_collateral_markets(account_storage, user);
+
+
+    true
   }
 }
