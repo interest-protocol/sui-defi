@@ -61,7 +61,8 @@ module whirpool::oracle {
       }
   }
 
-  public fun get_price<T>(storage: &OracleStorage): &PriceData  {
-    table::borrow(&storage.price_table, get_coin_info<T>())
+  public fun get_price(storage: &OracleStorage, key: String): (u256, u8)  {
+    let price_data = table::borrow(&storage.price_table, key);
+    (price_data.price, price_data.decimals)
   }
 }

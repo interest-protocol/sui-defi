@@ -18,7 +18,7 @@ module whirpool::math {
     (x * SCALAR) / y
   }
 
-  public fun one(): u64 {
-    (SCALAR as u64)
+  public fun one(): u256 {
+    SCALAR
   }
 }

@@ -61,7 +61,7 @@ module whirpool::interest_rate_model {
     reserves: u64,
     reserve_factor: u64
   ): u64 {
-    let borrow_rate = fmul(get_borrow_rate_per_epoch_internal<T>(storage, cash, total_borrow_amount, reserves), one() - reserve_factor);
+    let borrow_rate = fmul(get_borrow_rate_per_epoch_internal<T>(storage, cash, total_borrow_amount, reserves), (one() as u64) - reserve_factor);
 
     fmul(get_utilization_rate_internal(cash, total_borrow_amount, reserves), borrow_rate)
   }
