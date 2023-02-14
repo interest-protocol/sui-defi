@@ -204,7 +204,22 @@ module whirpool::itoken {
     assert!(market_data.balance_value >= borrow_value, ERROR_NOT_ENOUGH_CASH_TO_LEND);
     assert!(borrow_allowed<T>(), ERROR_BORROW_NOT_ALLOWED);
 
-    let account = borrow_mut_account<T>(accounts_storage, tx_context::sender(ctx));
+    let sender = tx_context::sender(ctx);
+
+    if (!account_exists<T>(accounts_storage, sender)) {
+          bag::add(
+            bag::borrow_mut(&mut accounts_storage.accounts, get_coin_info<T>()),
+            sender,
+            Account {
+              id: object::new(ctx),
+              balance_value: 0,
+              borrow_index: 0,
+              principal: 0,
+            }
+          );
+    };
+
+    let account = borrow_mut_account<T>(accounts_storage, sender);
 
     let new_borrow_balance = calculate_borrow_balance_of(account, market_data.borrow_index) + borrow_value;
 
