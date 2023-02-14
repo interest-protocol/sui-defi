@@ -16,7 +16,7 @@ module whirpool::itoken {
   use whirpool::utils::{get_coin_info};
   use whirpool::math::{fmul, fdiv, fmul_u256, one};
 
-  const RESERVE_FACTOR_MANTISSA: u64 = 200000000; // 0.2e9 or 20%
+  const INITIAL_RESERVE_FACTOR_MANTISSA: u64 = 200000000; // 0.2e9 or 20%
   const PROTOCOL_SEIZE_SHARE_MANTISSA: u64 = 28000000; // 0.028e9 or 2.8%
   const INITIAL_EXCHANGE_RATE_MANTISSA: u64 = 200000000; // 1e10
 
@@ -46,7 +46,8 @@ module whirpool::itoken {
     balance_value: u64,
     supply_value: u64,
     is_paused: bool,
-    ltv: u64
+    ltv: u64,
+    reserve_factor: u64
   }
 
   struct MarketTokens<phantom T> has key, store {
@@ -338,7 +339,7 @@ module whirpool::itoken {
 
     market_data.accrued_epoch = tx_context::epoch(ctx);
     market_data.total_borrows = interest_rate_amount +  market_data.total_borrows;
-    market_data.total_reserves = fmul(interest_rate_amount, RESERVE_FACTOR_MANTISSA) + market_data.total_reserves;
+    market_data.total_reserves = fmul(interest_rate_amount, market_data.reserve_factor) + market_data.total_reserves;
     market_data.borrow_index = fmul_u256((interest_rate_amount as u256), market_data.borrow_index) + market_data.borrow_index;
   }
 
@@ -427,6 +428,15 @@ module whirpool::itoken {
     liquidation.protocol_percentage = protocol_percentage;
   }
 
+  entry public fun update_rserve_factor<T>(
+    _: &ITokenAdminCap, 
+    itoken_storage: &mut ITokenStorage,
+    reserve_factor: u64
+  ) {
+    let market_data = borrow_mut_market_data<T>(&mut itoken_storage.markets_data);
+    market_data.reserve_factor = reserve_factor;
+  }
+
   entry public fun create_market<T>(
     _: &ITokenAdminCap, 
     itoken_storage: &mut ITokenStorage,
@@ -454,7 +464,8 @@ module whirpool::itoken {
         balance_value: 0,
         supply_value: 0,
         is_paused: false,
-        ltv
+        ltv,
+        reserve_factor: INITIAL_RESERVE_FACTOR_MANTISSA
     });
 
     table::add(
@@ -541,7 +552,7 @@ module whirpool::itoken {
     withdraw_coin_value: u64,
     borrow_coin_value: u64,
     ctx: &mut TxContext
-    ): bool {
+  ): bool {
     let user_markets_in = borrow_mut_user_markets_in(&mut account_storage.markets_in, user);
 
     let index = 0;
