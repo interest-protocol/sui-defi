@@ -45,36 +45,39 @@ module whirpool::interest_rate_model {
       );
   }
 
-  public fun get_borrow_rate_per_epoch<T>(
+  public fun get_borrow_rate_per_epoch(
     storage: &InterestRateModelStorage,
+    market_key: String,
     cash: u64,
     total_borrow_amount: u64,
     reserves: u64
   ): u64 {
-    get_borrow_rate_per_epoch_internal<T>(storage, cash, total_borrow_amount, reserves)
+    get_borrow_rate_per_epoch_internal(storage, market_key, cash, total_borrow_amount, reserves)
   }
 
-  public fun get_supply_rate_per_epoch<T>(
+  public fun get_supply_rate_per_epoch(
     storage: &InterestRateModelStorage,
+    market_key: String,
     cash: u64,
     total_borrow_amount: u64,
     reserves: u64,
     reserve_factor: u64
   ): u64 {
-    let borrow_rate = fmul(get_borrow_rate_per_epoch_internal<T>(storage, cash, total_borrow_amount, reserves), (one() as u64) - reserve_factor);
+    let borrow_rate = fmul(get_borrow_rate_per_epoch_internal(storage, market_key, cash, total_borrow_amount, reserves), (one() as u64) - reserve_factor);
 
     fmul(get_utilization_rate_internal(cash, total_borrow_amount, reserves), borrow_rate)
   }
 
-  fun get_borrow_rate_per_epoch_internal<T>(
+  fun get_borrow_rate_per_epoch_internal(
     storage: &InterestRateModelStorage,
+    market_key: String,
     cash: u64,
     total_borrow_amount: u64,
     reserves: u64
     ): u64 {
       let utilization_rate = get_utilization_rate_internal(cash, total_borrow_amount, reserves);
 
-      let data = table::borrow(&storage.interest_rate_table, get_coin_info<T>());
+      let data = table::borrow(&storage.interest_rate_table, market_key);
 
       if (data.kink >= utilization_rate) {
         fmul(utilization_rate, data.multiplier_per_epoch) + data.base_rate_per_epoch
