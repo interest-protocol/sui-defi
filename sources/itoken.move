@@ -11,6 +11,7 @@ module whirpool::itoken {
   use sui::coin::{Self, Coin};
   use sui::pay;
 
+  use whirpool::dnr;
   use whirpool::interest_rate_model::{Self, InterestRateModelStorage};
   use whirpool::oracle::{get_price, OracleStorage};
   use whirpool::utils::{get_coin_info};
@@ -33,6 +34,7 @@ module whirpool::itoken {
   const ERROR_MARKET_EXIT_LOAN_OPEN: u64 = 11;
   const ERROR_USER_IS_INSOLVENT: u64 = 12;
   const ERROR_NOT_ENOUGH_RESERVES: u64 = 13;
+  const ERROR_CAN_NOT_USE_DNR: u64 = 14;
 
   struct ITokenAdminCap has key {
     id: UID
@@ -67,9 +69,9 @@ module whirpool::itoken {
 
   struct ITokenStorage has key {
     id: UID,
-    markets_data: Table<String, MarketData>,
+    market_data: Table<String, MarketData>,
     liquidation: Table<String, Liquidation>,
-    markets_tokens: Bag
+    market_tokens: Bag
   }
 
   struct Account has key, store {
@@ -96,9 +98,9 @@ module whirpool::itoken {
     transfer::share_object(
       ITokenStorage {
         id: object::new(ctx),
-        markets_data: table::new(ctx),
+        market_data: table::new(ctx),
         liquidation: table::new(ctx),
-        markets_tokens: bag::new(ctx)
+        market_tokens: bag::new(ctx)
       }
     );
 
@@ -117,25 +119,25 @@ module whirpool::itoken {
     ctx: &TxContext
   ) {
     let market_key = get_coin_info<T>();
-    accrue_internal(borrow_mut_market_data(&mut itoken_storage.markets_data, market_key), interest_rate_model_storage, market_key, ctx);
+    accrue_internal(borrow_mut_market_data(&mut itoken_storage.market_data, market_key), interest_rate_model_storage, market_key, ctx);
   }
 
   public fun deposit<T>(
     itoken_storage: &mut ITokenStorage, 
-    accounts_storage: &mut AccountStorage, 
+    account_storage: &mut AccountStorage, 
     interest_rate_model_storage: &mut InterestRateModelStorage,
     asset: Coin<T>,
     ctx: &mut TxContext
   ): Coin<IToken<T>> {
       let market_key = get_coin_info<T>();
-      let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, market_key);
-      let market_tokens = borrow_mut_market_tokens<T>(&mut itoken_storage.markets_tokens, market_key);
+      let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, market_key);
+      let market_tokens = borrow_mut_market_tokens<T>(&mut itoken_storage.market_tokens, market_key);
 
       let sender = tx_context::sender(ctx);
 
-      if (!account_exists(accounts_storage, sender, market_key)) {
+      if (!account_exists(account_storage, sender, market_key)) {
           bag::add(
-            bag::borrow_mut(&mut accounts_storage.accounts, market_key),
+            bag::borrow_mut(&mut account_storage.accounts, market_key),
             sender,
             Account {
               id: object::new(ctx),
@@ -155,7 +157,7 @@ module whirpool::itoken {
       balance::join(&mut market_tokens.balance, coin::into_balance(asset));
       market_data.balance_value = market_data.balance_value + asset_value;
 
-      let account = borrow_mut_account(accounts_storage, sender, market_key);
+      let account = borrow_mut_account(account_storage, sender, market_key);
 
       account.balance_value = account.balance_value + asset_value;
 
@@ -168,15 +170,15 @@ module whirpool::itoken {
 
   public fun withdraw<T>(
     itoken_storage: &mut ITokenStorage, 
-    accounts_storage: &mut AccountStorage, 
+    account_storage: &mut AccountStorage, 
     interest_rate_model_storage: &mut InterestRateModelStorage,
     oracle_storage: &OracleStorage,
     itoken_coin: Coin<IToken<T>>,
     ctx: &mut TxContext
   ): Coin<T> {
     let market_key = get_coin_info<T>();
-    let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, market_key);
-    let market_tokens = borrow_mut_market_tokens<T>(&mut itoken_storage.markets_tokens, market_key);
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, market_key);
+    let market_tokens = borrow_mut_market_tokens<T>(&mut itoken_storage.market_tokens, market_key);
     
     accrue_internal(market_data, interest_rate_model_storage, market_key, ctx);
 
@@ -191,7 +193,7 @@ module whirpool::itoken {
     market_data.supply_value = market_data.supply_value - itoken_value; 
     balance::decrease_supply(&mut market_tokens.supply, coin::into_balance(itoken_coin));
 
-    let account = borrow_mut_account(accounts_storage, sender, market_key);
+    let account = borrow_mut_account(account_storage, sender, market_key);
 
     account.balance_value = account.balance_value - underlying_to_redeem; 
 
@@ -199,21 +201,21 @@ module whirpool::itoken {
 
     market_data.balance_value =  market_data.balance_value - underlying_to_redeem;
     // Check should be the last action after all mutations
-    assert!(withdraw_allowed(market_data, accounts_storage, oracle_storage, interest_rate_model_storage, market_key, sender, underlying_to_redeem, ctx), ERROR_WITHDRAW_NOT_ALLOWED);
+    assert!(withdraw_allowed(market_data, account_storage, oracle_storage, interest_rate_model_storage, market_key, sender, underlying_to_redeem, ctx), ERROR_WITHDRAW_NOT_ALLOWED);
     underlying_coin
   }
 
   public fun borrow<T>(
     itoken_storage: &mut ITokenStorage, 
-    accounts_storage: &mut AccountStorage, 
+    account_storage: &mut AccountStorage, 
     interest_rate_model_storage: &mut InterestRateModelStorage,
     oracle_storage: &OracleStorage,
     borrow_value: u64,
     ctx: &mut TxContext
   ): Coin<T> {
     let market_key = get_coin_info<T>();
-    let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, market_key);
-    let market_tokens = borrow_mut_market_tokens<T>(&mut itoken_storage.markets_tokens, market_key);
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, market_key);
+    let market_tokens = borrow_mut_market_tokens<T>(&mut itoken_storage.market_tokens, market_key);
 
     accrue_internal(market_data, interest_rate_model_storage, market_key, ctx);
 
@@ -221,9 +223,9 @@ module whirpool::itoken {
 
     let sender = tx_context::sender(ctx);
 
-    if (!account_exists(accounts_storage, sender, market_key)) {
+    if (!account_exists(account_storage, sender, market_key)) {
           bag::add(
-            bag::borrow_mut(&mut accounts_storage.accounts, market_key),
+            bag::borrow_mut(&mut account_storage.accounts, market_key),
             sender,
             Account {
               id: object::new(ctx),
@@ -234,15 +236,15 @@ module whirpool::itoken {
           );
     };
 
-   if (!table::contains(&accounts_storage.markets_in, sender)) {
+   if (!table::contains(&account_storage.markets_in, sender)) {
       table::add(
-       &mut accounts_storage.markets_in,
+       &mut account_storage.markets_in,
        sender,
        vector::empty<String>()
       );
     };
 
-    let account = borrow_mut_account(accounts_storage, sender, market_key);
+    let account = borrow_mut_account(account_storage, sender, market_key);
 
     let new_borrow_balance = calculate_borrow_balance_of(account, market_data.borrow_index) + borrow_value;
 
@@ -254,27 +256,27 @@ module whirpool::itoken {
 
     let loan_coin = coin::take(&mut market_tokens.balance, borrow_value, ctx);
     // Check should be the last action after all mutations
-    assert!(borrow_allowed(market_data, accounts_storage, oracle_storage, interest_rate_model_storage, market_key, sender, borrow_value, ctx), ERROR_BORROW_NOT_ALLOWED);
+    assert!(borrow_allowed(market_data, account_storage, oracle_storage, interest_rate_model_storage, market_key, sender, borrow_value, ctx), ERROR_BORROW_NOT_ALLOWED);
 
     loan_coin
   }
 
   public fun repay<T>(
     itoken_storage: &mut ITokenStorage, 
-    accounts_storage: &mut AccountStorage, 
+    account_storage: &mut AccountStorage, 
     interest_rate_model_storage: &mut InterestRateModelStorage,
     asset: Coin<T>,
     ctx: &mut TxContext    
   ) {
     let market_key = get_coin_info<T>();
-    let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, market_key);
-    let market_tokens = borrow_mut_market_tokens<T>(&mut itoken_storage.markets_tokens, market_key);
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, market_key);
+    let market_tokens = borrow_mut_market_tokens<T>(&mut itoken_storage.market_tokens, market_key);
 
     accrue_internal(market_data, interest_rate_model_storage, get_coin_info<T>(), ctx);
     
     let sender = tx_context::sender(ctx);
 
-    let account = borrow_mut_account(accounts_storage, sender, market_key);
+    let account = borrow_mut_account(account_storage, sender, market_key);
 
     let asset_value = coin::value(&asset);
 
@@ -337,19 +339,19 @@ module whirpool::itoken {
 
   public fun exit_market<T>(
     itoken_storage: &mut ITokenStorage, 
-    accounts_storage: &mut AccountStorage, 
+    account_storage: &mut AccountStorage, 
     interest_rate_model_storage: &mut InterestRateModelStorage,
     oracle_storage: &OracleStorage,
     ctx: &mut TxContext
   ) {
     let market_key = get_coin_info<T>();
-    let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, market_key);
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, market_key);
     let sender = tx_context::sender(ctx);
-    let account = borrow_account(accounts_storage, sender, market_key);
+    let account = borrow_account(account_storage, sender, market_key);
 
    assert!(account.principal == 0, ERROR_MARKET_EXIT_LOAN_OPEN);
 
-   let user_markets_in = borrow_mut_user_markets_in(&mut accounts_storage.markets_in, sender);
+   let user_markets_in = borrow_mut_user_markets_in(&mut account_storage.markets_in, sender);
 
    let (is_present, index) = vector::index_of(user_markets_in, &market_key);
 
@@ -357,7 +359,7 @@ module whirpool::itoken {
     let _ = vector::remove(user_markets_in, index);
    };
 
-    assert!(is_user_solvent(market_data, accounts_storage, oracle_storage, interest_rate_model_storage, market_key, sender, 0, 0, ctx), ERROR_USER_IS_INSOLVENT);
+    assert!(is_user_solvent(market_data, account_storage, oracle_storage, interest_rate_model_storage, market_key, sender, 0, 0, ctx), ERROR_USER_IS_INSOLVENT);
   }
 
   public fun get_account_balances<T>(
@@ -368,7 +370,7 @@ module whirpool::itoken {
     ctx: &mut TxContext
     ): (u64, u64) {
     let market_key = get_coin_info<T>();  
-    let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, market_key);
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, market_key);
     let account = borrow_account(account_storage, user, market_key);
     
     get_account_balances_internal(market_data, account, interest_rate_model_storage, market_key, ctx)
@@ -418,28 +420,28 @@ module whirpool::itoken {
       }
   }
 
-  fun borrow_market_tokens<T>(markets_tokens: &Bag, market_key: String): &MarketTokens<T> {
-    bag::borrow(markets_tokens, market_key)
+  fun borrow_market_tokens<T>(market_tokens: &Bag, market_key: String): &MarketTokens<T> {
+    bag::borrow(market_tokens, market_key)
   }
 
-  fun borrow_mut_market_tokens<T>(markets_tokens: &mut Bag, market_key: String): &mut MarketTokens<T> {
-    bag::borrow_mut(markets_tokens, market_key)
+  fun borrow_mut_market_tokens<T>(market_tokens: &mut Bag, market_key: String): &mut MarketTokens<T> {
+    bag::borrow_mut(market_tokens, market_key)
   }
 
-  fun borrow_market_data(markets_data: &Table<String, MarketData>, market_key: String): &MarketData {
-    table::borrow(markets_data, market_key)
+  fun borrow_market_data(market_data: &Table<String, MarketData>, market_key: String): &MarketData {
+    table::borrow(market_data, market_key)
   }
 
-  fun borrow_mut_market_data(markets_data: &mut Table<String, MarketData>, market_key: String): &mut MarketData {
-    table::borrow_mut(markets_data, market_key)
+  fun borrow_mut_market_data(market_data: &mut Table<String, MarketData>, market_key: String): &mut MarketData {
+    table::borrow_mut(market_data, market_key)
   }
 
-  fun borrow_account(accounts_storage: &AccountStorage, user: address, market_key: String): &Account {
-    bag::borrow(bag::borrow(&accounts_storage.accounts, market_key), user)
+  fun borrow_account(account_storage: &AccountStorage, user: address, market_key: String): &Account {
+    bag::borrow(bag::borrow(&account_storage.accounts, market_key), user)
   }
 
-  fun borrow_mut_account(accounts_storage: &mut AccountStorage, user: address, market_key: String): &mut Account {
-    bag::borrow_mut(bag::borrow_mut(&mut accounts_storage.accounts, market_key), user)
+  fun borrow_mut_account(account_storage: &mut AccountStorage, user: address, market_key: String): &mut Account {
+    bag::borrow_mut(bag::borrow_mut(&mut account_storage.accounts, market_key), user)
   }
 
   fun borrow_user_markets_in(markets_in: &Table<address, vector<String>>, user: address): &vector<String> {
@@ -450,8 +452,8 @@ module whirpool::itoken {
     table::borrow_mut(markets_in, user)
   }
 
-  fun account_exists(accounts_storage: &AccountStorage, user: address, market_key: String): bool {
-    bag::contains(bag::borrow(&accounts_storage.accounts, market_key), user)
+  fun account_exists(account_storage: &AccountStorage, user: address, market_key: String): bool {
+    bag::contains(bag::borrow(&account_storage.accounts, market_key), user)
   }
 
   fun calculate_borrow_balance_of(account: &Account, borrow_index: u256): u64 {
@@ -470,7 +472,7 @@ module whirpool::itoken {
   ) {
     let market_key = get_coin_info<T>();
 
-    accrue_internal(borrow_mut_market_data(&mut itoken_storage.markets_data, market_key), interest_rate_model_storage, market_key, ctx);
+    accrue_internal(borrow_mut_market_data(&mut itoken_storage.market_data, market_key), interest_rate_model_storage, market_key, ctx);
 
     interest_rate_model::set_interest_rate_data<T>(
       interest_rate_model_storage,
@@ -498,14 +500,14 @@ module whirpool::itoken {
     itoken_storage: &mut ITokenStorage,
     reserve_factor: u64
   ) {
-    let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, get_coin_info<T>());
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, get_coin_info<T>());
     market_data.reserve_factor = reserve_factor;
   }
 
   entry public fun create_market<T>(
     _: &ITokenAdminCap, 
     itoken_storage: &mut ITokenStorage,
-    accounts_storage: &mut AccountStorage, 
+    account_storage: &mut AccountStorage, 
     borrow_cap: u64,
     ltv: u64,
     penalty_fee: u64,
@@ -516,7 +518,7 @@ module whirpool::itoken {
     
     // Add the market data
     table::add(
-      &mut itoken_storage.markets_data, 
+      &mut itoken_storage.market_data, 
       key,
       MarketData {
         id: object::new(ctx),
@@ -544,7 +546,7 @@ module whirpool::itoken {
 
     // Add the market tokens
     bag::add(
-      &mut itoken_storage.markets_tokens, 
+      &mut itoken_storage.market_tokens, 
       key,
       MarketTokens {
         balance: balance::zero<T>(),
@@ -553,19 +555,19 @@ module whirpool::itoken {
 
     // Add bag to store address -> account
     bag::add(
-      &mut accounts_storage.accounts,
+      &mut account_storage.accounts,
       key,
       bag::new(ctx)
     );  
   }
 
   entry public fun pause_market<T>(_: &ITokenAdminCap, itoken_storage: &mut ITokenStorage) {
-    let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, get_coin_info<T>());
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, get_coin_info<T>());
     market_data.is_paused = true;
   }
 
   entry public fun unpause_market<T>(_: &ITokenAdminCap, itoken_storage: &mut ITokenStorage) {
-    let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, get_coin_info<T>());
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, get_coin_info<T>());
     market_data.is_paused = false;
   }
 
@@ -574,7 +576,7 @@ module whirpool::itoken {
     itoken_storage: &mut ITokenStorage,
     borrow_cap: u64
     ) {
-    let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, get_coin_info<T>());
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, get_coin_info<T>());
      
      market_data.borrow_cap = borrow_cap;
   }
@@ -587,7 +589,7 @@ module whirpool::itoken {
     ctx: &mut TxContext
   ) {
     let market_key = get_coin_info<T>();
-    let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, market_key);
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, market_key);
     accrue_internal(market_data, interest_rate_model_storage, market_key, ctx);
 
     market_data.reserve_factor = new_reserve_factor;
@@ -601,15 +603,29 @@ module whirpool::itoken {
     ctx: &mut TxContext
   ) {
     let market_key = get_coin_info<T>();
-    let market_data = borrow_mut_market_data(&mut itoken_storage.markets_data, market_key);
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, market_key);
     accrue_internal(market_data, interest_rate_model_storage, market_key, ctx);
 
     assert!(withdraw_value >= market_data.balance_value, ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW);
     assert!(withdraw_value >= market_data.total_reserves, ERROR_NOT_ENOUGH_RESERVES);
 
     transfer::transfer(
-      coin::take<T>(&mut borrow_mut_market_tokens<T>(&mut itoken_storage.markets_tokens, market_key).balance, withdraw_value, ctx),
+      coin::take<T>(&mut borrow_mut_market_tokens<T>(&mut itoken_storage.market_tokens, market_key).balance, withdraw_value, ctx),
       tx_context::sender(ctx));
+  }
+
+  entry public fun update_ltv<T>(
+    _: &ITokenAdminCap, 
+    itoken_storage: &mut ITokenStorage,
+    interest_rate_model_storage: &InterestRateModelStorage,
+    new_ltv: u64,
+    ctx: &mut TxContext
+  ) {
+    let market_key = get_coin_info<T>();
+    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, market_key);
+    accrue_internal(market_data, interest_rate_model_storage, market_key, ctx);
+
+    market_data.ltv = new_ltv;
   }
 
   // Controller
@@ -628,7 +644,7 @@ module whirpool::itoken {
     user: address, 
     coin_value: u64,
     ctx: &mut TxContext
-    ): bool {
+  ): bool {
     assert!(!market_data.is_paused, ERROR_MARKET_IS_PAUSED);
 
     if (!table::contains(&account_storage.markets_in, user)) return true;
