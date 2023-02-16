@@ -14,7 +14,7 @@ module whirpool::itoken {
 
   use whirpool::dnr::{Self, DNR, DineroStorage};
   use whirpool::interest_rate_model::{Self, InterestRateModelStorage};
-  use whirpool::oracle::{get_price, OracleStorage};
+  use whirpool::oracle::{Self, OracleStorage};
   use whirpool::utils::{get_coin_info};
   use whirpool::math::{fmul, fdiv, fmul_u256, one};
 
@@ -37,6 +37,11 @@ module whirpool::itoken {
   const ERROR_NOT_ENOUGH_RESERVES: u64 = 13;
   const ERROR_CAN_NOT_USE_DNR: u64 = 14;
   const ERROR_DNR_OPERAtiON_NOT_ALLOWED: u64 = 15;
+  const ERROR_USER_IS_SOLVENT: u64 = 16;
+  const ERROR_ACCOUNT_COLLATERAL_DOES_EXIST: u64 = 17;
+  const ERROR_ACCOUNT_LOAN_DOES_EXIST: u64 = 18;
+  const ERROR_ZERO_LIQUIDATION_AMOUNT: u64 = 19;
+  const ERROR_LIQUIDATOR_IS_BORROWER: u64 = 20;
 
   struct ITokenAdminCap has key {
     id: UID
@@ -47,7 +52,6 @@ module whirpool::itoken {
   struct MarketData has key, store {
     id: UID,
     total_reserves: u64,
-    total_reserves_shares: u64,
     total_borrows: u64,
     accrued_epoch: u64,
     borrow_cap: u64,
@@ -210,7 +214,17 @@ module whirpool::itoken {
 
     market_data.balance_value =  market_data.balance_value - underlying_to_redeem;
     // Check should be the last action after all mutations
-    assert!(withdraw_allowed(market_data, account_storage, oracle_storage, interest_rate_model_storage, dinero_storage, market_key, sender, underlying_to_redeem, ctx), ERROR_WITHDRAW_NOT_ALLOWED);
+    assert!(withdraw_allowed(
+      &mut itoken_storage.market_data, 
+      account_storage, oracle_storage, 
+      interest_rate_model_storage, 
+      dinero_storage, 
+      market_key, 
+      sender, 
+      underlying_to_redeem, 
+      ctx), 
+    ERROR_WITHDRAW_NOT_ALLOWED);
+
     underlying_coin
   }
 
@@ -269,7 +283,17 @@ module whirpool::itoken {
 
     let loan_coin = coin::take(&mut market_tokens.balance, borrow_value, ctx);
     // Check should be the last action after all mutations
-    assert!(borrow_allowed(market_data, account_storage, oracle_storage, interest_rate_model_storage, dinero_storage, market_key, sender, borrow_value, ctx), ERROR_BORROW_NOT_ALLOWED);
+    assert!(borrow_allowed(
+      &mut itoken_storage.market_data, 
+      account_storage, 
+      oracle_storage, 
+      interest_rate_model_storage, 
+      dinero_storage, 
+      market_key, 
+      sender, 
+      borrow_value, 
+      ctx), 
+    ERROR_BORROW_NOT_ALLOWED);
 
     loan_coin
   }
@@ -302,7 +326,7 @@ module whirpool::itoken {
     if (asset_value > repay_amount) pay::split_and_transfer(&mut asset, asset_value - repay_amount, sender, ctx);
 
     balance::join(&mut market_tokens.balance, coin::into_balance(asset));
-    market_data.balance_value = market_data.balance_value + asset_value;
+    market_data.balance_value = market_data.balance_value + repay_amount;
 
     account.principal = account.principal - (repay_amount as u256);
     account.borrow_index = market_data.borrow_index;
@@ -370,7 +394,6 @@ module whirpool::itoken {
     ctx: &mut TxContext
   ) {
     let market_key = get_coin_info<T>();
-    let market_data = borrow_mut_market_data(&mut itoken_storage.market_data, market_key);
     let sender = tx_context::sender(ctx);
     let account = borrow_account(account_storage, sender, market_key);
 
@@ -384,7 +407,16 @@ module whirpool::itoken {
     let _ = vector::remove(user_markets_in, index);
    };
 
-    assert!(is_user_solvent(market_data, account_storage, oracle_storage, interest_rate_model_storage, dinero_storage, market_key, sender, 0, 0, ctx), ERROR_USER_IS_INSOLVENT);
+    assert!(is_user_solvent(
+      &mut itoken_storage.market_data, 
+      account_storage, oracle_storage, 
+      interest_rate_model_storage, 
+      dinero_storage, market_key, 
+      sender, 
+      0, 
+      0, 
+      ctx), 
+    ERROR_USER_IS_INSOLVENT);
   }
 
   public fun get_account_balances<T>(
@@ -488,6 +520,11 @@ module whirpool::itoken {
     if (account.principal == 0) { 0 } else { ((account.principal * borrow_index / account.borrow_index ) as u64) }
   }
 
+  fun get_price(oracle_storage: &OracleStorage, key: String): u64 {
+    let (price, decimals) = if (key == get_coin_info<DNR>()) { (one(), 18) } else { oracle::get_price(oracle_storage, key) };
+    (((price as u256) * one()) / (math::pow(10, decimals) as u256) as u64)
+  }
+
   entry public fun set_interest_rate_data<T>(
     _: &ITokenAdminCap,
     itoken_storage: &mut ITokenStorage, 
@@ -552,7 +589,6 @@ module whirpool::itoken {
       MarketData {
         id: object::new(ctx),
         total_reserves: 0,
-        total_reserves_shares: 0,
         total_borrows: 0,
         accrued_epoch: tx_context::epoch(ctx),
         borrow_cap,
@@ -712,7 +748,17 @@ module whirpool::itoken {
     market_data.total_borrows = market_data.total_borrows + borrow_value;
 
     // Check should be the last action after all mutations
-    assert!(borrow_allowed(market_data, account_storage, oracle_storage, interest_rate_model_storage, dinero_storage, market_key, sender, borrow_value, ctx), ERROR_BORROW_NOT_ALLOWED);
+    assert!(borrow_allowed(
+      &mut itoken_storage.market_data, 
+      account_storage, 
+      oracle_storage, 
+      interest_rate_model_storage, 
+      dinero_storage, 
+      market_key, 
+      sender, 
+      borrow_value, 
+      ctx), 
+    ERROR_BORROW_NOT_ALLOWED);
 
     dnr::mint(dinero_storage, borrow_value, ctx)
   }
@@ -747,6 +793,103 @@ module whirpool::itoken {
     dnr::burn(dinero_storage, asset);
   }
 
+  public fun liquidate<C, L>(
+    itoken_storage: &mut ITokenStorage, 
+    account_storage: &mut AccountStorage, 
+    interest_rate_model_storage: &mut InterestRateModelStorage,
+    dinero_storage: &mut DineroStorage,
+    oracle_storage: &OracleStorage,
+    asset: Coin<L>,
+    borrower: address,
+    ctx: &mut TxContext
+  ) {
+    let collateral_market_key = get_coin_info<C>();
+    let loan_market_key = get_coin_info<L>();
+    let dnr_market_key = get_coin_info<DNR>();
+    let liquidator_address = tx_context::sender(ctx);
+
+    let liquidation = table::borrow(&itoken_storage.liquidation, collateral_market_key);
+
+    let penalty_fee = liquidation.penalty_fee;
+    let protocol_fee = liquidation.protocol_percentage;
+
+    assert!(liquidator_address != borrower, ERROR_LIQUIDATOR_IS_BORROWER);
+    assert!(collateral_market_key != dnr_market_key, ERROR_DNR_OPERAtiON_NOT_ALLOWED);
+
+    accrue_internal(borrow_mut_market_data(&mut itoken_storage.market_data, collateral_market_key), interest_rate_model_storage, dinero_storage, collateral_market_key, ctx);
+    accrue_internal(borrow_mut_market_data(&mut itoken_storage.market_data, loan_market_key), interest_rate_model_storage, dinero_storage, loan_market_key, ctx);
+
+    assert!(account_exists(account_storage, borrower, collateral_market_key), ERROR_ACCOUNT_COLLATERAL_DOES_EXIST);
+    assert!(account_exists(account_storage, borrower, loan_market_key), ERROR_ACCOUNT_LOAN_DOES_EXIST);
+
+    if (!account_exists(account_storage, liquidator_address, collateral_market_key)) {
+          bag::add(
+            bag::borrow_mut(&mut account_storage.accounts, collateral_market_key),
+            liquidator_address,
+            Account {
+              id: object::new(ctx),
+              balance_value: 0,
+              borrow_index: 0,
+              principal: 0,
+            }
+          );
+      };
+
+    
+    assert!(!is_user_solvent(
+      &mut itoken_storage.market_data, 
+      account_storage, 
+      oracle_storage, 
+      interest_rate_model_storage, 
+      dinero_storage, 
+      collateral_market_key, 
+      borrower, 
+      0, 
+      0, 
+      ctx), 
+    ERROR_USER_IS_SOLVENT);
+
+    let borrower_loan_account = borrow_mut_account(account_storage, borrower, loan_market_key);
+    let borrower_loan_amount = calculate_borrow_balance_of(borrower_loan_account, borrow_market_data(&itoken_storage.market_data, loan_market_key).borrow_index);
+
+    let asset_value = coin::value(&asset);
+
+    let repay_max_amount = if (asset_value > borrower_loan_amount) { borrower_loan_amount } else { asset_value };
+
+    assert!(repay_max_amount != 0, ERROR_ZERO_LIQUIDATION_AMOUNT);
+
+    if (asset_value > repay_max_amount) pay::split_and_transfer(&mut asset, asset_value - repay_max_amount, liquidator_address, ctx);
+
+    balance::join(&mut borrow_mut_market_tokens<L>(&mut itoken_storage.market_tokens, loan_market_key).balance, coin::into_balance(asset));
+
+    let loan_market_data = borrow_mut_market_data(&mut itoken_storage.market_data, loan_market_key);
+
+    if (dnr_market_key != loan_market_key) loan_market_data.balance_value = loan_market_data.balance_value + repay_max_amount;
+
+    loan_market_data.total_borrows = loan_market_data.total_borrows - repay_max_amount;
+    borrower_loan_account.principal = borrower_loan_account.principal - (repay_max_amount as u256);
+    borrower_loan_account.borrow_index = loan_market_data.borrow_index;
+
+
+    let collateral_price_normalized = get_price(oracle_storage, collateral_market_key);
+    let loan_price_normalized = get_price(oracle_storage, loan_market_key);
+
+    let collateral_seize_amount = fdiv(fmul(loan_price_normalized, repay_max_amount), collateral_price_normalized); 
+    let collateral_seize_amount_with_fee = collateral_seize_amount + fmul(collateral_seize_amount, penalty_fee);
+
+    let protocol_amount = fmul(collateral_seize_amount_with_fee, protocol_fee);
+    let liquidator_amount = collateral_seize_amount_with_fee - protocol_amount;
+
+    let borrower_collateral_account = borrow_mut_account(account_storage, borrower, collateral_market_key);
+    borrower_collateral_account.balance_value = borrower_collateral_account.balance_value - collateral_seize_amount_with_fee;
+
+    let liquidator_collateral_account = borrow_mut_account(account_storage, liquidator_address, collateral_market_key);
+    liquidator_collateral_account.balance_value = liquidator_collateral_account.balance_value + liquidator_amount;
+
+    let collateral_market_data = borrow_mut_market_data(&mut itoken_storage.market_data, collateral_market_key);
+    collateral_market_data.total_reserves = collateral_market_data.total_reserves + protocol_amount;
+  }
+
   // Controller
 
   fun deposit_allowed(market_data: &MarketData): bool {
@@ -755,7 +898,7 @@ module whirpool::itoken {
   }
 
   fun withdraw_allowed(
-    market_data: &mut MarketData, 
+    market_table: &mut Table<String, MarketData>, 
     account_storage: &mut AccountStorage, 
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
@@ -765,7 +908,7 @@ module whirpool::itoken {
     coin_value: u64,
     ctx: &mut TxContext
   ): bool {
-    assert!(!market_data.is_paused, ERROR_MARKET_IS_PAUSED);
+    assert!(!borrow_market_data(market_table, market_key).is_paused, ERROR_MARKET_IS_PAUSED);
 
     if (!table::contains(&account_storage.markets_in, user)) return true;
 
@@ -773,11 +916,11 @@ module whirpool::itoken {
 
     if (!vector::contains(user_markets_in, &market_key)) return true;
 
-    is_user_solvent(market_data, account_storage, oracle_storage, interest_rate_model_storage, dinero_storage, market_key, user, coin_value, 0, ctx)
+    is_user_solvent(market_table, account_storage, oracle_storage, interest_rate_model_storage, dinero_storage, market_key, user, coin_value, 0, ctx)
   }
 
   fun borrow_allowed(
-    market_data: &mut MarketData, 
+    market_table: &mut Table<String, MarketData>, 
     account_storage: &mut AccountStorage, 
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
@@ -787,16 +930,18 @@ module whirpool::itoken {
     coin_value: u64,
     ctx: &mut TxContext
     ): bool {
-    assert!(!market_data.is_paused, ERROR_MARKET_IS_PAUSED);
+      let current_market_data = borrow_market_data(market_table, market_key);
 
-  let user_markets_in = borrow_mut_user_markets_in(&mut account_storage.markets_in, user);
+      assert!(!current_market_data.is_paused, ERROR_MARKET_IS_PAUSED);
 
-   if (!vector::contains(user_markets_in, &market_key)) { 
-      vector::push_back(user_markets_in, market_key);
-    };
+      let user_markets_in = borrow_mut_user_markets_in(&mut account_storage.markets_in, user);
 
-    assert!(market_data.borrow_cap >= market_data.total_borrows, ERROR_BORROW_CAP_LIMIT_REACHED);
-    is_user_solvent(market_data, account_storage, oracle_storage, interest_rate_model_storage, dinero_storage, market_key, user, 0, coin_value, ctx)
+      if (!vector::contains(user_markets_in, &market_key)) { 
+        vector::push_back(user_markets_in, market_key);
+      };
+
+      assert!(current_market_data.borrow_cap >= current_market_data.total_borrows, ERROR_BORROW_CAP_LIMIT_REACHED);
+      is_user_solvent(market_table, account_storage, oracle_storage, interest_rate_model_storage, dinero_storage, market_key, user, 0, coin_value, ctx)
   }
 
   fun repay_allowed(market_data: &MarketData): bool {
@@ -805,7 +950,7 @@ module whirpool::itoken {
   }
 
   fun is_user_solvent(
-    market_data: &mut MarketData, 
+    market_table: &mut Table<String, MarketData>, 
     account_storage: &mut AccountStorage, 
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
@@ -822,7 +967,6 @@ module whirpool::itoken {
     let length = vector::length(user_markets_in);
 
     let markets_in_copy = vector::empty<String>();
-    let dnr_market_key = get_coin_info<DNR>();
 
     let total_collateral_in_usd = 0;
     let total_borrows_in_usd = 0;
@@ -834,14 +978,13 @@ module whirpool::itoken {
       let is_modified_market = key == modified_market_key;
 
       let account = bag::borrow<address, Account>(bag::borrow<String, Bag>(&account_storage.accounts, key), user);
+      let market_data = borrow_mut_market_data(market_table, key);
       let (_collateral_balance, _borrow_balance) = get_account_balances_internal(market_data, account, interest_rate_model_storage, dinero_storage, key, ctx);
 
       let collateral_balance = if (is_modified_market) { _collateral_balance - withdraw_coin_value } else { _collateral_balance };
       let borrow_balance = if (is_modified_market) { _borrow_balance + borrow_coin_value } else { _borrow_balance };
 
-      let (price, decimals) = if (key == dnr_market_key) { (one(), 18) } else { get_price(oracle_storage, key) };
-
-      let price_normalized = (((price as u256) * one()) / (math::pow(10, decimals) as u256) as u64);
+      let price_normalized = get_price(oracle_storage, key);
 
       assert!(price_normalized > 0, ERROR_ZERO_ORACLE_PRICE);
 
