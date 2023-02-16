@@ -77,7 +77,7 @@ module whirpool::itoken {
     id: UID,
     market_data: Table<String, MarketData>,
     liquidation: Table<String, Liquidation>,
-    market_tokens: Bag
+    market_tokens: Bag // get_coin_info -> MarketTokens
   }
 
   struct Account has key, store {
@@ -89,8 +89,8 @@ module whirpool::itoken {
 
   struct AccountStorage has key {
      id: UID,
-     accounts: Bag, // get_coin_info -> address -> Account
-     markets_in: Table<address, vector<String>>  // address -> vector<String> 
+     accounts: Table<String, Table<address, Account>>, // get_coin_info -> address -> Account
+     markets_in: Table<address, vector<String>>  
   }
 
   fun init(ctx: &mut TxContext) {
@@ -113,7 +113,7 @@ module whirpool::itoken {
     transfer::share_object(
       AccountStorage {
         id: object::new(ctx),
-        accounts: bag::new(ctx),
+        accounts: table::new(ctx),
         markets_in: table::new(ctx)
       }
     );
@@ -145,18 +145,7 @@ module whirpool::itoken {
 
       let sender = tx_context::sender(ctx);
 
-      if (!account_exists(account_storage, sender, market_key)) {
-          bag::add(
-            bag::borrow_mut(&mut account_storage.accounts, market_key),
-            sender,
-            Account {
-              id: object::new(ctx),
-              balance_value: 0,
-              borrow_index: 0,
-              principal: 0,
-            }
-          );
-      };
+      init_account(account_storage, sender, market_key, ctx);
 
       accrue_internal(market_data, interest_rate_model_storage, dinero_storage, market_key, ctx);
 
@@ -250,26 +239,9 @@ module whirpool::itoken {
 
     let sender = tx_context::sender(ctx);
 
-    if (!account_exists(account_storage, sender, market_key)) {
-          bag::add(
-            bag::borrow_mut(&mut account_storage.accounts, market_key),
-            sender,
-            Account {
-              id: object::new(ctx),
-              balance_value: 0,
-              borrow_index: 0,
-              principal: 0,
-            }
-          );
-    };
+    init_account(account_storage, sender, market_key, ctx);
 
-   if (!table::contains(&account_storage.markets_in, sender)) {
-      table::add(
-       &mut account_storage.markets_in,
-       sender,
-       vector::empty<String>()
-      );
-    };
+    init_markets_in(account_storage, sender);
 
     let account = borrow_mut_account(account_storage, sender, market_key);
 
@@ -368,13 +340,8 @@ module whirpool::itoken {
 
   public fun enter_market<T>(account_storage: &mut AccountStorage, ctx: &mut TxContext) {
     let sender = tx_context::sender(ctx);
-    if (!table::contains(&account_storage.markets_in, sender)) {
-      table::add(
-       &mut account_storage.markets_in,
-       sender,
-       vector::empty<String>()
-      );
-    };
+
+    init_markets_in(account_storage, sender);
 
    let user_markets_in = borrow_mut_user_markets_in(&mut account_storage.markets_in, sender);
 
@@ -497,11 +464,11 @@ module whirpool::itoken {
   }
 
   fun borrow_account(account_storage: &AccountStorage, user: address, market_key: String): &Account {
-    bag::borrow(bag::borrow(&account_storage.accounts, market_key), user)
+    table::borrow(table::borrow(&account_storage.accounts, market_key), user)
   }
 
   fun borrow_mut_account(account_storage: &mut AccountStorage, user: address, market_key: String): &mut Account {
-    bag::borrow_mut(bag::borrow_mut(&mut account_storage.accounts, market_key), user)
+    table::borrow_mut(table::borrow_mut(&mut account_storage.accounts, market_key), user)
   }
 
   fun borrow_user_markets_in(markets_in: &Table<address, vector<String>>, user: address): &vector<String> {
@@ -513,7 +480,32 @@ module whirpool::itoken {
   }
 
   fun account_exists(account_storage: &AccountStorage, user: address, market_key: String): bool {
-    bag::contains(bag::borrow(&account_storage.accounts, market_key), user)
+    table::contains(table::borrow(&account_storage.accounts, market_key), user)
+  }
+
+  fun init_account(account_storage: &mut AccountStorage, user: address, key: String, ctx: &mut TxContext) {
+    if (!account_exists(account_storage, user, key)) {
+          table::add(
+            table::borrow_mut(&mut account_storage.accounts, key),
+            user,
+            Account {
+              id: object::new(ctx),
+              balance_value: 0,
+              borrow_index: 0,
+              principal: 0,
+            }
+        );
+    };
+  }
+
+  fun init_markets_in(account_storage: &mut AccountStorage, user: address) {
+    if (!table::contains(&account_storage.markets_in, user)) {
+      table::add(
+       &mut account_storage.markets_in,
+       user,
+       vector::empty<String>()
+      );
+    };
   }
 
   fun calculate_borrow_balance_of(account: &Account, borrow_index: u256): u64 {
@@ -619,10 +611,10 @@ module whirpool::itoken {
     });  
 
     // Add bag to store address -> account
-    bag::add(
+    table::add(
       &mut account_storage.accounts,
       key,
-      bag::new(ctx)
+      table::new(ctx)
     );  
   }
 
@@ -718,26 +710,9 @@ module whirpool::itoken {
 
     let sender = tx_context::sender(ctx);
 
-    if (!account_exists(account_storage, sender, market_key)) {
-          bag::add(
-            bag::borrow_mut(&mut account_storage.accounts, market_key),
-            sender,
-            Account {
-              id: object::new(ctx),
-              balance_value: 0,
-              borrow_index: 0,
-              principal: 0,
-            }
-          );
-    };
+    init_account(account_storage, sender, market_key, ctx);
 
-   if (!table::contains(&account_storage.markets_in, sender)) {
-      table::add(
-       &mut account_storage.markets_in,
-       sender,
-       vector::empty<String>()
-      );
-    };
+    init_markets_in(account_storage, sender);
 
     let account = borrow_mut_account(account_storage, sender, market_key);
 
@@ -822,19 +797,7 @@ module whirpool::itoken {
     assert!(account_exists(account_storage, borrower, collateral_market_key), ERROR_ACCOUNT_COLLATERAL_DOES_EXIST);
     assert!(account_exists(account_storage, borrower, loan_market_key), ERROR_ACCOUNT_LOAN_DOES_EXIST);
 
-    if (!account_exists(account_storage, liquidator_address, collateral_market_key)) {
-          bag::add(
-            bag::borrow_mut(&mut account_storage.accounts, collateral_market_key),
-            liquidator_address,
-            Account {
-              id: object::new(ctx),
-              balance_value: 0,
-              borrow_index: 0,
-              principal: 0,
-            }
-          );
-      };
-
+    init_account(account_storage, liquidator_address, collateral_market_key, ctx);
     
     assert!(!is_user_solvent(
       &mut itoken_storage.market_data, 
@@ -977,7 +940,7 @@ module whirpool::itoken {
 
       let is_modified_market = key == modified_market_key;
 
-      let account = bag::borrow<address, Account>(bag::borrow<String, Bag>(&account_storage.accounts, key), user);
+      let account = table::borrow(table::borrow(&account_storage.accounts, key), user);
       let market_data = borrow_mut_market_data(market_table, key);
       let (_collateral_balance, _borrow_balance) = get_account_balances_internal(market_data, account, interest_rate_model_storage, dinero_storage, key, ctx);
 
