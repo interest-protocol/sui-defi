@@ -64,7 +64,7 @@ module whirpool::dnr {
     balance::decrease_supply(&mut storage.supply, coin::into_balance(coin_dnr))
   }
 
-  entry public(friend) fun update_interest_rate(storage: &mut DineroStorage, new_interest_rate: u64) {
+  entry public(friend) fun update_interest_rate_per_epoch(storage: &mut DineroStorage, new_interest_rate: u64) {
     assert!(MAX_INTEREST_RATE_PER_EPOCH >= new_interest_rate, ERROR_INTEREST_RATE_TOO_HIGH);
     event::emit(
       Update_Interest_Rate {
@@ -75,7 +75,7 @@ module whirpool::dnr {
     storage.interest_rate_per_epoch = new_interest_rate;
   }
 
-  public fun get_interest_rate(storage: &DineroStorage): u64 {
+  public fun get_interest_rate_per_epoch(storage: &DineroStorage): u64 {
     storage.interest_rate_per_epoch
   }
 }
