@@ -1,4 +1,4 @@
-module whirpool::oracle {
+module interest_protocol::oracle {
   use std::ascii::{String}; 
 
   use sui::tx_context::{Self, TxContext};
@@ -6,7 +6,7 @@ module whirpool::oracle {
   use sui::object::{Self, UID};
   use sui::table::{Self, Table};
 
-  use whirpool::utils::{get_coin_info};
+  use interest_protocol::utils::{get_coin_info};
 
   struct OracleAdminCap has key {
     id: UID,

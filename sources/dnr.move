@@ -1,5 +1,5 @@
-module whirpool::dnr {
-   use std::option;
+module interest_protocol::dnr {
+  use std::option;
 
   use sui::object::{Self, UID};
   use sui::tx_context::{TxContext};
@@ -9,7 +9,7 @@ module whirpool::dnr {
   use sui::url;
   use sui::event;
 
-  friend whirpool::itoken;
+  friend interest_protocol::whirpool;
 
   const INITIAL_INTEREST_RATE_PER_EPOCH: u64 = 5707762557078; // 2% a year
   const MAX_INTEREST_RATE_PER_EPOCH: u64 = 28538812785390; // 10% a year

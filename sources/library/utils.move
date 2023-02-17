@@ -1,4 +1,4 @@
-module whirpool::utils {
+module interest_protocol::utils {
     
     use std::type_name::{Self};
     use std::ascii::{String};

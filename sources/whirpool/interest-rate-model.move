@@ -1,4 +1,4 @@
-module whirpool::interest_rate_model {
+module interest_protocol::interest_rate_model {
 
   use std::ascii::{String}; 
 
@@ -8,10 +8,10 @@ module whirpool::interest_rate_model {
   use sui::table::{Self, Table};
   use sui::event;
 
-  use whirpool::math::{fmul, fdiv, one};
-  use whirpool::utils::{get_coin_info};
+  use interest_protocol::math::{fmul, fdiv, one};
+  use interest_protocol::utils::{get_coin_info};
 
-  friend whirpool::itoken;
+  friend interest_protocol::whirpool;
 
   // TODO: need to update to timestamps whenever they are implemented in the devnet
   const EPOCHS_PER_YEAR: u64 = 3504; // 24 / 2.5 * 365

@@ -1,4 +1,4 @@
-module whirpool::math {
+module interest_protocol::math {
 
   const SCALAR: u256 = 1000000000;
 
