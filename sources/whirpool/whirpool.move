@@ -38,7 +38,7 @@ module interest_protocol::whirpool {
   const ERROR_USER_IS_INSOLVENT: u64 = 12;
   const ERROR_NOT_ENOUGH_RESERVES: u64 = 13;
   const ERROR_CAN_NOT_USE_DNR: u64 = 14;
-  const ERROR_DNR_OPERAtiON_NOT_ALLOWED: u64 = 15;
+  const ERROR_DNR_OPERATION_NOT_ALLOWED: u64 = 15;
   const ERROR_USER_IS_SOLVENT: u64 = 16;
   const ERROR_ACCOUNT_COLLATERAL_DOES_EXIST: u64 = 17;
   const ERROR_ACCOUNT_LOAN_DOES_EXIST: u64 = 18;
@@ -140,9 +140,9 @@ module interest_protocol::whirpool {
     ctx: &TxContext
   ) {
     // Save storage information before mutation
-    let market_key = get_coin_info<T>();
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
-    let total_allocation_points = whirpool_storage.total_allocation_points;
+    let market_key = get_coin_info<T>(); // Key of the current market being updated
+    let ipx_per_epoch = whirpool_storage.ipx_per_epoch; // IPX mint amount per epoch
+    let total_allocation_points = whirpool_storage.total_allocation_points; // Total allocation points
 
     accrue_internal(
       borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key), 
@@ -155,27 +155,45 @@ module interest_protocol::whirpool {
     );
   }
 
+  /**
+  * @notice It allows a user to deposit Coin<T> in a market as collateral. Other users can borrow this coin for a fee. User can use this collateral to borrow coins from other markets. 
+  * @param whirpool_storage The shared storage object of ipx::whirpool 
+  * @param account_storage The shared account storage object of ipx::whirpool 
+  * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
+  * @param ipx_storage The shared object of the module ipx::ipx 
+  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param asset The Coin<T> the user is depositing
+  * @return Coin<IPX> It will mint IPX rewards to the user.
+  */
   public fun deposit<T>(
     whirpool_storage: &mut WhirpoolStorage, 
     account_storage: &mut AccountStorage,
-    ipx_storage: &mut IPXStorage, 
     interest_rate_model_storage: &InterestRateModelStorage,
+    ipx_storage: &mut IPXStorage, 
     dinero_storage: &DineroStorage,
     asset: Coin<T>,
     ctx: &mut TxContext
   ): Coin<IPX> {
+      // Get the type name of the Coin<T> of this market.
       let market_key = get_coin_info<T>();
-      assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERAtiON_NOT_ALLOWED);
+      // User cannot use DNR as collateral
+      assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+
+      // Reward information in memory
       let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
       let total_allocation_points = whirpool_storage.total_allocation_points;
-
+      
+      // Get market core information
       let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
-      let market_tokens = borrow_mut_market_tokens<T>(&mut whirpool_storage.market_balance_bag, market_key);
+      let market_balance = borrow_mut_market_balance<T>(&mut whirpool_storage.market_balance_bag, market_key);
 
+      // Save the sender address in memory
       let sender = tx_context::sender(ctx);
 
+      // We need to register his account on the first deposit call, if it does not exist.
       init_account(account_storage, sender, market_key, ctx);
 
+      // We need to update the market loan and rewards before accepting a deposit
       accrue_internal(
         market_data, 
         interest_rate_model_storage, 
@@ -186,30 +204,42 @@ module interest_protocol::whirpool {
         ctx
       );
 
+      // Declare the pending rewards variable that will save the value of Coin<IPX> to mint.
       let pending_rewards = 0;
 
+      // Get the caller Account to update
       let account = borrow_mut_account(account_storage, sender, market_key);
 
+      // If the sender has shares already, we need to calculate his rewards before this deposit.
       if (account.shares > 0) 
+        // Math: we need to remove the decimals of shares during fixed point multiplication to maintain IPX decimal houses
         pending_rewards = (
           (account.shares as u256) * 
           market_data.accrued_collateral_rewards_per_share / 
           (market_data.decimals_factor as u256)) - 
           account.collateral_rewards_paid;
-
+      
+      // Save the value of the coin being deposited in memory
       let asset_value = coin::value(&asset);
 
+      // Update the collateral rebase. 
+      // We round down to give the edge to the protocol
       let shares = rebase::add_elastic(&mut market_data.collateral_rebase, asset_value, false);
 
-      balance::join(&mut market_tokens.balance, coin::into_balance(asset));
+      // Deposit the Coin<T> in the market
+      balance::join(&mut market_balance.balance, coin::into_balance(asset));
+      // Update the amount of cash in the market
       market_data.balance_value = market_data.balance_value + asset_value;
 
+      // Assign the additional shares to the sender
       account.shares = account.shares + shares;
-      account.collateral_rewards_paid = (account.shares as u256) * market_data.accrued_collateral_rewards_per_share;
+      // Consider all rewards earned by the sender paid
+      account.collateral_rewards_paid = (account.shares as u256) * market_data.accrued_collateral_rewards_per_share / (market_data.decimals_factor as u256);
 
-      // Check should be the last action after all mutations
+      // Check hook after all mutations
       assert!(deposit_allowed(market_data), ERROR_DEPOSIT_NOT_ALLOWED);
-      ipx::mint(ipx_storage, (pending_rewards as u64), ctx)
+      // Mint Coin<IPX> to the user.
+      mint_ipx(ipx_storage, (pending_rewards as u64), ctx)
   }   
 
   public fun withdraw<T>(
@@ -558,11 +588,11 @@ module interest_protocol::whirpool {
       tx_context::epoch(ctx) - market.accrued_epoch
   }
 
-  fun borrow_market_tokens<T>(market_tokens: &Bag, market_key: String): &MarketBalance<T> {
+  fun borrow_market_balance<T>(market_tokens: &Bag, market_key: String): &MarketBalance<T> {
     bag::borrow(market_tokens, market_key)
   }
 
-  fun borrow_mut_market_tokens<T>(market_tokens: &mut Bag, market_key: String): &mut MarketBalance<T> {
+  fun borrow_mut_market_balance<T>(market_tokens: &mut Bag, market_key: String): &mut MarketBalance<T> {
     bag::borrow_mut(market_tokens, market_key)
   }
 
@@ -618,6 +648,10 @@ module interest_protocol::whirpool {
        vector::empty<String>()
       );
     };
+  }
+
+  fun mint_ipx(ipx_storage: &mut IPXStorage, value: u64, ctx: &mut TxContext): Coin<IPX> {
+    if (value == 0) { coin::zero<IPX>(ctx) } else { ipx::mint(ipx_storage, value, ctx) }
   }
 
   fun calculate_borrow_balance_of(account: &Account, borrow_index: u256): u64 {
