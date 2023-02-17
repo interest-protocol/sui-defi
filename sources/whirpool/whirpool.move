@@ -44,6 +44,8 @@ module interest_protocol::whirpool {
   const ERROR_ACCOUNT_LOAN_DOES_EXIST: u64 = 18;
   const ERROR_ZERO_LIQUIDATION_AMOUNT: u64 = 19;
   const ERROR_LIQUIDATOR_IS_BORROWER: u64 = 20;
+  const ERROR_MAX_COLLATERAL_REACHED: u64 = 21;
+  const ERROR_NOT_ENOUGH_SHARES_IN_THE_ACCOUNT: u64 = 22;
 
   struct ITokenAdminCap has key {
     id: UID
@@ -54,6 +56,7 @@ module interest_protocol::whirpool {
     total_reserves: u64,
     accrued_epoch: u64,
     borrow_cap: u64,
+    collateral_cap: u64,
     balance_value: u64, // cash
     is_paused: bool,
     ltv: u64,
@@ -164,6 +167,9 @@ module interest_protocol::whirpool {
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
   * @param asset The Coin<T> the user is depositing
   * @return Coin<IPX> It will mint IPX rewards to the user.
+  * Requirements: 
+  * - The market is not paused
+  * - The collateral cap has not been reached
   */
   public fun deposit<T>(
     whirpool_storage: &mut WhirpoolStorage, 
@@ -239,52 +245,89 @@ module interest_protocol::whirpool {
       // Check hook after all mutations
       assert!(deposit_allowed(market_data), ERROR_DEPOSIT_NOT_ALLOWED);
       // Mint Coin<IPX> to the user.
-      mint_ipx(ipx_storage, (pending_rewards as u64), ctx)
-  }   
+      mint_ipx(ipx_storage, pending_rewards, ctx)
+  }  
 
+  /**
+  * @notice It allows a user to withdraw his shares of Coin<T>.  
+  * @param whirpool_storage The shared storage object of ipx::whirpool 
+  * @param account_storage The shared account storage object of ipx::whirpool 
+  * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
+  * @param ipx_storage The shared object of the module ipx::ipx 
+  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param oracle_storage The shared object of the module ipx::oracle
+  * @param shares_to_remove The number of shares the user wishes to remove
+  * @return (Coin<T>, Coin<IPX>)
+  * Requirements: 
+  * - Market is not paused 
+  * - User is solvent after withdrawing Coin<T> collateral
+  */
   public fun withdraw<T>(
     whirpool_storage: &mut WhirpoolStorage, 
-    account_storage: &mut AccountStorage, 
+    account_storage: &mut AccountStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
+    ipx_storage: &mut IPXStorage, 
     dinero_storage: &DineroStorage,
     oracle_storage: &OracleStorage,
     shares_to_remove: u64,
     ctx: &mut TxContext
-  ): Coin<T> {
+  ): (Coin<T>, Coin<IPX>) {
+    // Get the type name of the Coin<T> of this market.
     let market_key = get_coin_info<T>();
-    assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERAtiON_NOT_ALLOWED);
+    // User cannot use DNR as collateral
+    assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
 
+    // Reward information in memory
     let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
     let total_allocation_points = whirpool_storage.total_allocation_points;
-
+      
+    // Get market core information
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
-    let market_tokens = borrow_mut_market_tokens<T>(&mut whirpool_storage.market_balance_bag, market_key);
+    let market_balance = borrow_mut_market_balance<T>(&mut whirpool_storage.market_balance_bag, market_key);
 
+    // Update the market rewards & loans before any mutations
     accrue_internal(
-        market_data, 
-        interest_rate_model_storage, 
-        dinero_storage, 
-        market_key, 
-        ipx_per_epoch,
-        total_allocation_points,
-        ctx
-     );
+      market_data, 
+      interest_rate_model_storage, 
+      dinero_storage, 
+      market_key, 
+      ipx_per_epoch,
+      total_allocation_points,
+      ctx
+    );
 
-    let underlying_to_redeem = fmul(shares_to_remove, get_current_exchange_rate(market_data));
-
+    // Save the sender info in memory
     let sender = tx_context::sender(ctx);
 
+    // Get the sender account struct
+    let account = borrow_mut_account(account_storage, sender, market_key);
+    // No point to proceed if the sender does not have any shares to withdraw.
+    assert!(account.shares >= shares_to_remove, ERROR_NOT_ENOUGH_SHARES_IN_THE_ACCOUNT);
+    
+    // Math: we need to remove the decimals of shares during fixed point multiplication to maintain IPX decimal houses
+    let pending_rewards = ((account.shares as u256) * 
+          market_data.accrued_collateral_rewards_per_share / 
+          (market_data.decimals_factor as u256)) - 
+          account.collateral_rewards_paid;
+    
+    // Update the base and elastic of the collateral rebase
+    // Round down to give the edge to the protocol
+    let underlying_to_redeem = rebase::sub_base(&mut market_data.collateral_rebase, shares_to_remove, false);
+
+    // Market must have enough cash or there is no point to proceed
     assert!(market_data.balance_value >= underlying_to_redeem , ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW);
 
-    market_data.supply_value = market_data.supply_value - shares_to_remove; 
+    // Reduce the amount of cash in the market
+    market_data.balance_value = market_data.balance_value - underlying_to_redeem;
 
-    let account = borrow_mut_account(account_storage, sender, market_key);
+    // Remove the shares from the sender
+    account.shares = account.shares - shares_to_remove;
+    // Consider all rewards earned by the sender paid
+    account.collateral_rewards_paid = (account.shares as u256) * market_data.accrued_collateral_rewards_per_share / (market_data.decimals_factor as u256);
 
-    account.balance_value = account.balance_value - underlying_to_redeem; 
+    // Remove Coin<T> from the market
+    let underlying_coin = coin::take(&mut market_balance.balance, underlying_to_redeem, ctx);
 
-    let underlying_coin = coin::take(&mut market_tokens.balance, underlying_to_redeem, ctx);
-
-    market_data.balance_value =  market_data.balance_value - underlying_to_redeem;
     // Check should be the last action after all mutations
     assert!(withdraw_allowed(
       &mut whirpool_storage.market_data_table, 
@@ -300,57 +343,97 @@ module interest_protocol::whirpool {
      ), 
     ERROR_WITHDRAW_NOT_ALLOWED);
 
-    underlying_coin
+    // Return Coin<T> and Coin<IPX> to the sender
+    (underlying_coin, mint_ipx(ipx_storage, pending_rewards, ctx))
   }
 
+  /**
+  * @notice It allows a user to borrow Coin<T>.  
+  * @param whirpool_storage The shared storage object of ipx::whirpool 
+  * @param account_storage The shared account storage object of ipx::whirpool 
+  * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
+  * @param ipx_storage The shared object of the module ipx::ipx 
+  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param oracle_storage The shared object of the module ipx::oracle 
+  * @param borrow_value The value of Coin<T> the user wishes to borrow
+  * @return (Coin<T>, Coin<IPX>)
+  * Requirements: 
+  * - Market is not paused 
+  * - User is solvent after borrowing Coin<T> collateral
+  * - Market borrow cap has not been reached
+  */
   public fun borrow<T>(
     whirpool_storage: &mut WhirpoolStorage, 
-    account_storage: &mut AccountStorage, 
+    account_storage: &mut AccountStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
+    ipx_storage: &mut IPXStorage, 
     dinero_storage: &DineroStorage,
     oracle_storage: &OracleStorage,
     borrow_value: u64,
     ctx: &mut TxContext
-  ): Coin<T> {
+  ): (Coin<T>, Coin<IPX>) {
+    // Get the type name of the Coin<T> of this market.
     let market_key = get_coin_info<T>();
+    // User cannot use DNR as collateral
+    assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
 
-    assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERAtiON_NOT_ALLOWED);
-
+    // Reward information in memory
     let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
     let total_allocation_points = whirpool_storage.total_allocation_points;
-
+      
+    // Get market core information
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
-    let market_tokens = borrow_mut_market_tokens<T>(&mut whirpool_storage.market_balance_bag, market_key);
+    let market_balance = borrow_mut_market_balance<T>(&mut whirpool_storage.market_balance_bag, market_key);
 
-    accrue_internal(
-        market_data, 
-        interest_rate_model_storage, 
-        dinero_storage, 
-        market_key, 
-        ipx_per_epoch,
-        total_allocation_points,
-        ctx
-     );
-
+    // There is no point to proceed if the market does not have enough cash
     assert!(market_data.balance_value >= borrow_value, ERROR_NOT_ENOUGH_CASH_TO_LEND);
 
+    // Update the market rewards & loans before any mutations
+    accrue_internal(
+      market_data, 
+      interest_rate_model_storage, 
+      dinero_storage, 
+      market_key, 
+      ipx_per_epoch,
+      total_allocation_points,
+      ctx
+    );
+
+    // Save the sender address in memory
     let sender = tx_context::sender(ctx);
 
+    // Init the acount if the user never borrowed or deposited in this market
     init_account(account_storage, sender, market_key, ctx);
 
+    // Register market in vector if the user never entered any market before
     init_markets_in(account_storage, sender);
 
+    // Get the user account
     let account = borrow_mut_account(account_storage, sender, market_key);
 
-    let new_borrow_balance = calculate_borrow_balance_of(account, market_data.borrow_index) + borrow_value;
+    let pending_rewards = 0;
+    // If the sender has a loan already, we need to calculate his rewards before this loan.
+    if (account.principal > 0) 
+      // Math: we need to remove the decimals of shares during fixed point multiplication to maintain IPX decimal houses
+      pending_rewards = (
+        (account.principal as u256) * 
+        market_data.accrued_loan_rewards_per_share / 
+        (market_data.decimals_factor as u256)) - 
+        account.loan_rewards_paid;
 
-    account.principal = (new_borrow_balance as u256);
-    account.borrow_index = market_data.borrow_index;
-    market_data.total_borrows = market_data.total_borrows + borrow_value;
+    // Update the loan rebase with the new loan
+    let borrow_principal = rebase::add_elastic(&mut market_data.loan_rebase, borrow_value, true);
 
+    // Update the principal owed by the sender
+    account.principal = account.principal + borrow_principal; 
+    // Consider all rewards paid
+    account.loan_rewards_paid = (account.principal as u256) * market_data.accrued_loan_rewards_per_share / (market_data.decimals_factor as u256);
+    // Reduce the cash of the market
     market_data.balance_value = market_data.balance_value - borrow_value;
 
-    let loan_coin = coin::take(&mut market_tokens.balance, borrow_value, ctx);
+    // Remove Coin<T> from the market
+    let loan_coin = coin::take(&mut market_balance.balance, borrow_value, ctx);
+
     // Check should be the last action after all mutations
     assert!(borrow_allowed(
       &mut whirpool_storage.market_data_table, 
@@ -365,8 +448,8 @@ module interest_protocol::whirpool {
       borrow_value, 
       ctx), 
     ERROR_BORROW_NOT_ALLOWED);
-
-    loan_coin
+    
+    (loan_coin, mint_ipx(ipx_storage, pending_rewards, ctx))
   }
 
   public fun repay<T>(
@@ -650,8 +733,8 @@ module interest_protocol::whirpool {
     };
   }
 
-  fun mint_ipx(ipx_storage: &mut IPXStorage, value: u64, ctx: &mut TxContext): Coin<IPX> {
-    if (value == 0) { coin::zero<IPX>(ctx) } else { ipx::mint(ipx_storage, value, ctx) }
+  fun mint_ipx(ipx_storage: &mut IPXStorage, value: u256, ctx: &mut TxContext): Coin<IPX> {
+    if (value == 0) { coin::zero<IPX>(ctx) } else { ipx::mint(ipx_storage, (value as u64), ctx) }
   }
 
   fun calculate_borrow_balance_of(account: &Account, borrow_index: u256): u64 {
@@ -1097,6 +1180,8 @@ module interest_protocol::whirpool {
 
   fun deposit_allowed(market_data: &MarketData): bool {
     assert!(!market_data.is_paused, ERROR_MARKET_IS_PAUSED);
+    let (_, total_collateral) = rebase::values(&market_data.collateral_rebase);
+    assert!(market_data.collateral_cap >= total_collateral, ERROR_MAX_COLLATERAL_REACHED);
     true
   }
 

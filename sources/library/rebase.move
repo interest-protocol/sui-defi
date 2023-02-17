@@ -6,10 +6,10 @@ module interest_protocol::rebase {
    }
 
    public fun new(): Rebase {
-        Rebase {
-            base: 0,
-            elastic: 0
-        }
+    Rebase {
+      base: 0,
+      elastic: 0
+    }
    }
 
    public fun values(rebase: &Rebase): (u64, u64) {
@@ -32,11 +32,11 @@ module interest_protocol::rebase {
     }
    }
 
-   public fun sub_base(rebase: &mut Rebase, base: u64, round_up: bool): (u64, u64) {
+   public fun sub_base(rebase: &mut Rebase, base: u64, round_up: bool): u64 {
      let elastic = to_elastic(rebase, base, round_up);
      rebase.elastic = rebase.elastic - (elastic as u128);
      rebase.base = rebase.base - (base as u128);
-     values(rebase)
+     elastic
    }
 
    public fun add_elastic(rebase: &mut Rebase, elastic: u64, round_up: bool): u64 {
