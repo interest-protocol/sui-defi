@@ -1043,7 +1043,6 @@ module interest_protocol::whirpool {
     assert!(TWENTY_FIVE_PER_CENT >= protocol_percentage, ERROR_VALUE_TOO_HIGH);
 
     let key = get_coin_info<T>();
-    let id = table::length(&whirpool_storage.market_data_table);
 
     // We need this to loop through all the markets
     vector::push_back(&mut whirpool_storage.all_markets_keys, key);
@@ -1424,7 +1423,6 @@ module interest_protocol::whirpool {
       
     // Get market core information
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
-    let market_balance = borrow_mut_market_balance<DNR>(&mut whirpool_storage.market_balance_bag, market_key);
 
     // Update the market rewards & loans before any mutations
     accrue_internal(
@@ -1508,7 +1506,6 @@ module interest_protocol::whirpool {
     interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage, 
     dinero_storage: &mut DineroStorage,
-    oracle_storage: &OracleStorage,
     asset: Coin<DNR>,
     principal_to_repay: u64,
     ctx: &mut TxContext 
@@ -1522,7 +1519,6 @@ module interest_protocol::whirpool {
       
     // Get market core information
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
-    let market_balance = borrow_mut_market_balance<DNR>(&mut whirpool_storage.market_balance_bag, market_key);
 
     // Update the market rewards & loans before any mutations
     accrue_internal(
@@ -1697,7 +1693,7 @@ module interest_protocol::whirpool {
     let base_repay = rebase::to_base(&loan_market_data.loan_rebase, repay_max_amount, true);
 
     // We need to send the user his loan rewards before the liquidation
-    let pending_rewards = (
+    let pending_rewards =  (
         (borrower_loan_account.principal as u256) * 
         loan_market_data.accrued_loan_rewards_per_share / 
         (loan_market_data.decimals_factor as u256)) - 
@@ -1729,7 +1725,7 @@ module interest_protocol::whirpool {
 
     // We need to add the collateral rewards to the user.
     // Math: we need to remove the decimals of shares during fixed point multiplication to maintain IPX decimal houses
-    pending_rewards = ((borrower_collateral_account.shares as u256) * 
+    pending_rewards = pending_rewards + ((borrower_collateral_account.shares as u256) * 
           collateral_market_data.accrued_collateral_rewards_per_share / 
           (collateral_market_data.decimals_factor as u256)) - 
           borrower_collateral_account.collateral_rewards_paid;
@@ -1907,7 +1903,7 @@ module interest_protocol::whirpool {
 
     // We need to add the collateral rewards to the user.
     // Math: we need to remove the decimals of shares during fixed point multiplication to maintain IPX decimal houses
-    pending_rewards = ((borrower_collateral_account.shares as u256) * 
+    pending_rewards = pending_rewards + ((borrower_collateral_account.shares as u256) * 
           collateral_market_data.accrued_collateral_rewards_per_share / 
           (collateral_market_data.decimals_factor as u256)) - 
           borrower_collateral_account.collateral_rewards_paid;
