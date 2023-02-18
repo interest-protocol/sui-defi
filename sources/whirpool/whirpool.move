@@ -47,6 +47,7 @@ module interest_protocol::whirpool {
   const ERROR_MAX_COLLATERAL_REACHED: u64 = 21;
   const ERROR_NOT_ENOUGH_SHARES_IN_THE_ACCOUNT: u64 = 22;
   const ERROR_VALUE_TOO_HIGH: u64 = 23;
+  const ERROR_NO_ADDRESS_ZERO: u64 = 24;
 
   struct WhirpoolAdminCap has key {
     id: UID
@@ -71,10 +72,12 @@ module interest_protocol::whirpool {
   }
 
   struct MarketBalance<phantom T> has key, store {
+    id: UID,
     balance: Balance<T>
   }
 
   struct Liquidation has key, store {
+    id: UID,
     penalty_fee: u64,
     protocol_percentage: u64
   }
@@ -524,7 +527,7 @@ module interest_protocol::whirpool {
 
     // Ensure that the user is not overpaying his loan. This is important because interest rate keeps accrueing every second.
     // Users will usually send more Coin<T> then needed
-    let safe_asset_principal = if (asset_principal > account.principal) { account.principal } else { asset_principal };
+    let safe_asset_principal = if (asset_principal > account.principal) { math::min(account.principal, principal_to_repay) } else { math::min(asset_principal, principal_to_repay) };
 
     // Convert the safe principal to Coin<T> value so we can send any extra back to the user
     let repay_amount = rebase::to_elastic(&market_data.loan_rebase, safe_asset_principal, true);
@@ -1074,6 +1077,7 @@ module interest_protocol::whirpool {
       &mut whirpool_storage.liquidation_table,
       key,
       Liquidation {
+        id: object::new(ctx),
         penalty_fee,
         protocol_percentage
       }
@@ -1084,6 +1088,7 @@ module interest_protocol::whirpool {
       &mut whirpool_storage.market_balance_bag, 
       key,
       MarketBalance {
+        id: object::new(ctx),
         balance: balance::zero<T>()
       });  
 
@@ -1378,11 +1383,14 @@ module interest_protocol::whirpool {
   * @notice It allows the admin to transfer the rights to a new admin
   * @param whirpool_admin_cap The WhirpoolAdminCap
   * @param new_admin The address f the new admin
+  * Requirements: 
+  * - The new_admin cannot be the address zero.
   */
   entry fun transfer_admin_cap(
     whirpool_admin_cap: WhirpoolAdminCap, 
     new_admin: address
   ) {
+    assert!(new_admin != @0x0, ERROR_NO_ADDRESS_ZERO);
     transfer::transfer(whirpool_admin_cap, new_admin);
   }
 
@@ -1553,7 +1561,7 @@ module interest_protocol::whirpool {
 
     // Ensure that the user is not overpaying his loan. This is important because interest rate keeps accrueing every second.
     // Users will usually send more Coin<T> then needed
-    let safe_asset_principal = if (asset_principal > account.principal) { account.principal } else { asset_principal };
+    let safe_asset_principal = if (asset_principal > account.principal) { math::min(principal_to_repay, account.principal )} else { math::min(asset_principal, principal_to_repay) };
 
     // Convert the safe principal to Coin<T> value so we can send any extra back to the user
     let repay_amount = rebase::to_elastic(&market_data.loan_rebase, safe_asset_principal, true);
@@ -1569,6 +1577,124 @@ module interest_protocol::whirpool {
 
     assert!(repay_allowed(market_data), ERROR_REPAY_NOT_ALLOWED);
     mint_ipx(ipx_storage, pending_rewards, ctx)
+  }
+
+   /**
+  * @notice It allows the sender to get his collateral and loan Coin<IPX> rewards for Market T
+  * @param whirpool_storage The shared storage object of ipx::whirpool 
+  * @param account_storage The shared account storage object of ipx::whirpool 
+  * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
+  * @param ipx_storage The shared object of the module ipx::ipx 
+  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @return Coin<IPX> It will mint IPX rewards to the user.
+  */
+  public fun get_rewards<T>(
+    whirpool_storage: &mut WhirpoolStorage, 
+    account_storage: &mut AccountStorage,
+    interest_rate_model_storage: &InterestRateModelStorage,
+    ipx_storage: &mut IPXStorage, 
+    dinero_storage: &mut DineroStorage,
+    ctx: &mut TxContext 
+  ): Coin<IPX> {
+    // Call the view functions to get the values
+    let (collateral_rewards, loan_rewards) = get_pending_rewards<T>(
+      whirpool_storage, 
+      account_storage, 
+      interest_rate_model_storage, 
+      dinero_storage, 
+      tx_context::sender(ctx),
+      ctx
+    ); 
+
+    // Mint the IPX
+    mint_ipx(ipx_storage, collateral_rewards + loan_rewards, ctx)
+  }
+
+  /**
+  * @notice It allows the sender to get his collateral and loan Coin<IPX> rewards for ALL markets
+  * @param whirpool_storage The shared storage object of ipx::whirpool 
+  * @param account_storage The shared account storage object of ipx::whirpool 
+  * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
+  * @param ipx_storage The shared object of the module ipx::ipx 
+  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @return Coin<IPX> It will mint IPX rewards to the user.
+  */
+  fun get_all_rewards(
+    whirpool_storage: &mut WhirpoolStorage, 
+    account_storage: &mut AccountStorage,
+    interest_rate_model_storage: &InterestRateModelStorage,
+    ipx_storage: &mut IPXStorage, 
+    dinero_storage: &mut DineroStorage,
+    ctx: &mut TxContext 
+  ): Coin<IPX> {
+    let all_market_keys = whirpool_storage.all_markets_keys;
+    // We will empty all market keys
+    let copy_all_market_keys = vector::empty<String>();
+    // We need to know how many markets exist to loop through them
+    let num_of_markets = vector::length(&all_market_keys);
+
+    let index = 0;
+    let all_rewards = 0;
+    let sender = tx_context::sender(ctx);
+
+    while(index < num_of_markets) {
+      let key = vector::pop_back(&mut all_market_keys);
+      vector::push_back(&mut copy_all_market_keys, key);
+
+      let (collateral_rewards, loan_rewards) = get_pending_rewards_internal(
+        whirpool_storage,
+        account_storage,
+        interest_rate_model_storage, 
+        dinero_storage,
+        key,
+        sender,
+        ctx
+      );  
+
+      // Add the rewards
+      all_rewards = all_rewards + collateral_rewards + loan_rewards;
+      // Inc index
+      index = index + 1;
+    };
+
+    // Restore all market keys
+    whirpool_storage.all_markets_keys = copy_all_market_keys;
+
+    // mint Coin<IPX>
+    mint_ipx(ipx_storage, all_rewards, ctx)
+  }
+
+
+   /**
+  * @notice It allows the caller to get the value of a user collateral and loan rewards
+  * @param whirpool_storage The shared storage object of ipx::whirpool 
+  * @param account_storage The shared account storage object of ipx::whirpool 
+  * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
+  * @param ipx_storage The shared object of the module ipx::ipx 
+  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param user The address of the account
+  * @return Coin<IPX> It will mint IPX rewards to the user.
+  */
+  public fun get_pending_rewards<T>(
+    whirpool_storage: &mut WhirpoolStorage, 
+    account_storage: &mut AccountStorage,
+    interest_rate_model_storage: &InterestRateModelStorage,
+    dinero_storage: &mut DineroStorage,
+    user: address,
+    ctx: &mut TxContext 
+  ): (u256, u256) {
+        // Get the type name of the Coin<T> of this market.
+    let market_key = get_coin_info<T>();
+
+    get_pending_rewards_internal(
+      whirpool_storage,
+      account_storage,
+      interest_rate_model_storage, 
+      dinero_storage,
+      market_key,
+      user,
+      ctx
+    )  
   }
 
  /**
@@ -2063,6 +2189,70 @@ module interest_protocol::whirpool {
     // Ensure that the market is not paused
     assert!(!market_data.is_paused, ERROR_MARKET_IS_PAUSED);
     true
+  }
+
+     /**
+  * @notice It allows the caller to get the value of a user collateral and loan rewards
+  * @param whirpool_storage The shared storage object of ipx::whirpool 
+  * @param account_storage The shared account storage object of ipx::whirpool 
+  * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
+  * @param ipx_storage The shared object of the module ipx::ipx 
+  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param user The address of the account
+  * @return Coin<IPX> It will mint IPX rewards to the user.
+  */
+  fun get_pending_rewards_internal(
+    whirpool_storage: &mut WhirpoolStorage, 
+    account_storage: &mut AccountStorage,
+    interest_rate_model_storage: &InterestRateModelStorage,
+    dinero_storage: &mut DineroStorage,
+    market_key: String,
+    user: address,
+    ctx: &mut TxContext 
+  ): (u256, u256) {
+
+    // Reward information in memory
+    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let total_allocation_points = whirpool_storage.total_allocation_points;
+      
+    // Get market core information
+    let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
+
+    // Update the market rewards & loans before any mutations
+    accrue_internal(
+      market_data, 
+      interest_rate_model_storage, 
+      dinero_storage, 
+      market_key, 
+      ipx_per_epoch,
+      total_allocation_points,
+      ctx
+    );
+
+      // Get the caller Account to update
+      let account = borrow_mut_account(account_storage, user, market_key);
+
+      let pending_collateral_rewards = 0;
+      let pending_loan_rewards = 0;
+
+      // If the sender has shares already, we need to calculate his rewards before this deposit.
+      if (account.shares != 0) 
+        // Math: we need to remove the decimals of shares during fixed point multiplication to maintain IPX decimal houses
+        pending_collateral_rewards = (
+          (account.shares as u256) * 
+          market_data.accrued_collateral_rewards_per_share / 
+          (market_data.decimals_factor as u256)) - 
+          account.collateral_rewards_paid;
+
+       // If the user has a loan in this market, he is entitled to rewards
+       if(account.principal != 0) 
+        pending_loan_rewards = (
+          (account.principal as u256) * 
+          market_data.accrued_loan_rewards_per_share / 
+          (market_data.decimals_factor as u256)) - 
+          account.loan_rewards_paid;
+
+      (pending_collateral_rewards, pending_loan_rewards)      
   }
 
   /**
