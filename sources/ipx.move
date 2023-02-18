@@ -49,4 +49,9 @@ module interest_protocol::ipx {
   public(friend) fun burn(storage: &mut IPXStorage, coin_dnr: Coin<IPX>): u64 {
     balance::decrease_supply(&mut storage.supply, coin::into_balance(coin_dnr))
   }
+
+  #[test_only]
+  public fun init_for_testing(ctx: &mut TxContext) {
+    init(IPX {}, ctx);
+  }
 }

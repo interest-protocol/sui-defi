@@ -140,4 +140,32 @@ module interest_protocol::interest_rate_model {
       }
     );
   }
+
+  #[test_only]
+  public fun init_for_testing(ctx: &mut TxContext) {
+    init(ctx);
+  }
+
+  #[test_only]
+  public fun set_interest_rate_data_test<T>(
+    storage: &mut InterestRateModelStorage,
+    base_rate_per_year: u64,
+    multiplier_per_year: u64,
+    jump_multiplier_per_year: u64,
+    kink: u64,
+    ctx: &mut TxContext
+  ) {
+    set_interest_rate_data<T>(storage, base_rate_per_year, multiplier_per_year, jump_multiplier_per_year, kink, ctx);
+  }
+
+  #[test_only]
+  public fun get_epochs_per_year(): u64 {
+    EPOCHS_PER_YEAR
+  }
+
+  #[test_only]
+  public fun get_interest_rate_data<T>(storage: &InterestRateModelStorage): (u64, u64, u64, u64) {
+    let data = table::borrow(&storage.interest_rate_table, get_coin_info<T>());
+    (data.base_rate_per_epoch, data.multiplier_per_epoch, data.jump_multiplier_per_epoch, data.kink)
+  }
 }

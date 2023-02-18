@@ -65,4 +65,10 @@ module interest_protocol::oracle {
     let price_data = table::borrow(&storage.price_table, key);
     (price_data.price, price_data.decimals)
   }
+
+
+  #[test_only]
+  public fun init_for_testing(ctx: &mut TxContext) {
+    init(ctx);
+  }
 }

@@ -2353,4 +2353,10 @@ module interest_protocol::whirpool {
     // Make sure the user is solvent
     total_collateral_in_usd > total_borrows_in_usd
   }
+
+
+  #[test_only]
+  public fun init_for_testing(ctx: &mut TxContext) {
+    init(ctx);
+  }
 }
