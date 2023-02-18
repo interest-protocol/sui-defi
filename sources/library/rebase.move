@@ -12,8 +12,12 @@ module interest_protocol::rebase {
     }
    }
 
-   public fun values(rebase: &Rebase): (u64, u64) {
-    ((rebase.base as u64), (rebase.elastic as u64))
+   public fun base(rebase: &Rebase): u64 {
+    (rebase.base as u64)
+   }
+
+   public fun elastic(rebase: &Rebase): u64 {
+    (rebase.elastic as u64)
    }
 
    public fun to_base(rebase: &Rebase, elastic: u64, round_up: bool): u64 {
@@ -46,8 +50,7 @@ module interest_protocol::rebase {
      base
    }
 
-   public fun increase_elastic(rebase: &mut Rebase, elastic: u64): (u64, u64) {
+   public fun increase_elastic(rebase: &mut Rebase, elastic: u64) {
     rebase.elastic = rebase.elastic + (elastic as u128);
-     values(rebase)
    }
 }
