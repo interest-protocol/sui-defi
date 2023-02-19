@@ -14,7 +14,7 @@ module interest_protocol::oracle {
 
   struct PriceData has key, store {
     id: UID,
-    price: u256,
+    price: u64,
     decimals: u8
   }
 
@@ -42,7 +42,7 @@ module interest_protocol::oracle {
   public fun set_price<T>(
     _: &OracleAdminCap,
     storage: &mut OracleStorage, 
-    price: u256, 
+    price: u64, 
     decimals: u8,
     ctx: &mut TxContext
     ) {
@@ -61,7 +61,7 @@ module interest_protocol::oracle {
       }
   }
 
-  public fun get_price(storage: &OracleStorage, key: String): (u256, u8)  {
+  public fun get_price(storage: &OracleStorage, key: String): (u64, u8)  {
     let price_data = table::borrow(&storage.price_table, key);
     (price_data.price, price_data.decimals)
   }

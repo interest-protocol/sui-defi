@@ -22,7 +22,7 @@ module interest_protocol::whirpool {
 
   const INITIAL_RESERVE_FACTOR_MANTISSA: u64 = 200000000; // 0.2e9 or 20%
   const INITIAL_IPX_PER_EPOCH: u64 = 100000000000; // 100 IPX per epoch
-  const TWENTY_FIVE_PER_CENT: u64 = 25000000; 
+  const TWENTY_FIVE_PER_CENT: u64 = 250000000; 
 
   const ERROR_DEPOSIT_NOT_ALLOWED: u64 = 1;
   const ERROR_WITHDRAW_NOT_ALLOWED: u64 = 2;
@@ -226,8 +226,8 @@ module interest_protocol::whirpool {
       if (account.shares > 0) 
         // Math: we need to remove the decimals of shares during fixed point multiplication to maintain IPX decimal houses
         pending_rewards = (
-          (account.shares as u256) * 
-          market_data.accrued_collateral_rewards_per_share / 
+          ((account.shares as u256) * 
+          market_data.accrued_collateral_rewards_per_share) / 
           (market_data.decimals_factor as u256)) - 
           account.collateral_rewards_paid;
       
@@ -246,7 +246,7 @@ module interest_protocol::whirpool {
       // Assign the additional shares to the sender
       account.shares = account.shares + shares;
       // Consider all rewards earned by the sender paid
-      account.collateral_rewards_paid = (account.shares as u256) * market_data.accrued_collateral_rewards_per_share / (market_data.decimals_factor as u256);
+      account.collateral_rewards_paid = ((account.shares as u256) * market_data.accrued_collateral_rewards_per_share) / (market_data.decimals_factor as u256);
 
       // Check hook after all mutations
       assert!(deposit_allowed(market_data), ERROR_DEPOSIT_NOT_ALLOWED);
@@ -822,7 +822,7 @@ module interest_protocol::whirpool {
     market_data.total_reserves = market_data.total_reserves + reserve_interest_rate_amount;
 
     // Total IPX rewards accumulated for all passing epochs
-    let rewards = (market_data.allocation_points as u256) * (epochs_delta as u256) * (ipx_per_epoch as u256) / (total_allocation_points as u256);
+    let rewards = ((market_data.allocation_points as u256) * (epochs_delta as u256) * (ipx_per_epoch as u256)) / (total_allocation_points as u256);
 
     // Split the rewards evenly between loans and collateral
     let collateral_rewards = rewards / 2; 
@@ -834,8 +834,14 @@ module interest_protocol::whirpool {
     let total_principal = rebase::base(&market_data.loan_rebase);
 
     // Update the total rewards per share.
-    market_data.accrued_collateral_rewards_per_share = market_data.accrued_collateral_rewards_per_share + (collateral_rewards / (total_shares as u256));
-    market_data.accrued_loan_rewards_per_share = market_data.accrued_loan_rewards_per_share + (loan_rewards / (total_principal as u256));
+
+    // avoid zero division
+    if (total_shares != 0)
+      market_data.accrued_collateral_rewards_per_share = market_data.accrued_collateral_rewards_per_share + ((collateral_rewards * (market_data.decimals_factor as u256)) / (total_shares as u256));
+
+    // avoid zero division
+    if (total_principal != 0)  
+      market_data.accrued_loan_rewards_per_share = market_data.accrued_loan_rewards_per_share + ((loan_rewards * (market_data.decimals_factor as u256)) / (total_principal as u256));
   } 
 
   /****************************************
@@ -2055,6 +2061,59 @@ module interest_protocol::whirpool {
     transfer::transfer(mint_ipx(ipx_storage, pending_rewards, ctx), borrower);
   }
 
+  /**
+  * @notice It unpacks the data on a struct Account for a Market T
+  * @param account_storage The shared AccountStorage object
+  * @param user The address of the account we want to check
+  * @return (u64, u64, u256, u256) (shares, principal, collateteral_rewards_paid, loan_rewards_paid)
+  */
+  public fun get_account_info<T>(account_storage: &AccountStorage, user: address): (u64, u64, u256, u256) {
+    let account = borrow_account(account_storage, user, get_coin_info<T>());
+    (account.shares, account.principal, account.collateral_rewards_paid, account.loan_rewards_paid)
+  }
+
+  /**
+  * @notice It unpacks a MarketData struct
+  * @param whirpool_storage The shared WhirpoolStorage object
+  * @return (u64, u64, u64, u64, u64, bool, u64, u64, u64, u256, u256, u64, u64, u64, u64) (total_reserves, accrued_epoch, borrow_cap, collateral_cap, balance_value, is_paused, ltv, reserve_factor, allocation_points, accrued_collateral_rewards_per_share, accrued_loan_rewards_per_share, total_shares, total_collateral, total_principal, total_borrows)
+  */
+  public fun get_market_info<T>(whirpool_storage: &WhirpoolStorage): (
+    u64,
+    u64,
+    u64,
+    u64,
+    u64,
+    bool,
+    u64,
+    u64,
+    u64,
+    u256,
+    u256,
+    u64,
+    u64,
+    u64,
+    u64
+  ) {
+    let market_data = borrow_market_data(&whirpool_storage.market_data_table, get_coin_info<T>());
+    (
+      market_data.total_reserves,
+      market_data.accrued_epoch,
+      market_data.borrow_cap,
+      market_data.collateral_cap,
+      market_data.balance_value,
+      market_data.is_paused,
+      market_data.ltv,
+      market_data.reserve_factor,
+      market_data.allocation_points,
+      market_data.accrued_collateral_rewards_per_share,
+      market_data.accrued_loan_rewards_per_share,
+      rebase::base(&market_data.collateral_rebase),
+      rebase::elastic(&market_data.collateral_rebase),
+      rebase::base(&market_data.loan_rebase),
+      rebase::elastic(&market_data.loan_rebase),
+    )
+  }
+
   // Controller
 
    /**
@@ -2339,8 +2398,9 @@ module interest_protocol::whirpool {
       assert!(price_normalized != 0, ERROR_ZERO_ORACLE_PRICE);
 
       // Update the collateral and borrow
-      total_collateral_in_usd = total_collateral_in_usd + fmul(fmul(collateral_balance, price_normalized), market_data.ltv);
-      total_borrows_in_usd = total_borrows_in_usd + fmul(borrow_balance, price_normalized);
+      total_collateral_in_usd = total_collateral_in_usd + fmul(fmul(collateral_balance * (one() as u64) / market_data.decimals_factor, price_normalized), market_data.ltv);
+
+      total_borrows_in_usd = total_borrows_in_usd + fmul(borrow_balance * (one() as u64) / market_data.decimals_factor, price_normalized);
 
       // increment the index
       index = index + 1;
