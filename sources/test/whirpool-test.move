@@ -295,5 +295,173 @@ module interest_protocol::whirpool_test {
     test_deposit_(&mut scenario);
     test::end(scenario);
   }
-}
 
+  fun test_withdraw_(test: &mut Scenario) {
+    init_test(test);
+
+    let (alice, bob) = people();
+
+    next_tx(test, alice);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let oracle_storage = test::take_shared<OracleStorage>(test);
+
+     burn(whirpool::deposit<BTC>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        mint<BTC>(10, BTC_DECIMALS, ctx(test)),
+        ctx(test)
+     ));
+
+      let (coin_btc, coin_ipx) = whirpool::withdraw<BTC>(
+        &mut whirpool_storage, 
+        &mut account_storage,
+        &interest_rate_model_storage, 
+        &mut ipx_storage, 
+        &dnr_storage, 
+        &oracle_storage, 
+        (3 * BTC_DECIMALS_FACTOR as u64), 
+        ctx(test)
+      );
+
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, alice);
+
+      assert!(burn(coin_btc) == (3 * BTC_DECIMALS_FACTOR as u64), 0);
+      assert!(burn(coin_ipx) == 0, 0);
+      assert!(collateral == (7 * BTC_DECIMALS_FACTOR as u64), 0);
+      assert!(loan == 0, 0);
+      assert!(collateral_rewards_paid == 0, 0);
+      assert!(loan_rewards_paid == 0, 0);
+
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+      test::return_shared(oracle_storage);     
+    };
+
+    advance_epoch(test, alice, 6);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let oracle_storage = test::take_shared<OracleStorage>(test);
+
+      let (coin_btc, coin_ipx) = whirpool::withdraw<BTC>(
+        &mut whirpool_storage, 
+        &mut account_storage,
+        &interest_rate_model_storage, 
+        &mut ipx_storage, 
+        &dnr_storage, 
+        &oracle_storage, 
+        (4 * BTC_DECIMALS_FACTOR as u64), 
+        ctx(test)
+      );
+
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, alice);
+
+      let collateral_rewards_per_share = ((6 * (100 * IPX_DECIMALS_FACTOR) * 500) / 2100/ 2) * BTC_DECIMALS_FACTOR / (7 * BTC_DECIMALS_FACTOR); 
+
+      assert!(burn(coin_btc) == (4 * BTC_DECIMALS_FACTOR as u64), 0);
+      assert!((burn(coin_ipx) as u256) == collateral_rewards_per_share * (7 * BTC_DECIMALS_FACTOR)/ BTC_DECIMALS_FACTOR, 0);
+      assert!(collateral == (3 * BTC_DECIMALS_FACTOR as u64), 0);
+      assert!(loan == 0, 0);
+      assert!(collateral_rewards_paid == collateral_rewards_per_share * (3 * BTC_DECIMALS_FACTOR) / BTC_DECIMALS_FACTOR, 0);
+      assert!(loan_rewards_paid == 0, 0);
+
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+      test::return_shared(oracle_storage);         
+    };
+
+    next_tx(test, bob);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let oracle_storage = test::take_shared<OracleStorage>(test);
+
+      burn(whirpool::deposit<BTC>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        mint<BTC>(12, BTC_DECIMALS, ctx(test)),
+        ctx(test)
+      ));
+
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+      test::return_shared(oracle_storage); 
+    };
+
+    advance_epoch(test, bob, 10);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let oracle_storage = test::take_shared<OracleStorage>(test);
+
+      let (_, _, _, _, _, _, _, _, _, prev_collateral_rewards_per_share, _, _, _, _, _ ) = whirpool::get_market_info<BTC>(&whirpool_storage);
+
+      let (_, _, prev_collateral_rewards_paid, _) = whirpool::get_account_info<BTC>(&account_storage, bob);
+
+      let (coin_btc, coin_ipx) = whirpool::withdraw<BTC>(
+        &mut whirpool_storage, 
+        &mut account_storage,
+        &interest_rate_model_storage, 
+        &mut ipx_storage, 
+        &dnr_storage, 
+        &oracle_storage, 
+        (5 * BTC_DECIMALS_FACTOR as u64), 
+        ctx(test)
+      );
+
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, bob);
+
+      let collateral_rewards_per_share = ((10 * (100 * IPX_DECIMALS_FACTOR) * 500) / 2100/ 2) * BTC_DECIMALS_FACTOR / (15 * BTC_DECIMALS_FACTOR) + prev_collateral_rewards_per_share; 
+
+      assert!(burn(coin_btc) == (5 * BTC_DECIMALS_FACTOR as u64), 0);
+      assert!((burn(coin_ipx) as u256) == (collateral_rewards_per_share * (12 * BTC_DECIMALS_FACTOR)/ BTC_DECIMALS_FACTOR) - prev_collateral_rewards_paid, 0);
+      assert!(collateral == (7 * BTC_DECIMALS_FACTOR as u64), 0);
+      assert!(loan == 0, 0);
+      assert!(collateral_rewards_paid == collateral_rewards_per_share * (7 * BTC_DECIMALS_FACTOR) / BTC_DECIMALS_FACTOR, 0);
+      assert!(loan_rewards_paid == 0, 0);
+
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+      test::return_shared(oracle_storage);  
+    };
+  }
+
+  #[test]
+  fun test_withdraw() {
+    let scenario = scenario();
+    test_withdraw_(&mut scenario);
+    test::end(scenario);    
+  }
+}
