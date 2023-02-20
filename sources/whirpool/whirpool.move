@@ -11,6 +11,7 @@ module interest_protocol::whirpool {
   use sui::coin::{Self, Coin};
   use sui::pay;
   use sui::math;
+  use sui::event::{emit};
 
   use interest_protocol::ipx::{Self, IPX, IPXStorage};
   use interest_protocol::dnr::{Self, DNR, DineroStorage};
@@ -104,6 +105,116 @@ module interest_protocol::whirpool {
      id: UID,
      accounts_table: Table<String, Table<address, Account>>, // get_coin_info -> address -> Account
      markets_in_table: Table<address, vector<String>>  
+  }
+
+  // Events
+
+  struct Deposit<phantom T> has copy, drop {
+    shares: u64,
+    value: u64,
+    pending_rewards: u256,
+    sender: address
+  }
+
+  struct Withdraw<phantom T> has copy, drop {
+    shares: u64,
+    value: u64,
+    pending_rewards: u256,
+    sender: address
+  }
+
+  struct Borrow<phantom T> has copy, drop {
+    principal: u64,
+    value: u64,
+    pending_rewards: u256,
+    sender: address
+  }
+
+  struct Repay<phantom T> has copy, drop {
+    principal: u64,
+    value: u64,
+    pending_rewards: u256,
+    sender: address
+  }
+
+  struct EnterMarket<phantom T> has copy, drop {
+    sender: address
+  }
+
+  struct ExitMarket<phantom T> has copy, drop {
+    sender: address
+  }
+
+  struct SetInterestRate<phantom T> has copy, drop {
+    base_rate_per_year: u64,
+    multiplier_per_year: u64,
+    jump_multiplier_per_year: u64,
+    kink: u64,
+  }
+
+  struct UpdateLiquidation<phantom T> has copy, drop {
+    penalty_fee: u64,
+    protocol_percentage: u64
+  }
+
+  struct CreateMarket<phantom T> has copy, drop {
+    borrow_cap: u64,
+    collateral_cap: u64,
+    ltv: u64,
+    reserve_factor: u64,
+    allocation_points: u64,
+    decimals_factor: u64
+  }
+
+  struct Paused<phantom T> has copy, drop {}
+
+  struct UnPaused<phantom T> has copy, drop {}
+
+  struct SetBorrowCap<phantom T> has copy, drop {
+    borrow_cap: u64
+  }
+
+  struct UpdateReserveFactor<phantom T> has copy, drop {
+    reserve_factor: u64
+  }
+
+  struct WithdrawReserves<phantom T> has copy, drop {
+    value: u64
+  }
+
+  struct UpdateLTV<phantom T> has copy, drop {
+    ltv: u64
+  }
+
+  struct UpdateAllocationPoints<phantom T> has copy, drop {
+    allocation_points: u64
+  }
+
+  struct UpdateIPXPerEpoch has copy, drop {
+    ipx_per_epoch: u64
+  }
+
+  struct NewAdmin has copy, drop {
+    admin: address
+  }
+
+  struct GetRewards<phantom T> has copy, drop {
+    rewards: u256,
+    sender: address
+  }
+
+  struct GetAllRewards has copy, drop {
+    rewards: u256,
+    sender: address
+  }
+
+  struct Liquidate<phantom C, phantom L> has copy, drop {
+    principal_repaid: u64,
+    liquidator_amount: u64,
+    protocol_amount: u64,
+    collateral_seized: u64,
+    borrower: address,
+    liquidator: address
   }
 
   fun init(ctx: &mut TxContext) {
@@ -250,6 +361,16 @@ module interest_protocol::whirpool {
 
       // Check hook after all mutations
       assert!(deposit_allowed(market_data), ERROR_DEPOSIT_NOT_ALLOWED);
+
+      emit(
+        Deposit<T> {
+          shares,
+          value: asset_value,
+          pending_rewards,
+          sender
+        }
+      );
+
       // Mint Coin<IPX> to the user.
       mint_ipx(ipx_storage, pending_rewards, ctx)
   }  
@@ -348,6 +469,16 @@ module interest_protocol::whirpool {
       ctx
      ), 
     ERROR_WITHDRAW_NOT_ALLOWED);
+
+    emit(
+        Withdraw<T> {
+          shares: shares_to_remove,
+          value: underlying_to_redeem,
+          pending_rewards,
+          sender
+        }
+    );
+
 
     // Return Coin<T> and Coin<IPX> to the sender
     (underlying_coin, mint_ipx(ipx_storage, pending_rewards, ctx))
@@ -455,6 +586,15 @@ module interest_protocol::whirpool {
       ctx), 
     ERROR_BORROW_NOT_ALLOWED);
 
+    emit(
+      Borrow<T> {
+        principal: borrow_principal,
+        value: borrow_value,
+        pending_rewards,
+        sender
+      }
+    );
+
     (loan_coin, mint_ipx(ipx_storage, pending_rewards, ctx))
   }
 
@@ -545,6 +685,16 @@ module interest_protocol::whirpool {
     // Consider all rewards paid
     account.loan_rewards_paid = (account.principal as u256) * market_data.accrued_loan_rewards_per_share / (market_data.decimals_factor as u256);
     assert!(repay_allowed(market_data), ERROR_REPAY_NOT_ALLOWED);
+
+    emit(
+      Repay<T> {
+        principal: safe_asset_principal,
+        value: repay_amount,
+        pending_rewards,
+        sender
+      }
+    );
+
     mint_ipx(ipx_storage, pending_rewards, ctx)
   }
   
@@ -645,6 +795,12 @@ module interest_protocol::whirpool {
    if (!vector::contains(user_markets_in, &market_key)) { 
       vector::push_back(user_markets_in, market_key);
     };
+
+    emit(
+      EnterMarket<T> {
+        sender
+      }
+    );
   }
 
   /**
@@ -701,6 +857,12 @@ module interest_protocol::whirpool {
       ctx
      ), 
     ERROR_USER_IS_INSOLVENT);
+
+    emit(
+      ExitMarket<T> {
+        sender
+      }
+    );
   }
 
   /**
@@ -996,7 +1158,16 @@ module interest_protocol::whirpool {
       jump_multiplier_per_year,
       kink,
       ctx
-    )
+    );
+
+    emit(
+      SetInterestRate<T> {
+        base_rate_per_year,
+        multiplier_per_year,
+        jump_multiplier_per_year,
+        kink
+      }
+    );
   } 
 
    /**
@@ -1010,8 +1181,8 @@ module interest_protocol::whirpool {
     _: &WhirpoolAdminCap, 
     whirpool_storage: &mut WhirpoolStorage, 
     penalty_fee: u64,
-    protocol_percentage: u64,
-  ) {
+    protocol_percentage: u64
+    ) {
     // Make sure the protocol can not seize the entire value of a position during liquidations
     assert!(TWENTY_FIVE_PER_CENT >= penalty_fee, ERROR_VALUE_TOO_HIGH);
     assert!(TWENTY_FIVE_PER_CENT >= protocol_percentage, ERROR_VALUE_TOO_HIGH);
@@ -1019,6 +1190,13 @@ module interest_protocol::whirpool {
     let liquidation = table::borrow_mut(&mut whirpool_storage.liquidation_table, get_coin_info<T>());
     liquidation.penalty_fee = penalty_fee;
     liquidation.protocol_percentage = protocol_percentage;
+
+    emit(
+      UpdateLiquidation<T> {
+        penalty_fee,
+        protocol_percentage,
+      }
+    );
   }
 
   /**
@@ -1056,6 +1234,8 @@ module interest_protocol::whirpool {
     // We need this to loop through all the markets
     vector::push_back(&mut whirpool_storage.all_markets_keys, key);
 
+    let decimals_factor = math::pow(10, decimals);
+
     // Register the MarketData
     table::add(
       &mut whirpool_storage.market_data_table, 
@@ -1075,7 +1255,7 @@ module interest_protocol::whirpool {
         accrued_loan_rewards_per_share: 0,
         collateral_rebase: rebase::new(),
         loan_rebase: rebase::new(),
-        decimals_factor: math::pow(10, decimals)
+        decimals_factor
     });
 
     // Register the liquidation data
@@ -1107,6 +1287,17 @@ module interest_protocol::whirpool {
 
     // Update the total allocation points
     whirpool_storage.total_allocation_points = whirpool_storage.total_allocation_points + allocation_points;
+
+    emit(
+      CreateMarket<T> {
+        borrow_cap,
+        collateral_cap,
+        ltv,
+        reserve_factor: INITIAL_RESERVE_FACTOR_MANTISSA,
+        allocation_points,
+        decimals_factor
+      }
+    );
   }
 
   /**
@@ -1117,6 +1308,7 @@ module interest_protocol::whirpool {
   entry public fun pause_market<T>(_: &WhirpoolAdminCap, whirpool_storage: &mut WhirpoolStorage) {
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, get_coin_info<T>());
     market_data.is_paused = true;
+    emit(Paused<T> {});
   }
 
   /**
@@ -1127,6 +1319,7 @@ module interest_protocol::whirpool {
   entry public fun unpause_market<T>(_: &WhirpoolAdminCap, whirpool_storage: &mut WhirpoolStorage) {
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, get_coin_info<T>());
     market_data.is_paused = false;
+    emit(UnPaused<T> {});
   }
 
   /**
@@ -1143,6 +1336,8 @@ module interest_protocol::whirpool {
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, get_coin_info<T>());
      
      market_data.borrow_cap = borrow_cap;
+
+     emit(SetBorrowCap<T> { borrow_cap });
   }
 
   /**
@@ -1179,6 +1374,8 @@ module interest_protocol::whirpool {
     );
 
     market_data.reserve_factor = new_reserve_factor;
+
+    emit(UpdateReserveFactor<T> { reserve_factor: new_reserve_factor });
   }
 
   /**
@@ -1222,6 +1419,8 @@ module interest_protocol::whirpool {
       coin::take<T>(&mut borrow_mut_market_balance<T>(&mut whirpool_storage.market_balance_bag, market_key).balance, withdraw_value, ctx),
       tx_context::sender(ctx)
     );
+
+    emit(WithdrawReserves<T> { value: withdraw_value });
   }
 
 
@@ -1258,6 +1457,8 @@ module interest_protocol::whirpool {
     );
 
     market_data.ltv = new_ltv;
+
+    emit(UpdateLTV<T> { ltv: new_ltv });
   }
 
   /**
@@ -1304,7 +1505,7 @@ module interest_protocol::whirpool {
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
   * @param new_allocation_points The new allocation points for Market T
   */
-  entry public fun update_the_allocation_points<T>(
+  entry public fun update_allocation_points<T>(
     _: &WhirpoolAdminCap, 
     whirpool_storage: &mut WhirpoolStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
@@ -1333,6 +1534,8 @@ module interest_protocol::whirpool {
     market_data.allocation_points = new_allocation_points;
     // Update the total allocation points
     whirpool_storage.total_allocation_points = whirpool_storage.total_allocation_points + new_allocation_points - old_allocation_points;
+
+    emit(UpdateAllocationPoints<T> { allocation_points: new_allocation_points });
   }
 
   /**
@@ -1383,6 +1586,8 @@ module interest_protocol::whirpool {
     whirpool_storage.ipx_per_epoch = new_ipx_per_epoch;
     // Restore the all markets keys
     whirpool_storage.all_markets_keys = copy_vector;
+
+    emit(UpdateIPXPerEpoch { ipx_per_epoch: new_ipx_per_epoch });
   }
 
   /**
@@ -1398,6 +1603,7 @@ module interest_protocol::whirpool {
   ) {
     assert!(new_admin != @0x0, ERROR_NO_ADDRESS_ZERO);
     transfer::transfer(whirpool_admin_cap, new_admin);
+    emit(NewAdmin { admin: new_admin });
   }
 
   // DNR operations
@@ -1494,6 +1700,15 @@ module interest_protocol::whirpool {
       ctx), 
     ERROR_BORROW_NOT_ALLOWED);
 
+    emit(
+      Borrow<DNR> {
+        principal: borrow_principal,
+        value: borrow_value,
+        pending_rewards,
+        sender
+      }
+    );
+
     (
       dnr::mint(dinero_storage, borrow_value, ctx), 
       mint_ipx(ipx_storage, pending_rewards, ctx)
@@ -1582,6 +1797,16 @@ module interest_protocol::whirpool {
     dnr::burn(dinero_storage, asset);
 
     assert!(repay_allowed(market_data), ERROR_REPAY_NOT_ALLOWED);
+
+    emit(
+      Repay<DNR> {
+        principal: safe_asset_principal,
+        value: repay_amount,
+        pending_rewards,
+        sender
+      }
+    );
+
     mint_ipx(ipx_storage, pending_rewards, ctx)
   }
 
@@ -1602,18 +1827,30 @@ module interest_protocol::whirpool {
     dinero_storage: &mut DineroStorage,
     ctx: &mut TxContext 
   ): Coin<IPX> {
+
+    let sender = tx_context::sender(ctx);
+
     // Call the view functions to get the values
     let (collateral_rewards, loan_rewards) = get_pending_rewards<T>(
       whirpool_storage, 
       account_storage, 
       interest_rate_model_storage, 
       dinero_storage, 
-      tx_context::sender(ctx),
+      sender,
       ctx
     ); 
 
+    let rewards = collateral_rewards + loan_rewards;
+
+    emit(
+      GetRewards<T> {
+        rewards,
+        sender
+      }
+    );
+
     // Mint the IPX
-    mint_ipx(ipx_storage, collateral_rewards + loan_rewards, ctx)
+    mint_ipx(ipx_storage, rewards, ctx)
   }
 
   /**
@@ -1665,6 +1902,13 @@ module interest_protocol::whirpool {
 
     // Restore all market keys
     whirpool_storage.all_markets_keys = copy_all_market_keys;
+
+    emit(
+      GetAllRewards {
+        rewards: all_rewards,
+        sender
+      }
+    );
 
     // mint Coin<IPX>
     mint_ipx(ipx_storage, all_rewards, ctx)
@@ -1830,10 +2074,12 @@ module interest_protocol::whirpool {
         loan_market_data.accrued_loan_rewards_per_share / 
         (loan_market_data.decimals_factor as u256)) - 
         borrower_loan_account.loan_rewards_paid;
+
+    let principal_repaid = math::min(base_repay, borrower_loan_account.principal);    
     
     // Consider the loan repaid
     // Update the user principal info
-    borrower_loan_account.principal = borrower_loan_account.principal - math::min(base_repay, borrower_loan_account.principal);
+    borrower_loan_account.principal = borrower_loan_account.principal - principal_repaid;
     // Consider his loan rewards paid.
     borrower_loan_account.loan_rewards_paid = (borrower_loan_account.principal as u256) * loan_market_data.accrued_loan_rewards_per_share / (loan_market_data.decimals_factor as u256);
 
@@ -1881,6 +2127,15 @@ module interest_protocol::whirpool {
 
     // Send the rewards to the borrower
     transfer::transfer(mint_ipx(ipx_storage, pending_rewards, ctx), borrower);
+
+    emit(Liquidate<C, L> {
+        principal_repaid,
+        liquidator_amount,
+        protocol_amount,
+        collateral_seized: collateral_seize_amount_with_fee,
+        borrower,
+        liquidator: liquidator_address
+    });
   }
 
   /**
@@ -2007,6 +2262,8 @@ module interest_protocol::whirpool {
         loan_market_data.accrued_loan_rewards_per_share / 
         (loan_market_data.decimals_factor as u256)) - 
         borrower_loan_account.loan_rewards_paid;
+
+    let principal_repaid = math::min(base_repay, borrower_loan_account.principal);     
     
     // Consider the loan repaid
     // Update the user principal info
@@ -2059,6 +2316,15 @@ module interest_protocol::whirpool {
 
     // Send the rewards to the borrower
     transfer::transfer(mint_ipx(ipx_storage, pending_rewards, ctx), borrower);
+
+    emit(Liquidate<C, DNR> {
+        principal_repaid,
+        liquidator_amount,
+        protocol_amount,
+        collateral_seized: collateral_seize_amount_with_fee,
+        borrower,
+        liquidator: liquidator_address
+    });
   }
 
   /**
