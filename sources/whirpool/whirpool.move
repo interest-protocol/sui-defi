@@ -19,7 +19,7 @@ module interest_protocol::whirpool {
   use interest_protocol::oracle::{Self, OracleStorage};
   use interest_protocol::utils::{get_coin_info};
   use interest_protocol::rebase::{Self, Rebase};
-  use interest_protocol::math::{fmul, fdiv, one};
+  use interest_protocol::math::{fmul, fdiv, fmul_u256, one};
 
   const INITIAL_RESERVE_FACTOR_MANTISSA: u64 = 200000000; // 0.2e9 or 20%
   const INITIAL_IPX_PER_EPOCH: u64 = 100000000000; // 100 IPX per epoch
@@ -465,7 +465,6 @@ module interest_protocol::whirpool {
       total_allocation_points,
       market_key, 
       sender, 
-      underlying_to_redeem, 
       ctx
      ), 
     ERROR_WITHDRAW_NOT_ALLOWED);
@@ -582,7 +581,6 @@ module interest_protocol::whirpool {
       total_allocation_points, 
       market_key, 
       sender, 
-      borrow_value, 
       ctx), 
     ERROR_BORROW_NOT_ALLOWED);
 
@@ -850,10 +848,7 @@ module interest_protocol::whirpool {
       dinero_storage, 
       ipx_per_epoch,
       total_allocation_points,
-      market_key, 
       sender, 
-      0, 
-      0, 
       ctx
      ), 
     ERROR_USER_IS_INSOLVENT);
@@ -1696,7 +1691,6 @@ module interest_protocol::whirpool {
       total_allocation_points, 
       market_key, 
       sender, 
-      borrow_value, 
       ctx), 
     ERROR_BORROW_NOT_ALLOWED);
 
@@ -2031,10 +2025,7 @@ module interest_protocol::whirpool {
       dinero_storage, 
       ipx_per_epoch,
       total_allocation_points,
-      collateral_market_key, 
       borrower, 
-      0, 
-      0, 
       ctx), 
     ERROR_USER_IS_SOLVENT);
 
@@ -2219,10 +2210,7 @@ module interest_protocol::whirpool {
       dinero_storage, 
       ipx_per_epoch,
       total_allocation_points,
-      collateral_market_key, 
       borrower, 
-      0, 
-      0, 
       ctx), 
     ERROR_USER_IS_SOLVENT);
 
@@ -2419,7 +2407,6 @@ module interest_protocol::whirpool {
     total_allocation_points: u64, 
     market_key: String,
     user: address, 
-    coin_value: u64,
     ctx: &mut TxContext
   ): bool {
     // Market is not paused
@@ -2437,10 +2424,7 @@ module interest_protocol::whirpool {
       dinero_storage,
       ipx_per_epoch,
       total_allocation_points, 
-      market_key, 
       user, 
-      coin_value, 
-      0, 
       ctx
     )
   }
@@ -2471,7 +2455,6 @@ module interest_protocol::whirpool {
     total_allocation_points: u64, 
     market_key: String,
     user: address, 
-    coin_value: u64,
     ctx: &mut TxContext
     ): bool {
       let current_market_data = borrow_market_data(market_table, market_key);
@@ -2497,10 +2480,7 @@ module interest_protocol::whirpool {
         dinero_storage, 
         ipx_per_epoch,
         total_allocation_points,
-        market_key, 
         user, 
-        0, 
-        coin_value, 
         ctx
       )
   }
@@ -2589,10 +2569,7 @@ module interest_protocol::whirpool {
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
   * @param ipx_per_epoch The value of Coin<IPX> this module can mint per epoch
   * @param total_allocation_points The total rewards points in the module
-  * @param modified_market_key The key of the market the user is trying to borrow or withdraw from
   * @param user The address of the user that is trying to borrow or withdraw
-  * @param withdraw_coin_value The value that the user is trying to withdraw
-  * @param borrow_coin_value The value that user is trying to borrow
   * @return bool true if the user can borrow
   * Requirements
   * - The user must be solvent after withdrawing.
@@ -2605,10 +2582,7 @@ module interest_protocol::whirpool {
     dinero_storage: &DineroStorage,
     ipx_per_epoch: u64,
     total_allocation_points: u64, 
-    modified_market_key: String,
     user: address,
-    withdraw_coin_value: u64,
-    borrow_coin_value: u64,
     ctx: &mut TxContext
   ): bool {
     // Get the list of the markets the user is in. 
@@ -2631,17 +2605,14 @@ module interest_protocol::whirpool {
       // Put it back in the copy
       vector::push_back(&mut markets_in_copy, key);
 
-      // If it is the market being modified. The one the user is trying to borrow or withdraw
-      let is_modified_market = key == modified_market_key;
-
       // Get the user account
       let account = table::borrow(table::borrow(&account_storage.accounts_table, key), user);
 
       // Get the market data
       let market_data = borrow_mut_market_data(market_table, key);
       
-      // Get the nominal collateral and borrow balance
-      let (_collateral_balance, _borrow_balance) = get_account_balances_internal(
+      // Get the nominal up to date collateral and borrow balance
+      let (collateral_balance, borrow_balance) = get_account_balances_internal(
         market_data,
         account, 
         interest_rate_model_storage, 
@@ -2652,21 +2623,16 @@ module interest_protocol::whirpool {
         ctx
       );
 
-      // If it is the modified market, remove the amount he is trying to withdraw
-      let collateral_balance = if (is_modified_market) { _collateral_balance - withdraw_coin_value } else { _collateral_balance };
-      // If it is the modified market, add the amount the user is trying to loan
-      let borrow_balance = if (is_modified_market) { _borrow_balance + borrow_coin_value } else { _borrow_balance };
-
       // Get the price of the Coin
-      let price_normalized = get_price(oracle_storage, key);
+      let price_normalized = (get_price(oracle_storage, key) as u256);
 
       // Make sure the price is not zero
       assert!(price_normalized != 0, ERROR_ZERO_ORACLE_PRICE);
 
       // Update the collateral and borrow
-      total_collateral_in_usd = total_collateral_in_usd + fmul(fmul(collateral_balance * (one() as u64) / market_data.decimals_factor, price_normalized), market_data.ltv);
+      total_collateral_in_usd = total_collateral_in_usd + fmul_u256(fmul_u256((collateral_balance as u256) * one() / (market_data.decimals_factor as u256), price_normalized), (market_data.ltv as u256));
 
-      total_borrows_in_usd = total_borrows_in_usd + fmul(borrow_balance * (one() as u64) / market_data.decimals_factor, price_normalized);
+      total_borrows_in_usd = total_borrows_in_usd + fmul_u256((borrow_balance as u256) * one() / (market_data.decimals_factor as u256), price_normalized);
 
       // increment the index
       index = index + 1;
