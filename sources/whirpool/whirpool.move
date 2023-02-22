@@ -25,11 +25,11 @@ module interest_protocol::whirpool {
   const INITIAL_IPX_PER_EPOCH: u64 = 100000000000; // 100 IPX per epoch
   const TWENTY_FIVE_PER_CENT: u64 = 250000000; 
 
-  const ERROR_WITHDRAW_NOT_ALLOWED: u64 = 1;
-  const ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW: u64 = 2;
-  const ERROR_NOT_ENOUGH_CASH_TO_LEND: u64 = 3;
-  const ERROR_BORROW_NOT_ALLOWED: u64 = 4;
-  const ERROR_REPAY_NOT_ALLOWED: u64 = 5;
+  const ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW: u64 = 1;
+  const ERROR_NOT_ENOUGH_CASH_TO_LEND: u64 = 2;
+  const ERROR_VALUE_TOO_HIGH: u64 = 3;
+  const ERROR_NOT_ENOUGH_SHARES_IN_THE_ACCOUNT: u64 = 4;
+  const ERROR_NO_ADDRESS_ZERO: u64 = 5;
   const ERROR_MARKET_IS_PAUSED: u64 = 6;
   const ERROR_MARKET_NOT_UP_TO_DATE: u64 = 7;
   const ERROR_BORROW_CAP_LIMIT_REACHED: u64 = 8;
@@ -45,9 +45,6 @@ module interest_protocol::whirpool {
   const ERROR_ZERO_LIQUIDATION_AMOUNT: u64 = 18;
   const ERROR_LIQUIDATOR_IS_BORROWER: u64 = 19;
   const ERROR_MAX_COLLATERAL_REACHED: u64 = 20;
-  const ERROR_NOT_ENOUGH_SHARES_IN_THE_ACCOUNT: u64 = 21;
-  const ERROR_VALUE_TOO_HIGH: u64 = 22;
-  const ERROR_NO_ADDRESS_ZERO: u64 = 23;
 
   struct WhirpoolAdminCap has key {
     id: UID
@@ -358,7 +355,7 @@ module interest_protocol::whirpool {
       // Consider all rewards earned by the sender paid
       account.collateral_rewards_paid = ((account.shares as u256) * market_data.accrued_collateral_rewards_per_share) / (market_data.decimals_factor as u256);
 
-      // Check hook after all mutations
+      // Defense hook after all mutations
       deposit_allowed(market_data);
 
       emit(
@@ -454,8 +451,8 @@ module interest_protocol::whirpool {
     // Remove Coin<T> from the market
     let underlying_coin = coin::take(&mut market_balance.balance, underlying_to_redeem, ctx);
 
-    // Check should be the last action after all mutations
-    assert!(withdraw_allowed(
+     // Defense hook after all mutations
+    withdraw_allowed(
       &mut whirpool_storage.market_data_table, 
       account_storage, oracle_storage, 
       interest_rate_model_storage, 
@@ -465,8 +462,7 @@ module interest_protocol::whirpool {
       market_key, 
       sender, 
       ctx
-     ), 
-    ERROR_WITHDRAW_NOT_ALLOWED);
+     );
 
     emit(
         Withdraw<T> {
@@ -570,7 +566,7 @@ module interest_protocol::whirpool {
     let loan_coin = coin::take(&mut market_balance.balance, borrow_value, ctx);
 
     // Check should be the last action after all mutations
-    assert!(borrow_allowed(
+    borrow_allowed(
       &mut whirpool_storage.market_data_table, 
       account_storage, 
       oracle_storage, 
@@ -580,8 +576,7 @@ module interest_protocol::whirpool {
       total_allocation_points, 
       market_key, 
       sender, 
-      ctx), 
-    ERROR_BORROW_NOT_ALLOWED);
+      ctx);
 
     emit(
       Borrow<T> {
@@ -683,7 +678,7 @@ module interest_protocol::whirpool {
     account.principal = account.principal - safe_asset_principal;
     // Consider all rewards paid
     account.loan_rewards_paid = (account.principal as u256) * market_data.accrued_loan_rewards_per_share / (market_data.decimals_factor as u256);
-    assert!(repay_allowed(market_data), ERROR_REPAY_NOT_ALLOWED);
+    repay_allowed(market_data);
 
     emit(
       Repay<T> {
@@ -1682,7 +1677,7 @@ module interest_protocol::whirpool {
     account.loan_rewards_paid = (account.principal as u256) * market_data.accrued_loan_rewards_per_share / (market_data.decimals_factor as u256);
 
     // Check should be the last action after all mutations
-    assert!(borrow_allowed(
+    borrow_allowed(
       &mut whirpool_storage.market_data_table, 
       account_storage, 
       oracle_storage, 
@@ -1692,8 +1687,7 @@ module interest_protocol::whirpool {
       total_allocation_points, 
       market_key, 
       sender, 
-      ctx), 
-    ERROR_BORROW_NOT_ALLOWED);
+      ctx);
 
     emit(
       Borrow<DNR> {
@@ -1795,7 +1789,7 @@ module interest_protocol::whirpool {
     // Burn the DNR
     dnr::burn(dinero_storage, asset);
 
-    assert!(repay_allowed(market_data), ERROR_REPAY_NOT_ALLOWED);
+    repay_allowed(market_data);
 
     emit(
       Repay<DNR> {
@@ -2388,7 +2382,6 @@ module interest_protocol::whirpool {
    /**
   * @notice Defensive hook to make sure the market is not paused and the collateral cap has not been reached
   * @param market_data A Market
-  * @return bool true if the user is allowed to deposit
   */
   fun deposit_allowed(market_data: &MarketData) {
     assert!(!market_data.is_paused, ERROR_MARKET_IS_PAUSED);
@@ -2407,7 +2400,6 @@ module interest_protocol::whirpool {
   * @param market_key The key of the market the user is trying to withdraw
   * @param user The address of the user that is trying to withdraw
   * @param coin_value The value he is withdrawing from the market
-  * @return bool true if the user can withdraw
   * Requirements
   * - The user must be solvent after withdrawing.
   */
@@ -2422,25 +2414,25 @@ module interest_protocol::whirpool {
     market_key: String,
     user: address, 
     ctx: &mut TxContext
-  ): bool {
+  ) {
     // Market is not paused
     assert!(!borrow_market_data(market_table, market_key).is_paused, ERROR_MARKET_IS_PAUSED);
 
     // If the user has no loans, he can withdraw
-    if (!table::contains(&account_storage.markets_in_table, user)) return true;
-
-    // Check if the user is solvent
-    is_user_solvent(
-      market_table, 
-      account_storage, 
-      oracle_storage, 
-      interest_rate_model_storage, 
-      dinero_storage,
-      ipx_per_epoch,
-      total_allocation_points, 
-      user, 
-      ctx
-    )
+    if (table::contains(&account_storage.markets_in_table, user))
+      // Check if the user is solvent
+      assert!(is_user_solvent(
+        market_table, 
+        account_storage, 
+        oracle_storage, 
+        interest_rate_model_storage, 
+        dinero_storage,
+        ipx_per_epoch,
+        total_allocation_points, 
+        user, 
+        ctx
+      ), ERROR_USER_IS_INSOLVENT);
+    
   }
 
   /**
@@ -2455,7 +2447,6 @@ module interest_protocol::whirpool {
   * @param market_key The key of the market the user is trying to borrow from
   * @param user The address of the user that is trying to borrow
   * @param coin_value The value the user is borrowing
-  * @return bool true if the user can borrow
   * Requirements
   * - The user must be solvent after withdrawing.
   */
@@ -2470,7 +2461,7 @@ module interest_protocol::whirpool {
     market_key: String,
     user: address, 
     ctx: &mut TxContext
-    ): bool {
+    ) {
       let current_market_data = borrow_market_data(market_table, market_key);
 
       assert!(!current_market_data.is_paused, ERROR_MARKET_IS_PAUSED);
@@ -2486,7 +2477,7 @@ module interest_protocol::whirpool {
       assert!(current_market_data.borrow_cap >= rebase::elastic(&current_market_data.collateral_rebase), ERROR_BORROW_CAP_LIMIT_REACHED);
 
       // User must remain solvent
-      is_user_solvent(
+      assert!(is_user_solvent(
         market_table, 
         account_storage, 
         oracle_storage, 
@@ -2496,7 +2487,7 @@ module interest_protocol::whirpool {
         total_allocation_points,
         user, 
         ctx
-      )
+      ), ERROR_USER_IS_SOLVENT);
   }
 
 
@@ -2504,10 +2495,9 @@ module interest_protocol::whirpool {
   * @notice Defensive hook to make sure that the user can repay
   * @param market_table The table that holds the MarketData structs
   */
-  fun repay_allowed(market_data: &MarketData): bool {
+  fun repay_allowed(market_data: &MarketData) {
     // Ensure that the market is not paused
     assert!(!market_data.is_paused, ERROR_MARKET_IS_PAUSED);
-    true
   }
 
      /**
