@@ -25,30 +25,29 @@ module interest_protocol::whirpool {
   const INITIAL_IPX_PER_EPOCH: u64 = 100000000000; // 100 IPX per epoch
   const TWENTY_FIVE_PER_CENT: u64 = 250000000; 
 
-  const ERROR_DEPOSIT_NOT_ALLOWED: u64 = 1;
-  const ERROR_WITHDRAW_NOT_ALLOWED: u64 = 2;
-  const ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW: u64 = 3;
-  const ERROR_NOT_ENOUGH_CASH_TO_LEND: u64 = 4;
-  const ERROR_BORROW_NOT_ALLOWED: u64 = 5;
-  const ERROR_REPAY_NOT_ALLOWED: u64 = 6;
-  const ERROR_MARKET_IS_PAUSED: u64 = 7;
-  const ERROR_MARKET_NOT_UP_TO_DATE: u64 = 8;
-  const ERROR_BORROW_CAP_LIMIT_REACHED: u64 = 9;
-  const ERROR_ZERO_ORACLE_PRICE: u64 = 10;
-  const ERROR_MARKET_EXIT_LOAN_OPEN: u64 = 11;
-  const ERROR_USER_IS_INSOLVENT: u64 = 12;
-  const ERROR_NOT_ENOUGH_RESERVES: u64 = 13;
-  const ERROR_CAN_NOT_USE_DNR: u64 = 14;
-  const ERROR_DNR_OPERATION_NOT_ALLOWED: u64 = 15;
-  const ERROR_USER_IS_SOLVENT: u64 = 16;
-  const ERROR_ACCOUNT_COLLATERAL_DOES_EXIST: u64 = 17;
-  const ERROR_ACCOUNT_LOAN_DOES_EXIST: u64 = 18;
-  const ERROR_ZERO_LIQUIDATION_AMOUNT: u64 = 19;
-  const ERROR_LIQUIDATOR_IS_BORROWER: u64 = 20;
-  const ERROR_MAX_COLLATERAL_REACHED: u64 = 21;
-  const ERROR_NOT_ENOUGH_SHARES_IN_THE_ACCOUNT: u64 = 22;
-  const ERROR_VALUE_TOO_HIGH: u64 = 23;
-  const ERROR_NO_ADDRESS_ZERO: u64 = 24;
+  const ERROR_WITHDRAW_NOT_ALLOWED: u64 = 1;
+  const ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW: u64 = 2;
+  const ERROR_NOT_ENOUGH_CASH_TO_LEND: u64 = 3;
+  const ERROR_BORROW_NOT_ALLOWED: u64 = 4;
+  const ERROR_REPAY_NOT_ALLOWED: u64 = 5;
+  const ERROR_MARKET_IS_PAUSED: u64 = 6;
+  const ERROR_MARKET_NOT_UP_TO_DATE: u64 = 7;
+  const ERROR_BORROW_CAP_LIMIT_REACHED: u64 = 8;
+  const ERROR_ZERO_ORACLE_PRICE: u64 = 9;
+  const ERROR_MARKET_EXIT_LOAN_OPEN: u64 = 10;
+  const ERROR_USER_IS_INSOLVENT: u64 = 11;
+  const ERROR_NOT_ENOUGH_RESERVES: u64 = 12;
+  const ERROR_CAN_NOT_USE_DNR: u64 = 13;
+  const ERROR_DNR_OPERATION_NOT_ALLOWED: u64 = 14;
+  const ERROR_USER_IS_SOLVENT: u64 = 15;
+  const ERROR_ACCOUNT_COLLATERAL_DOES_EXIST: u64 = 16;
+  const ERROR_ACCOUNT_LOAN_DOES_EXIST: u64 = 17;
+  const ERROR_ZERO_LIQUIDATION_AMOUNT: u64 = 18;
+  const ERROR_LIQUIDATOR_IS_BORROWER: u64 = 19;
+  const ERROR_MAX_COLLATERAL_REACHED: u64 = 20;
+  const ERROR_NOT_ENOUGH_SHARES_IN_THE_ACCOUNT: u64 = 21;
+  const ERROR_VALUE_TOO_HIGH: u64 = 22;
+  const ERROR_NO_ADDRESS_ZERO: u64 = 23;
 
   struct WhirpoolAdminCap has key {
     id: UID
@@ -360,7 +359,7 @@ module interest_protocol::whirpool {
       account.collateral_rewards_paid = ((account.shares as u256) * market_data.accrued_collateral_rewards_per_share) / (market_data.decimals_factor as u256);
 
       // Check hook after all mutations
-      assert!(deposit_allowed(market_data), ERROR_DEPOSIT_NOT_ALLOWED);
+      deposit_allowed(market_data);
 
       emit(
         Deposit<T> {
@@ -2391,10 +2390,9 @@ module interest_protocol::whirpool {
   * @param market_data A Market
   * @return bool true if the user is allowed to deposit
   */
-  fun deposit_allowed(market_data: &MarketData): bool {
+  fun deposit_allowed(market_data: &MarketData) {
     assert!(!market_data.is_paused, ERROR_MARKET_IS_PAUSED);
     assert!(market_data.collateral_cap >= rebase::elastic(&market_data.collateral_rebase), ERROR_MAX_COLLATERAL_REACHED);
-    true
   }
 
    /**
