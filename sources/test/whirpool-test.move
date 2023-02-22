@@ -706,6 +706,184 @@ module interest_protocol::whirpool_test {
     test::end(scenario);    
   }
 
+  fun test_repay_(test: &mut Scenario) {
+    init_test(test);
+
+    let (alice, bob) = people();
+
+    next_tx(test, alice);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+
+      burn(whirpool::deposit<BTC>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        mint<BTC>(10, BTC_DECIMALS, ctx(test)),
+        ctx(test)
+       ));
+
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+    };
+
+    next_tx(test, bob);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+
+      burn(whirpool::deposit<BTC>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        mint<BTC>(10, BTC_DECIMALS, ctx(test)),
+        ctx(test)
+       ));
+
+      burn(whirpool::deposit<ETH>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        mint<ETH>(300, ETH_DECIMALS, ctx(test)),
+        ctx(test)
+       ));
+
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+    };
+
+    next_tx(test, alice);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let oracle_storage = test::take_shared<OracleStorage>(test);
+
+      let borrow_value = (50 * ETH_DECIMALS_FACTOR as u64);
+
+      whirpool::enter_market<BTC>(&mut account_storage, ctx(test));
+
+      let (coin_eth, coin_ipx) = whirpool::borrow<ETH>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        &oracle_storage,
+        borrow_value,
+        ctx(test)
+       );
+
+      burn(coin_eth);
+      burn(coin_ipx);
+
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+      test::return_shared(oracle_storage); 
+    };
+
+    advance_epoch(test, alice, 5);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+
+      let coin_ipx = whirpool::repay<ETH>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &mut interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        mint<ETH>(30, ETH_DECIMALS, ctx(test)),
+        (25 * ETH_DECIMALS_FACTOR as u64),
+        ctx(test)
+      );
+
+      let loan_rewards_per_share = calculate_eth_market_rewards(5, 50 * ETH_DECIMALS_FACTOR);
+      let (_, loan, _, loan_rewards_paid) = whirpool::get_account_info<ETH>(&account_storage, alice);
+
+      assert_eq((burn(coin_ipx) as u256), loan_rewards_per_share * 50);
+      assert_eq(loan, (25 * ETH_DECIMALS_FACTOR as u64));
+      assert_eq(loan_rewards_paid, loan_rewards_per_share * 25);
+
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+    };
+
+    advance_epoch(test, alice, 7);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+
+      let (_, _, _, _, _, _, _, _, _, _, prev_loan_rewards_per_share, _, _, _, _) = whirpool::get_market_info<ETH>(&whirpool_storage);
+
+      let (_, prev_loan, _, prev_loan_rewards_paid) = whirpool::get_account_info<ETH>(&account_storage, alice);
+
+      let coin_ipx = whirpool::repay<ETH>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &mut interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        mint<ETH>(40, ETH_DECIMALS, ctx(test)),
+        (25 * ETH_DECIMALS_FACTOR as u64),
+        ctx(test)
+      );
+
+      let loan_rewards_per_share = calculate_eth_market_rewards(7, 25 * ETH_DECIMALS_FACTOR) + prev_loan_rewards_per_share;
+      let (_, loan, _, loan_rewards_paid) = whirpool::get_account_info<ETH>(&account_storage, alice);
+
+      assert_eq((burn(coin_ipx) as u256), (loan_rewards_per_share * (prev_loan as u256) / ETH_DECIMALS_FACTOR) - prev_loan_rewards_paid);
+      assert_eq(loan, 0);
+      assert_eq(loan_rewards_paid, 0);
+
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+    };
+  }
+
+  #[test]
+  fun test_repay() {
+    let scenario = scenario();
+    test_repay_(&mut scenario);
+    test::end(scenario);    
+  }
+
   // utils
 
   fun calculate_btc_market_rewards(num_of_epochs: u256, total_principal: u256): u256 {

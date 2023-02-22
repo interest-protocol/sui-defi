@@ -677,6 +677,8 @@ module interest_protocol::whirpool {
     balance::join(&mut market_balance.balance, coin::into_balance(asset));
     // Increase the cash in the market
     market_data.balance_value = market_data.balance_value + repay_amount;
+    // Reduce the total principal
+    rebase::sub_base(&mut market_data.loan_rebase, safe_asset_principal, true);
 
     // Remove the principal repaid from the user account
     account.principal = account.principal - safe_asset_principal;
@@ -1783,6 +1785,10 @@ module interest_protocol::whirpool {
 
     // If the sender send more Coin<T> then necessary, we return the extra to him
     if (asset_value > repay_amount) pay::split_and_transfer(&mut asset, asset_value - repay_amount, sender, ctx);
+
+    // Reduce the total principal
+    rebase::sub_base(&mut market_data.loan_rebase, safe_asset_principal, true);
+
     // Remove the principal repaid from the user account
     account.principal = account.principal - safe_asset_principal;
     // Consider all rewards paid
