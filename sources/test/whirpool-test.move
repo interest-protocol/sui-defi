@@ -2,6 +2,7 @@
 module interest_protocol::whirpool_test {
 
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
+  use sui::test_utils::{assert_eq};
   use sui::coin::{destroy_for_testing as burn};
   use sui::math;
 
@@ -10,6 +11,7 @@ module interest_protocol::whirpool_test {
   use interest_protocol::dnr::{Self, DineroStorage};
   use interest_protocol::oracle::{Self, OracleStorage, OracleAdminCap};
   use interest_protocol::interest_rate_model::{Self as model, InterestRateModelStorage};
+  use interest_protocol::math::{fmul};
   use interest_protocol::test_utils::{people, scenario, mint, advance_epoch};
 
   const ONE_PERCENT: u64 = 10000000;
@@ -201,11 +203,11 @@ module interest_protocol::whirpool_test {
 
       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, alice);
 
-      assert!(burn(coin_ipx) == 0, 0);
-      assert!(collateral == 10 * math::pow(10, BTC_DECIMALS), 0);
-      assert!(loan == 0, 0);
-      assert!(collateral_rewards_paid == 0, 0);
-      assert!(loan_rewards_paid == 0, 0);
+      assert_eq(burn(coin_ipx), 0);
+      assert_eq(collateral, 10 * math::pow(10, BTC_DECIMALS));
+      assert_eq(loan, 0);
+      assert_eq(collateral_rewards_paid, 0);
+      assert_eq(loan_rewards_paid, 0);
 
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
@@ -235,13 +237,13 @@ module interest_protocol::whirpool_test {
 
       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, alice);
 
-      let collateral_rewards_per_share = (((((100 * IPX_DECIMALS_FACTOR as u256) *  10 * 500 )/ 2100) / 2) * BTC_DECIMALS_FACTOR / (10 * BTC_DECIMALS_FACTOR as u256));
+      let collateral_rewards_per_share = calculate_btc_market_rewards(10, 10 * BTC_DECIMALS_FACTOR);
 
-      assert!((burn(coin_ipx) as u256) == collateral_rewards_per_share * (10 * BTC_DECIMALS_FACTOR as u256) / BTC_DECIMALS_FACTOR, 0);
-      assert!(collateral == 15 * math::pow(10, BTC_DECIMALS), 0);
-      assert!(loan == 0, 0);
-      assert!(collateral_rewards_paid == (collateral_rewards_per_share * (15 * BTC_DECIMALS_FACTOR)) / BTC_DECIMALS_FACTOR, 0);
-      assert!(loan_rewards_paid == 0, 0);
+      assert_eq((burn(coin_ipx) as u256), collateral_rewards_per_share * (10 * BTC_DECIMALS_FACTOR as u256) / BTC_DECIMALS_FACTOR);
+      assert_eq(collateral, 15 * math::pow(10, BTC_DECIMALS));
+      assert_eq(loan, 0);
+      assert_eq(collateral_rewards_paid, (collateral_rewards_per_share * (15 * BTC_DECIMALS_FACTOR)) / BTC_DECIMALS_FACTOR);
+      assert_eq(loan_rewards_paid, 0);
 
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
@@ -273,13 +275,13 @@ module interest_protocol::whirpool_test {
 
       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, bob);
 
-      let collateral_rewards_per_share = (((((100 * IPX_DECIMALS_FACTOR as u256) *  5 * 500 ) / 2100) / 2) * BTC_DECIMALS_FACTOR / (15 * BTC_DECIMALS_FACTOR as u256)) + prev_collateral_rewards_per_share;
+      let collateral_rewards_per_share = calculate_btc_market_rewards(5, 15 * BTC_DECIMALS_FACTOR) + prev_collateral_rewards_per_share;
 
-      assert!((burn(coin_ipx) as u256) == 0, 0);
-      assert!((collateral as u256) == 7 * BTC_DECIMALS_FACTOR, 0);
-      assert!(loan == 0, 0);
-      assert!(collateral_rewards_paid == (collateral_rewards_per_share * (7 * BTC_DECIMALS_FACTOR)) / BTC_DECIMALS_FACTOR, 0);
-      assert!(loan_rewards_paid == 0, 0);
+      assert_eq((burn(coin_ipx) as u256), 0);
+      assert_eq((collateral as u256), 7 * BTC_DECIMALS_FACTOR);
+      assert_eq(loan, 0);
+      assert_eq(collateral_rewards_paid, (collateral_rewards_per_share * (7 * BTC_DECIMALS_FACTOR)) / BTC_DECIMALS_FACTOR);
+      assert_eq(loan_rewards_paid, 0);
 
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
@@ -333,12 +335,12 @@ module interest_protocol::whirpool_test {
 
       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, alice);
 
-      assert!(burn(coin_btc) == (3 * BTC_DECIMALS_FACTOR as u64), 0);
-      assert!(burn(coin_ipx) == 0, 0);
-      assert!(collateral == (7 * BTC_DECIMALS_FACTOR as u64), 0);
-      assert!(loan == 0, 0);
-      assert!(collateral_rewards_paid == 0, 0);
-      assert!(loan_rewards_paid == 0, 0);
+      assert_eq(burn(coin_btc), (3 * BTC_DECIMALS_FACTOR as u64));
+      assert_eq(burn(coin_ipx), 0);
+      assert_eq(collateral, (7 * BTC_DECIMALS_FACTOR as u64));
+      assert_eq(loan, 0);
+      assert_eq(collateral_rewards_paid, 0);
+      assert_eq(loan_rewards_paid, 0);
 
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
@@ -370,14 +372,14 @@ module interest_protocol::whirpool_test {
 
       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, alice);
 
-      let collateral_rewards_per_share = ((6 * (100 * IPX_DECIMALS_FACTOR) * 500) / 2100/ 2) * BTC_DECIMALS_FACTOR / (7 * BTC_DECIMALS_FACTOR); 
+      let collateral_rewards_per_share = calculate_btc_market_rewards(6, 7 * BTC_DECIMALS_FACTOR);
 
-      assert!(burn(coin_btc) == (4 * BTC_DECIMALS_FACTOR as u64), 0);
-      assert!((burn(coin_ipx) as u256) == collateral_rewards_per_share * (7 * BTC_DECIMALS_FACTOR)/ BTC_DECIMALS_FACTOR, 0);
-      assert!(collateral == (3 * BTC_DECIMALS_FACTOR as u64), 0);
-      assert!(loan == 0, 0);
-      assert!(collateral_rewards_paid == collateral_rewards_per_share * (3 * BTC_DECIMALS_FACTOR) / BTC_DECIMALS_FACTOR, 0);
-      assert!(loan_rewards_paid == 0, 0);
+      assert_eq(burn(coin_btc), (4 * BTC_DECIMALS_FACTOR as u64));
+      assert_eq((burn(coin_ipx) as u256), collateral_rewards_per_share * (7 * BTC_DECIMALS_FACTOR)/ BTC_DECIMALS_FACTOR);
+      assert_eq(collateral, (3 * BTC_DECIMALS_FACTOR as u64));
+      assert_eq(loan, 0);
+      assert_eq(collateral_rewards_paid, collateral_rewards_per_share * (3 * BTC_DECIMALS_FACTOR) / BTC_DECIMALS_FACTOR);
+      assert_eq(loan_rewards_paid, 0);
 
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
@@ -438,14 +440,14 @@ module interest_protocol::whirpool_test {
 
       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, bob);
 
-      let collateral_rewards_per_share = ((10 * (100 * IPX_DECIMALS_FACTOR) * 500) / 2100/ 2) * BTC_DECIMALS_FACTOR / (15 * BTC_DECIMALS_FACTOR) + prev_collateral_rewards_per_share; 
+      let collateral_rewards_per_share = calculate_btc_market_rewards(10, 15 * BTC_DECIMALS_FACTOR) + prev_collateral_rewards_per_share; 
 
-      assert!(burn(coin_btc) == (5 * BTC_DECIMALS_FACTOR as u64), 0);
-      assert!((burn(coin_ipx) as u256) == (collateral_rewards_per_share * (12 * BTC_DECIMALS_FACTOR)/ BTC_DECIMALS_FACTOR) - prev_collateral_rewards_paid, 0);
-      assert!(collateral == (7 * BTC_DECIMALS_FACTOR as u64), 0);
-      assert!(loan == 0, 0);
-      assert!(collateral_rewards_paid == collateral_rewards_per_share * (7 * BTC_DECIMALS_FACTOR) / BTC_DECIMALS_FACTOR, 0);
-      assert!(loan_rewards_paid == 0, 0);
+      assert_eq(burn(coin_btc), (5 * BTC_DECIMALS_FACTOR as u64));
+      assert_eq((burn(coin_ipx) as u256), (collateral_rewards_per_share * (12 * BTC_DECIMALS_FACTOR)/ BTC_DECIMALS_FACTOR) - prev_collateral_rewards_paid);
+      assert_eq(collateral, (7 * BTC_DECIMALS_FACTOR as u64));
+      assert_eq(loan, 0);
+      assert_eq(collateral_rewards_paid, collateral_rewards_per_share * (7 * BTC_DECIMALS_FACTOR) / BTC_DECIMALS_FACTOR);
+      assert_eq(loan_rewards_paid, 0);
 
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
@@ -552,8 +554,14 @@ module interest_protocol::whirpool_test {
         ctx(test)
        );
 
-      assert!(burn(coin_eth)  == borrow_value, 0);
-      assert!(burn(coin_ipx) == 0, 0); 
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<ETH>(&account_storage, alice);
+ 
+      assert_eq(burn(coin_eth), borrow_value);
+      assert_eq(burn(coin_ipx), 0); 
+      assert_eq(collateral, 0);
+      assert_eq(collateral_rewards_paid, 0);
+      assert_eq(loan, borrow_value);
+      assert_eq(loan_rewards_paid, 0);
 
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
@@ -561,7 +569,134 @@ module interest_protocol::whirpool_test {
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
-    };    
+    };
+
+    advance_epoch(test, alice, 5);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let oracle_storage = test::take_shared<OracleStorage>(test);
+
+      // So we can borrow more
+      burn(whirpool::deposit<BTC>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        mint<BTC>(10, BTC_DECIMALS, ctx(test)),
+        ctx(test)
+       ));
+
+      let borrow_value = (10 * ETH_DECIMALS_FACTOR as u64);
+
+      let interest_rate_per_epoch = whirpool::get_borrow_rate_per_epoch<ETH>(
+        &whirpool_storage,
+        &interest_rate_model_storage,
+        &dnr_storage
+      );
+
+      let (_, _, _, _, _, _, _, _, _, _, _, _, _, total_principal, total_borrows) = whirpool::get_market_info<ETH>(&whirpool_storage);
+
+      let accumulated_interest_rate = interest_rate_per_epoch * 5;
+      let new_total_borrows = total_borrows + fmul(total_borrows, accumulated_interest_rate);
+
+      // round up
+      let added_principal = ((borrow_value * total_principal) / new_total_borrows) + 1;
+
+      let (coin_eth, coin_ipx) = whirpool::borrow<ETH>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        &oracle_storage,
+        borrow_value,
+        ctx(test)
+       );
+
+      // 5 epoch rewards
+      let loan_rewards_per_share = calculate_eth_market_rewards(5, 99 * ETH_DECIMALS_FACTOR);
+
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<ETH>(&account_storage, alice);
+      let new_principal = 99 * ETH_DECIMALS_FACTOR + (added_principal as u256);
+
+      assert_eq(burn(coin_eth), borrow_value);  
+      assert_eq((burn(coin_ipx) as u256), loan_rewards_per_share * 99); 
+      assert_eq(collateral, 0);
+      assert_eq((loan as u256), new_principal);
+      assert_eq(collateral_rewards_paid, 0);
+      assert_eq(loan_rewards_paid, loan_rewards_per_share * new_principal / ETH_DECIMALS_FACTOR);
+
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+      test::return_shared(oracle_storage); 
+    };
+
+    advance_epoch(test, alice, 4);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let oracle_storage = test::take_shared<OracleStorage>(test);
+
+      let borrow_value = (5 * ETH_DECIMALS_FACTOR as u64);
+
+      let interest_rate_per_epoch = whirpool::get_borrow_rate_per_epoch<ETH>(
+        &whirpool_storage,
+        &interest_rate_model_storage,
+        &dnr_storage
+      );
+
+      let (_, _, _, _, _, _, _, _, _, _, prev_loan_rewards_per_share, _, _, total_principal, total_borrows) = whirpool::get_market_info<ETH>(&whirpool_storage);
+
+      let accumulated_interest_rate = interest_rate_per_epoch * 4;
+      let new_total_borrows = total_borrows + fmul(total_borrows, accumulated_interest_rate);
+
+      // round up
+      let added_principal = ((borrow_value * total_principal) / new_total_borrows) + 1;
+
+      let (_, prev_loan, _, prev_loan_rewards_paid) = whirpool::get_account_info<ETH>(&account_storage, alice);
+
+      let (coin_eth, coin_ipx) = whirpool::borrow<ETH>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        &oracle_storage,
+        borrow_value,
+        ctx(test)
+       );
+
+      // 5 epoch rewards
+      let loan_rewards_per_share = calculate_eth_market_rewards(4, (total_principal as u256)) + prev_loan_rewards_per_share;
+
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<ETH>(&account_storage, alice);
+      let new_principal = prev_loan + added_principal;
+
+      assert_eq(burn(coin_eth), borrow_value);  
+      assert_eq((burn(coin_ipx) as u256), (loan_rewards_per_share * (prev_loan as u256) / ETH_DECIMALS_FACTOR) - prev_loan_rewards_paid); 
+      assert_eq(collateral, 0);
+      assert_eq(loan, new_principal);
+      assert_eq(collateral_rewards_paid, 0);
+      assert_eq(loan_rewards_paid, loan_rewards_per_share * (new_principal as u256) / ETH_DECIMALS_FACTOR);
+
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+      test::return_shared(oracle_storage); 
+    };
   }
 
   #[test]
@@ -570,5 +705,15 @@ module interest_protocol::whirpool_test {
     test_borrow_(&mut scenario);
     test::end(scenario);    
   }
-}
+
+  // utils
+
+  fun calculate_btc_market_rewards(num_of_epochs: u256, total_principal: u256): u256 {
+    ((num_of_epochs * (100 * IPX_DECIMALS_FACTOR) * 500) / 2100/ 2) * BTC_DECIMALS_FACTOR / total_principal  
+  }
+
+  fun calculate_eth_market_rewards(num_of_epochs: u256, total_principal: u256): u256 {
+    ((num_of_epochs * (100 * IPX_DECIMALS_FACTOR) * 700) / 2100/ 2) * ETH_DECIMALS_FACTOR / total_principal
+  }
+} 
 

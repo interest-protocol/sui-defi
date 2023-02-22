@@ -705,13 +705,13 @@ module interest_protocol::whirpool {
   * @return interest rate per epoch % for MarketData of Coin<T>
   */
   public fun get_borrow_rate_per_epoch<T>(
-    whirpool_storage: &mut WhirpoolStorage, 
+    whirpool_storage: &WhirpoolStorage, 
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
     ): u64 {
     let market_key = get_coin_info<T>();
     get_borrow_rate_per_epoch_internal(
-      borrow_market_data(&mut whirpool_storage.market_data_table, market_key),
+      borrow_market_data(&whirpool_storage.market_data_table, market_key),
       interest_rate_model_storage,
       dinero_storage,
       market_key
