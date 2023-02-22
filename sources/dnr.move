@@ -79,6 +79,9 @@ module interest_protocol::dnr {
     storage.interest_rate_per_epoch
   }
 
+  public entry fun transfer(c: coin::Coin<DNR>, recipient: address) {
+    transfer::transfer(c, recipient);
+  }
 
   #[test_only]
   public fun init_for_testing(ctx: &mut TxContext) {

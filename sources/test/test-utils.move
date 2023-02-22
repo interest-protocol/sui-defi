@@ -14,7 +14,6 @@ module interest_protocol::test_utils {
     mint_for_testing<T>(amount * math::pow(10, decimals), ctx)
   }
 
-
   public fun advance_epoch(test: &mut Scenario, sender: address, num_of_epochs: u64) {
     let index = 0;
 

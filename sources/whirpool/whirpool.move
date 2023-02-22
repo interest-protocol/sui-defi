@@ -2368,6 +2368,16 @@ module interest_protocol::whirpool {
     )
   }
 
+  /**
+  * @notice It returns a vector with the key of every market the user has an open loan or entered with collateral to back a loan
+  * @param account_storage The shared AccountStorage object of interest_protocol::whirpool 
+  * @param user The address of the account we want to check
+  * @return &vector<string> A vector of the markets in
+  */
+  public fun get_user_markets_in(account_storage: &AccountStorage, user: address): &vector<String> {
+    borrow_user_markets_in(&account_storage.markets_in_table, user)
+  }
+
   // Controller
 
    /**
@@ -2571,8 +2581,6 @@ module interest_protocol::whirpool {
   * @param total_allocation_points The total rewards points in the module
   * @param user The address of the user that is trying to borrow or withdraw
   * @return bool true if the user can borrow
-  * Requirements
-  * - The user must be solvent after withdrawing.
   */
   fun is_user_solvent(
     market_table: &mut Table<String, MarketData>, 

@@ -50,6 +50,10 @@ module interest_protocol::ipx {
     balance::decrease_supply(&mut storage.supply, coin::into_balance(coin_dnr))
   }
 
+  public entry fun transfer(c: coin::Coin<IPX>, recipient: address) {
+    transfer::transfer(c, recipient);
+  }
+
   #[test_only]
   public fun init_for_testing(ctx: &mut TxContext) {
     init(IPX {}, ctx);
