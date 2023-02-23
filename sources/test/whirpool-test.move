@@ -2603,7 +2603,7 @@ module interest_protocol::whirpool_test {
     test::end(scenario);
   }
 
-  #[test]
+    #[test]
     fun test_set_borrow_cap() {
     let scenario = scenario();
 
@@ -2633,6 +2633,46 @@ module interest_protocol::whirpool_test {
     test::end(scenario);
   }
 
+  #[test]
+  fun test_update_reserve_factor() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, _) = people();
+    advance_epoch(test, alice, 5);
+    next_tx(test, alice);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+
+      whirpool::update_reserve_factor<BTC>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        &mut interest_rate_model_storage,
+        &dnr_storage,
+        10000,
+        ctx(test)
+      );
+
+      let (_, accrued_epoch, _, _, _, _, _, reserve_factor, _, _, _, _, _, _, _) = whirpool::get_market_info<BTC>(&whirpool_storage);
+
+      assert_eq(accrued_epoch, 5);
+      assert_eq(reserve_factor, 10000);
+
+      test::return_to_address(alice, whirpool_admin_cap);
+      test::return_shared(dnr_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage);
+    };
+    test::end(scenario);
+  }
 
   // utils
 
