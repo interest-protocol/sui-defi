@@ -2483,6 +2483,49 @@ module interest_protocol::whirpool_test {
     test::end(scenario);
   }
 
+  fun test_set_interest_rate_data() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, _) = people();
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+
+      whirpool::set_interest_rate_data<BTC>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        &mut interest_rate_model_storage,
+        &dnr_storage,
+        1000000000,
+        2000000000,
+        3000000000,
+        50000000000,
+        ctx(test)
+      );
+
+      let (base, multiplier, jump, kink) = model::get_interest_rate_data<BTC>(&interest_rate_model_storage);
+
+      assert_eq(base, 1000000000);
+      assert_eq(multiplier, 2000000000);
+      assert_eq(jump, 3000000000);
+      assert_eq(kink, 50000000000);
+
+      test::return_to_address(alice, whirpool_admin_cap);
+      test::return_shared(dnr_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage);
+    };
+    test::end(scenario);
+  }
+
   // utils
 
   fun calculate_btc_market_rewards(num_of_epochs: u256, total_principal: u256): u256 {
