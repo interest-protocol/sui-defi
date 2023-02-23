@@ -2340,6 +2340,7 @@ module interest_protocol::whirpool_test {
     test::end(scenario);
   }
 
+  #[test]
   fun test_get_account_balances() {
     let scenario = scenario();
 
@@ -2366,6 +2367,8 @@ module interest_protocol::whirpool_test {
         mint<BTC>(10, BTC_DECIMALS, ctx(test)),
         ctx(test)
       ));
+
+      whirpool::enter_market<BTC>(&mut account_storage, ctx(test));
 
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
@@ -2471,7 +2474,7 @@ module interest_protocol::whirpool_test {
 
       assert_eq(alice_collateral, 0);
       assert_eq(alice_borrows, borrow_amount + interest_rate_amount);
-      assert_eq(bob_collateral, borrow_amount + interest_rate_amount - reserve_amount);
+      assert_eq(bob_collateral, (100 * ETH_DECIMALS_FACTOR as u64) + interest_rate_amount - reserve_amount);
       assert_eq(bob_borrows, 0);
 
       test::return_shared(dnr_storage);
@@ -2483,6 +2486,7 @@ module interest_protocol::whirpool_test {
     test::end(scenario);
   }
 
+  #[test]
   fun test_set_interest_rate_data() {
     let scenario = scenario();
 
@@ -2491,6 +2495,7 @@ module interest_protocol::whirpool_test {
     init_test(test);
 
     let (alice, _) = people();
+    next_tx(test, alice);
     {
       let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
@@ -2512,9 +2517,11 @@ module interest_protocol::whirpool_test {
 
       let (base, multiplier, jump, kink) = model::get_interest_rate_data<BTC>(&interest_rate_model_storage);
 
-      assert_eq(base, 1000000000);
-      assert_eq(multiplier, 2000000000);
-      assert_eq(jump, 3000000000);
+      let epochs_per_year = model::get_epochs_per_year();
+
+      assert_eq(base, 1000000000 / epochs_per_year);
+      assert_eq(multiplier, 2000000000 / epochs_per_year);
+      assert_eq(jump, 3000000000 / epochs_per_year);
       assert_eq(kink, 50000000000);
 
       test::return_to_address(alice, whirpool_admin_cap);
@@ -2526,6 +2533,7 @@ module interest_protocol::whirpool_test {
     test::end(scenario);
   }
 
+  #[test]
   fun test_set_update_liquidation() {
     let scenario = scenario();
 
@@ -2557,6 +2565,7 @@ module interest_protocol::whirpool_test {
     test::end(scenario);
   }
 
+  #[test]
   fun test_pause() {
     let scenario = scenario();
 
@@ -2579,7 +2588,7 @@ module interest_protocol::whirpool_test {
 
       assert_eq(paused, true);
 
-      whirpool::pause_market<BTC>(
+      whirpool::unpause_market<BTC>(
         &whirpool_admin_cap,
         &mut whirpool_storage
       );
@@ -2587,6 +2596,36 @@ module interest_protocol::whirpool_test {
       let paused = whirpool::is_market_paused<BTC>(&whirpool_storage);
 
       assert_eq(paused, false);
+
+      test::return_to_address(alice, whirpool_admin_cap);
+      test::return_shared(whirpool_storage);    
+    };
+    test::end(scenario);
+  }
+
+  #[test]
+    fun test_set_borrow_cap() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, _) = people();
+    next_tx(test, alice);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+
+      whirpool::set_borrow_cap<BTC>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        2
+      );
+
+      let (_, _, borrow_cap, _, _, _, _, _, _, _, _, _, _, _, _) = whirpool::get_market_info<BTC>(&whirpool_storage);
+
+      assert_eq(borrow_cap, 2);
 
       test::return_to_address(alice, whirpool_admin_cap);
       test::return_shared(whirpool_storage);    
