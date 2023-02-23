@@ -2659,4 +2659,10 @@ module interest_protocol::whirpool {
     let liquidation = table::borrow(&whirpool_storage.liquidation_table, get_coin_info<T>());
     (liquidation.penalty_fee, liquidation.protocol_percentage)
   }
+
+  #[test_only]
+  public fun is_market_paused<T>(whirpool_storage: &WhirpoolStorage): bool {
+    let market_data = table::borrow(&whirpool_storage.market_data_table, get_coin_info<T>());
+    market_data.is_paused
+  }
 }

@@ -2534,6 +2534,7 @@ module interest_protocol::whirpool_test {
     init_test(test);
 
     let (alice, _) = people();
+    next_tx(test, alice);
     {
       let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
       let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
@@ -2552,6 +2553,43 @@ module interest_protocol::whirpool_test {
 
       test::return_to_address(alice, whirpool_admin_cap);
       test::return_shared(whirpool_storage);
+    };
+    test::end(scenario);
+  }
+
+  fun test_pause() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, _) = people();
+    next_tx(test, alice);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+
+      whirpool::pause_market<BTC>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage
+      );
+
+      let paused = whirpool::is_market_paused<BTC>(&whirpool_storage);
+
+      assert_eq(paused, true);
+
+      whirpool::pause_market<BTC>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage
+      );
+
+      let paused = whirpool::is_market_paused<BTC>(&whirpool_storage);
+
+      assert_eq(paused, false);
+
+      test::return_to_address(alice, whirpool_admin_cap);
+      test::return_shared(whirpool_storage);    
     };
     test::end(scenario);
   }
