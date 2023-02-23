@@ -2653,4 +2653,10 @@ module interest_protocol::whirpool {
   public fun init_for_testing(ctx: &mut TxContext) {
     init(ctx);
   }
+
+  #[test_only]
+  public fun get_liquidation_info<T>(whirpool_storage: &WhirpoolStorage): (u64, u64) {
+    let liquidation = table::borrow(&whirpool_storage.liquidation_table, get_coin_info<T>());
+    (liquidation.penalty_fee, liquidation.protocol_percentage)
+  }
 }

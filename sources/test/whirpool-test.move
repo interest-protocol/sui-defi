@@ -2526,6 +2526,37 @@ module interest_protocol::whirpool_test {
     test::end(scenario);
   }
 
+  fun test_set_update_liquidation() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, _) = people();
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+
+      whirpool::update_liquidation<BTC>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        500, 
+        300
+      );
+
+      let (penalty_fee, protocol_fee) = whirpool::get_liquidation_info<BTC>(&whirpool_storage);
+
+      assert_eq(penalty_fee, 500);
+      assert_eq(protocol_fee, 300);
+
+      test::return_to_address(alice, whirpool_admin_cap);
+      test::return_shared(whirpool_storage);
+    };
+    test::end(scenario);
+  }
+
+
   // utils
 
   fun calculate_btc_market_rewards(num_of_epochs: u256, total_principal: u256): u256 {
