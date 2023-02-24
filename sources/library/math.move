@@ -14,6 +14,10 @@ module interest_protocol::math {
     ((((x as u256) * SCALAR ) / (y as u256)) as u64)
   }
 
+  public fun mul_div_u128(x: u128, y: u128, z: u128): u128 {
+    ((x as u256) * (y as u256) / (z as u256) as u128)
+  }
+
   public fun one(): u256 {
     SCALAR
   }
