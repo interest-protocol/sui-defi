@@ -1402,8 +1402,12 @@ module interest_protocol::whirpool {
     );
 
     // There must be enough reserves and cash in the market
-    assert!(withdraw_value >= market_data.balance_value, ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW);
-    assert!(withdraw_value >= market_data.total_reserves, ERROR_NOT_ENOUGH_RESERVES);
+    assert!(market_data.balance_value >= withdraw_value, ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW);
+    assert!(market_data.total_reserves >= withdraw_value, ERROR_NOT_ENOUGH_RESERVES);
+
+    // Need to reduce the cash
+    market_data.balance_value = market_data.balance_value - withdraw_value;
+    market_data.total_reserves = market_data.total_reserves - withdraw_value;
 
     // Send tokens to the admin
     transfer::transfer(
