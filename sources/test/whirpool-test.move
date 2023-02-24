@@ -2918,11 +2918,9 @@ module interest_protocol::whirpool_test {
     next_tx(test, alice);
     {
       let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
-      let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
-      let oracle_storage = test::take_shared<OracleStorage>(test);
       let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
 
       let borrow_rate_per_epoch = whirpool::get_borrow_rate_per_epoch<ETH>(
@@ -2952,9 +2950,7 @@ module interest_protocol::whirpool_test {
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
-      test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
-      test::return_shared(oracle_storage);  
     };
 
     test::end(scenario);
@@ -3059,11 +3055,9 @@ module interest_protocol::whirpool_test {
     next_tx(test, alice);
     {
       let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
-      let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
-      let oracle_storage = test::take_shared<OracleStorage>(test);
       let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
 
       let borrow_rate_per_epoch = whirpool::get_borrow_rate_per_epoch<ETH>(
@@ -3093,11 +3087,48 @@ module interest_protocol::whirpool_test {
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
-      test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
-      test::return_shared(oracle_storage);  
     };
 
+    test::end(scenario);
+  }
+
+  #[test]
+  fun test_update_ltv() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, _) = people();
+    next_tx(test, alice);  
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+
+      whirpool::update_ltv<BTC>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        &interest_rate_model_storage,
+        &dnr_storage,
+        100,
+        ctx(test)
+      );
+
+      let (_, _, _, _, _, _, ltv, _, _, _, _, _, _, _, _) = whirpool::get_market_info<BTC>(&whirpool_storage);
+
+      assert_eq(ltv, 100);
+    
+      test::return_to_address(alice, whirpool_admin_cap);
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(whirpool_storage); 
+    }; 
     test::end(scenario);
   }
 
