@@ -3176,13 +3176,151 @@ module interest_protocol::whirpool_test {
       );
 
       let dnr_per_epoch = dnr::get_interest_rate_per_epoch(&dnr_storage);
+      let (_, accrued_epoch, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirpool::get_market_info<DNR>(&whirpool_storage);
 
+      assert_eq(accrued_epoch, 4);
       assert_eq(dnr_per_epoch, 100);
 
       test::return_to_address(alice, whirpool_admin_cap);
       test::return_shared(dnr_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(whirpool_storage);       
+    };
+    test::end(scenario);
+  }
+
+  #[test]
+  fun test_update_allocation_points() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, _) = people();
+    advance_epoch(test, alice, 4);
+    next_tx(test, alice); 
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+
+      whirpool::update_allocation_points<BTC>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        &interest_rate_model_storage,
+        &mut dnr_storage,
+        450,
+        ctx(test)
+      );
+
+      let (_, accrued_epoch, _, _, _, _, _, _, allocation_points, _, _, _, _, _, _) = whirpool::get_market_info<BTC>(&whirpool_storage);
+      let total_allocation_points = whirpool::get_total_allocation_points(&whirpool_storage);
+
+      assert_eq(accrued_epoch, 4);
+      assert_eq(allocation_points, 450);
+      assert_eq(total_allocation_points, 2550);
+
+      test::return_to_address(alice, whirpool_admin_cap);
+      test::return_shared(dnr_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(whirpool_storage);    
+    };
+    test::end(scenario);
+  }
+
+  #[test]
+  fun test_update_ipx_per_epoch() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, _) = people();
+    advance_epoch(test, alice, 4);
+    next_tx(test, alice);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+
+      whirpool::update_ipx_per_epoch(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        &interest_rate_model_storage,
+        &mut dnr_storage,
+        450,
+        ctx(test)
+      );
+
+      let (_, accrued_epoch, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirpool::get_market_info<BTC>(&whirpool_storage);
+      assert_eq(accrued_epoch, 4);
+
+      let (_, accrued_epoch, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirpool::get_market_info<ETH>(&whirpool_storage);
+      assert_eq(accrued_epoch, 4);
+      
+      let (_, accrued_epoch, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirpool::get_market_info<ADA>(&whirpool_storage);
+      assert_eq(accrued_epoch, 4);
+
+      let (_, accrued_epoch, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirpool::get_market_info<DNR>(&whirpool_storage);
+      assert_eq(accrued_epoch, 4);
+
+      let ipx_per_epoch = whirpool::get_ipx_per_epoch(&whirpool_storage);
+      assert_eq(ipx_per_epoch, 450);
+
+      let num_of_markets = whirpool::get_total_num_of_markets(&whirpool_storage);
+      assert_eq(num_of_markets, 4);
+      
+      test::return_to_address(alice, whirpool_admin_cap);
+      test::return_shared(dnr_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(whirpool_storage);   
+    }; 
+    test::end(scenario);
+  }
+
+  #[test]
+  fun test_transfer_admin_cap() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, bob) = people();
+    next_tx(test, alice);
+    {
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+
+      whirpool::transfer_admin_cap(whirpool_admin_cap, bob);
+    };
+
+    next_tx(test, bob);
+    {
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, bob);
+      test::return_to_address(bob, whirpool_admin_cap);
+    };
+    test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = whirpool::ERROR_NO_ADDRESS_ZERO)]
+  fun test_fail_transfer_admin_cap() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, _) = people();
+    next_tx(test, alice);
+    {
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+
+      whirpool::transfer_admin_cap(whirpool_admin_cap, @0x0);
     };
     test::end(scenario);
   }

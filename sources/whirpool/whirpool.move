@@ -1592,7 +1592,7 @@ module interest_protocol::whirpool {
   * Requirements: 
   * - The new_admin cannot be the address zero.
   */
-  entry fun transfer_admin_cap(
+  entry public fun transfer_admin_cap(
     whirpool_admin_cap: WhirpoolAdminCap, 
     new_admin: address
   ) {
@@ -2668,5 +2668,20 @@ module interest_protocol::whirpool {
   public fun is_market_paused<T>(whirpool_storage: &WhirpoolStorage): bool {
     let market_data = table::borrow(&whirpool_storage.market_data_table, get_coin_info<T>());
     market_data.is_paused
+  }
+
+  #[test_only]
+  public fun get_total_allocation_points(whirpool_storage: &WhirpoolStorage): u64 {
+    whirpool_storage.total_allocation_points
+  }
+
+  #[test_only]
+  public fun get_ipx_per_epoch(whirpool_storage: &WhirpoolStorage): u64 {
+    whirpool_storage.ipx_per_epoch
+  }
+
+  #[test_only]
+  public fun get_total_num_of_markets(whirpool_storage: &WhirpoolStorage): u64 {
+    vector::length(&whirpool_storage.all_markets_keys)
   }
 }
