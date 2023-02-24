@@ -23,17 +23,20 @@ module interest_protocol::whirpool_test {
   const INITIAL_BTC_PRICE: u64 = 200000000000; // 20k - 7 decimals
   const INITIAL_ETH_PRICE: u64 = 140000000000; // 1400 - 8 decimals
   const INITIAL_ADA_PRICE: u64 = 300000000; // 30 cents - 9 decimals
+  const DNR_PRICE: u64 = 1000000000; // 1 USD
   const BTC_BORROW_CAP: u64 = 100000000000; // 100 BTC - 9 decimals
   const ETH_BORROW_CAP: u64 = 50000000000; // 500 ETH 8 decimals
   const ADA_BORROW_CAP: u64 = 100000000000000; // 10M 7 decimals
+  const DNR_BORROW_CAP: u64 = 10000000000000; // 10k 9 decimals
   const BTC_DECIMALS: u8 = 9;
   const ETH_DECIMALS: u8 = 8;
   const ADA_DECIMALS: u8 = 7;
-  const DNR_DECIMALS: u8 = 7;
+  const DNR_DECIMALS: u8 = 9;
   const IPX_DECIMALS_FACTOR: u256 = 1000000000;
   const BTC_DECIMALS_FACTOR: u256 = 1000000000;
   const ETH_DECIMALS_FACTOR: u256 = 100000000;
   const ADA_DECIMALS_FACTOR: u256 = 10000000;
+  const DNR_DECIMALS_FACTOR: u256 = 1000000000;
   const INITIAL_RESERVE_FACTOR_MANTISSA: u64 = 200000000; // 0.2e9 or 20%
 
   struct BTC {}
@@ -173,6 +176,20 @@ module interest_protocol::whirpool_test {
         100000000, // 10% penalty fee
         200000000, // 20% protocol fee
         ADA_DECIMALS,
+        ctx(test)
+      );
+  
+      whirpool::create_market<DNR>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        &mut account_storage,
+        DNR_BORROW_CAP,
+        DNR_BORROW_CAP * 2,
+        500000000, // 50% ltv
+        500, // allocation points
+        100000000, // 10% penalty fee
+        200000000, // 20% protocol fee
+        DNR_DECIMALS,
         ctx(test)
       );
       
@@ -996,7 +1013,7 @@ module interest_protocol::whirpool_test {
         &interest_rate_model_storage,
         &mut ipx_storage,
         &dnr_storage,
-        mint<BTC>(BTC_BORROW_CAP + 1, DNR_DECIMALS, ctx(test)),
+        mint<BTC>(BTC_BORROW_CAP * 2 + 1, 0, ctx(test)),
         ctx(test)
       ));
 
@@ -3132,14 +3149,52 @@ module interest_protocol::whirpool_test {
     test::end(scenario);
   }
 
+  #[test]
+  fun test_update_dnr_interest_rate_per_epoch() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, _) = people();
+    advance_epoch(test, alice, 4);
+    next_tx(test, alice); 
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+
+      whirpool::update_dnr_interest_rate_per_epoch(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        &interest_rate_model_storage,
+        &mut dnr_storage,
+        100,
+        ctx(test)
+      );
+
+      let dnr_per_epoch = dnr::get_interest_rate_per_epoch(&dnr_storage);
+
+      assert_eq(dnr_per_epoch, 100);
+
+      test::return_to_address(alice, whirpool_admin_cap);
+      test::return_shared(dnr_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(whirpool_storage);       
+    };
+    test::end(scenario);
+  }
+
   // utils
 
   fun calculate_btc_market_rewards(num_of_epochs: u256, total_principal: u256): u256 {
-    ((num_of_epochs * (100 * IPX_DECIMALS_FACTOR) * 500) / 2100/ 2) * BTC_DECIMALS_FACTOR / total_principal  
+    ((num_of_epochs * (100 * IPX_DECIMALS_FACTOR) * 500) / 2600/ 2) * BTC_DECIMALS_FACTOR / total_principal  
   }
 
   fun calculate_eth_market_rewards(num_of_epochs: u256, total_principal: u256): u256 {
-    ((num_of_epochs * (100 * IPX_DECIMALS_FACTOR) * 700) / 2100/ 2) * ETH_DECIMALS_FACTOR / total_principal
+    ((num_of_epochs * (100 * IPX_DECIMALS_FACTOR) * 700) / 2600/ 2) * ETH_DECIMALS_FACTOR / total_principal
   }
 } 
 

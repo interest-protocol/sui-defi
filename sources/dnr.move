@@ -64,7 +64,7 @@ module interest_protocol::dnr {
     balance::decrease_supply(&mut storage.supply, coin::into_balance(coin_dnr))
   }
 
-  entry public(friend) fun update_interest_rate_per_epoch(storage: &mut DineroStorage, new_interest_rate: u64) {
+  public(friend) fun update_interest_rate_per_epoch(storage: &mut DineroStorage, new_interest_rate: u64) {
     assert!(MAX_INTEREST_RATE_PER_EPOCH >= new_interest_rate, ERROR_INTEREST_RATE_TOO_HIGH);
     event::emit(
       Update_Interest_Rate {
