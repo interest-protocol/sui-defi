@@ -5,7 +5,7 @@ module interest_protocol::interest_rate_model_test {
 
   use interest_protocol::interest_rate_model::{Self as model, InterestRateModelStorage};
   use interest_protocol::test_utils::{people, scenario};
-  use interest_protocol::utils::{get_coin_info};
+  use interest_protocol::utils::{get_coin_info, get_epochs_per_year};
   use interest_protocol::math::{fmul, fdiv, one};
 
   const ONE_PERCENT: u64 = 10000000;
@@ -42,7 +42,7 @@ module interest_protocol::interest_rate_model_test {
       let storage = test::take_shared<InterestRateModelStorage>(test);
       let (base_rate_per_epoch, multiplier_rate_per_epoch, jump_rate_per_epoch, kink) = model::get_interest_rate_data<BTC>(&storage);
 
-      let epochs_per_year = model::get_epochs_per_year();
+      let epochs_per_year = get_epochs_per_year();
 
       assert!(base_rate_per_epoch == ONE_PERCENT / epochs_per_year, 0);
       assert!(multiplier_rate_per_epoch == THREE_PERCENT / epochs_per_year, 0);
@@ -76,7 +76,7 @@ module interest_protocol::interest_rate_model_test {
       // Above kink
       let utilization_rate = fdiv(total_borrows, (total_borrows + cash - reserves));
 
-      let epochs_per_year = model::get_epochs_per_year();
+      let epochs_per_year = get_epochs_per_year();
 
       let base_rate_per_epoch = ONE_PERCENT / epochs_per_year;
       let multiplier_rate_per_epoch = THREE_PERCENT / epochs_per_year;
@@ -111,7 +111,7 @@ module interest_protocol::interest_rate_model_test {
       // Below kink
       let utilization_rate = fdiv(total_borrows, (total_borrows + cash - reserves));
 
-      let epochs_per_year = model::get_epochs_per_year();
+      let epochs_per_year = get_epochs_per_year();
 
       let base_rate_per_epoch = ONE_PERCENT / epochs_per_year;
       let multiplier_rate_per_epoch = THREE_PERCENT / epochs_per_year;
@@ -159,7 +159,7 @@ module interest_protocol::interest_rate_model_test {
       // Above kink
       let utilization_rate = fdiv(total_borrows, (total_borrows + cash - reserves));
 
-      let epochs_per_year = model::get_epochs_per_year();
+      let epochs_per_year = get_epochs_per_year();
 
       let base_rate_per_epoch = ONE_PERCENT / epochs_per_year;
       let multiplier_rate_per_epoch = THREE_PERCENT / epochs_per_year;
@@ -198,7 +198,7 @@ module interest_protocol::interest_rate_model_test {
       // Below kink
       let utilization_rate = fdiv(total_borrows, (total_borrows + cash - reserves));
 
-      let epochs_per_year = model::get_epochs_per_year();
+      let epochs_per_year = get_epochs_per_year();
 
       let base_rate_per_epoch = ONE_PERCENT / epochs_per_year;
       let multiplier_rate_per_epoch = THREE_PERCENT / epochs_per_year;

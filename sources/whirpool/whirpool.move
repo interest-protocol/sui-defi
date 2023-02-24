@@ -1462,14 +1462,14 @@ module interest_protocol::whirpool {
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
-  * @param new_interest_rate_per_epoch The new Dinero interest rate
+  * @param new_interest_rate_per_year The new Dinero interest rate
   */
   entry public fun update_dnr_interest_rate_per_epoch(
     _: &WhirpoolAdminCap, 
     whirpool_storage: &mut WhirpoolStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &mut DineroStorage,
-    new_interest_rate_per_epoch: u64,
+    new_interest_rate_per_year: u64,
     ctx: &mut TxContext
   ) {
     // Get DNR key
@@ -1489,7 +1489,7 @@ module interest_protocol::whirpool {
       ctx
     );
 
-    dnr::update_interest_rate_per_epoch(dinero_storage, new_interest_rate_per_epoch)
+    dnr::update_interest_rate_per_epoch(dinero_storage, new_interest_rate_per_year)
   }
 
   /**
@@ -1622,7 +1622,7 @@ module interest_protocol::whirpool {
   public fun borrow_dnr(
     whirpool_storage: &mut WhirpoolStorage,
     account_storage: &mut AccountStorage, 
-    interest_rate_model_storage: &mut InterestRateModelStorage,
+    interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage,
     dinero_storage: &mut DineroStorage,
     oracle_storage: &OracleStorage,
@@ -1691,7 +1691,8 @@ module interest_protocol::whirpool {
       total_allocation_points, 
       market_key, 
       sender, 
-      ctx);
+      ctx
+    );
 
     emit(
       Borrow<DNR> {
@@ -2477,8 +2478,9 @@ module interest_protocol::whirpool {
         vector::push_back(user_markets_in, market_key);
       };
 
+
       // Ensure that the borrow cap is not met
-      assert!(current_market_data.borrow_cap >= rebase::elastic(&current_market_data.collateral_rebase), ERROR_BORROW_CAP_LIMIT_REACHED);
+      assert!(current_market_data.borrow_cap >= rebase::elastic(&current_market_data.loan_rebase), ERROR_BORROW_CAP_LIMIT_REACHED);
 
       // User must remain solvent
       assert!(is_user_solvent(

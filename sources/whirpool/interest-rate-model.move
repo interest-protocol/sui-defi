@@ -9,12 +9,12 @@ module interest_protocol::interest_rate_model {
   use sui::event;
 
   use interest_protocol::math::{fmul, fdiv, one};
-  use interest_protocol::utils::{get_coin_info};
+  use interest_protocol::utils::{get_coin_info, get_epochs_per_year};
 
   friend interest_protocol::whirpool;
 
   // TODO: need to update to timestamps whenever they are implemented in the devnet
-  const EPOCHS_PER_YEAR: u64 = 3504; // 24 / 2.5 * 365
+
 
   struct InterestRateData has key, store {
     id: UID,
@@ -106,9 +106,11 @@ module interest_protocol::interest_rate_model {
   ) {
     let key = get_coin_info<T>();
 
-    let base_rate_per_epoch = base_rate_per_year / EPOCHS_PER_YEAR;
-    let multiplier_per_epoch = multiplier_per_year / EPOCHS_PER_YEAR;
-    let jump_multiplier_per_epoch = jump_multiplier_per_year / EPOCHS_PER_YEAR;
+    let epochs_per_year = get_epochs_per_year();
+
+    let base_rate_per_epoch = base_rate_per_year / epochs_per_year;
+    let multiplier_per_epoch = multiplier_per_year / epochs_per_year;
+    let jump_multiplier_per_epoch = jump_multiplier_per_year / epochs_per_year;
 
     if (table::contains(&storage.interest_rate_table, key)) {
       let data = table::borrow_mut(&mut storage.interest_rate_table, key); 
@@ -156,11 +158,6 @@ module interest_protocol::interest_rate_model {
     ctx: &mut TxContext
   ) {
     set_interest_rate_data<T>(storage, base_rate_per_year, multiplier_per_year, jump_multiplier_per_year, kink, ctx);
-  }
-
-  #[test_only]
-  public fun get_epochs_per_year(): u64 {
-    EPOCHS_PER_YEAR
   }
 
   #[test_only]

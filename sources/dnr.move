@@ -9,10 +9,12 @@ module interest_protocol::dnr {
   use sui::url;
   use sui::event;
 
+  use interest_protocol::utils::{get_epochs_per_year};
+
   friend interest_protocol::whirpool;
 
-  const INITIAL_INTEREST_RATE_PER_EPOCH: u64 = 5707762557078; // 2% a year
-  const MAX_INTEREST_RATE_PER_EPOCH: u64 = 28538812785390; // 10% a year
+  const INITIAL_INTEREST_RATE_PER_YEAR: u64 = 20000000; // 2% a year
+  const MAX_INTEREST_RATE_PER_YEAR: u64 = 150000000; // 15% a year
 
   const ERROR_INTEREST_RATE_TOO_HIGH: u64 = 1;
 
@@ -48,7 +50,7 @@ module interest_protocol::dnr {
         DineroStorage {
           id: object::new(ctx),
           supply,
-          interest_rate_per_epoch: INITIAL_INTEREST_RATE_PER_EPOCH
+          interest_rate_per_epoch: INITIAL_INTEREST_RATE_PER_YEAR / get_epochs_per_year()
         }
       );
 
@@ -65,14 +67,14 @@ module interest_protocol::dnr {
   }
 
   public(friend) fun update_interest_rate_per_epoch(storage: &mut DineroStorage, new_interest_rate: u64) {
-    assert!(MAX_INTEREST_RATE_PER_EPOCH >= new_interest_rate, ERROR_INTEREST_RATE_TOO_HIGH);
+    assert!(MAX_INTEREST_RATE_PER_YEAR >= new_interest_rate, ERROR_INTEREST_RATE_TOO_HIGH);
     event::emit(
       Update_Interest_Rate {
         old_value: storage.interest_rate_per_epoch,
         new_value: new_interest_rate
       }
     );
-    storage.interest_rate_per_epoch = new_interest_rate;
+    storage.interest_rate_per_epoch = new_interest_rate / get_epochs_per_year();
   }
 
   public fun get_interest_rate_per_epoch(storage: &DineroStorage): u64 {
