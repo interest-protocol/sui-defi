@@ -85,8 +85,17 @@ module interest_protocol::dnr {
     transfer::transfer(c, recipient);
   }
 
+  public fun get_supply(storage: &DineroStorage): u64 {
+    balance::supply_value(&storage.supply)
+  }
+
   #[test_only]
   public fun init_for_testing(ctx: &mut TxContext) {
     init(DNR {}, ctx);
+  }
+
+  #[test_only]
+  public fun mint_for_testing(storage: &mut DineroStorage, value: u64, ctx: &mut TxContext): Coin<DNR> {
+    coin::from_balance(balance::increase_supply(&mut storage.supply, value), ctx)
   }
 }
