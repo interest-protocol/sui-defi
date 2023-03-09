@@ -429,8 +429,8 @@ module interest_protocol::interface {
 * @param storage The MasterChefStorage shared object
 * @param clock_object The Clock object created at genesis
 */
-  entry public fun update_pool<T>(storage: &mut MasterChefStorage, clock_object: &Clock, ctx: &mut TxContext) {
-    master_chef::update_pool<T>(storage, clock_object, ctx);
+  entry public fun update_pool<T>(storage: &mut MasterChefStorage, clock_object: &Clock) {
+    master_chef::update_pool<T>(storage, clock_object);
   }
 
 /**
@@ -438,8 +438,8 @@ module interest_protocol::interface {
 * @param storage The MasterChefStorage shared object
 * @param clock_object The Clock object created at genesis
 */
-  entry public fun update_all_pools(storage: &mut MasterChefStorage, clock_object: &Clock, ctx: &mut TxContext) {
-    master_chef::update_all_pools(storage, clock_object, ctx);
+  entry public fun update_all_pools(storage: &mut MasterChefStorage, clock_object: &Clock) {
+    master_chef::update_all_pools(storage, clock_object);
   }
 
 /**

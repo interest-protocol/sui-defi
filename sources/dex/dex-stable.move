@@ -14,9 +14,6 @@ module interest_protocol::dex_stable {
   use interest_protocol::utils;
   use interest_protocol::math::{mul_div, sqrt_u256};
 
-  const DEV: address = @dev;
-  const ZERO_ACCOUNT: address = @0x0;
-
   const MINIMUM_LIQUIDITY: u64 = 10;
   const PRECISION: u256 = 1000000000000000000; //1e18;
   const FEE_PERCENT: u256 = 500000000000000; //0.05%
@@ -38,8 +35,7 @@ module interest_protocol::dex_stable {
   const ERROR_WRONG_REPAY_AMOUNT_Y: u64 = 13;
   const ERROR_UNSORTED_COINS: u64 = 14;
 
-
-    struct AdminCap has key {
+    struct StableDEXAdminCap has key {
       id: UID,
     }
 
@@ -108,14 +104,14 @@ module interest_protocol::dex_stable {
     } 
 
     /**
-    * @dev It gives the caller the AdminCap object. The AdminCap allows the holder to update the fee_to key. 
+    * @dev It gives the caller the StableDEXAdminCap object. The StableDEXAdminCap allows the holder to update the fee_to key. 
     * It shares the Storage object with the Sui Network.
     */
     fun init(ctx: &mut TxContext) {
       // Give administrator capabilities to the deployer
       // He has the ability to update the fee_to key on the Storage
       transfer::transfer(
-        AdminCap { 
+        StableDEXAdminCap { 
           id: object::new(ctx)
         }, 
         tx_context::sender(ctx)
@@ -126,15 +122,16 @@ module interest_protocol::dex_stable {
          Storage {
            id: object::new(ctx),
            pools: bag::new(ctx),
-           fee_to: DEV
+           fee_to: @dev
          }
       );
     }
 
     /**
-    * @notice The zero address receives a small amount of shares to prevent zero divisions in the future. 
+    * @notice Only the admin can create stable pools because we need the decimals to be correct
     * @notice Please make sure that the tokens X and Y are sorted before calling this fn.
-    * @dev It creates a new Pool with X and Y coins. The pool accepts swaps using the x3y+y3x >= k invariant.
+    * @dev It creates a new Pool with X and Y coins. The pool accepts swaps using the x^3y+y^3x >= k invariant.
+    * @param _ The StableDEXAdminCap
     * @param storage the object that stores the pools Bag
     * @oaram coin_x the first token of the pool
     * @param coin_y the scond token of the pool
@@ -146,7 +143,7 @@ module interest_protocol::dex_stable {
     * - There can only be one pool per each token pair, regardless of their order.
     */
     public fun create_pool<X, Y>(
-      _: &AdminCap,
+      _: &StableDEXAdminCap,
       storage: &mut Storage,
       coin_x: Coin<X>,
       coin_y: Coin<Y>,
@@ -185,7 +182,7 @@ module interest_protocol::dex_stable {
       let sender_balance = balance::increase_supply(&mut supply, shares);
 
       // Transfer the zero address shares
-      transfer::transfer(coin::from_balance(min_liquidity_balance, ctx), ZERO_ACCOUNT);
+      transfer::transfer(coin::from_balance(min_liquidity_balance, ctx), @0x0);
 
       // Calculate an id for the pool and the event
       let id = object::new(ctx);
@@ -655,7 +652,7 @@ module interest_protocol::dex_stable {
     */
     fun mint_fee<X, Y>(pool: &mut SPool<X, Y>, fee_to: address, ctx: &mut TxContext): bool {
         // If the `fee_to` is the zero address @0x0, we do not collect any protocol fees.
-        let is_fee_on = fee_to != ZERO_ACCOUNT;
+        let is_fee_on = fee_to != @0x0;
 
           if (is_fee_on) {
             // We need to know the last K to calculate how many fees were collected
@@ -748,12 +745,12 @@ module interest_protocol::dex_stable {
 
     /**
     * @dev Admin only fn to update the fee_to. 
-    * @param _ the AdminCap 
+    * @param _ the StableDEXAdminCap
     * @param storage the object that stores the pools Bag 
     * @param new_fee_to the new `fee_to`.
     */
     entry public fun update_fee_to(
-      _:&AdminCap, 
+      _:&StableDEXAdminCap, 
       storage: &mut Storage,
       new_fee_to: address
        ) {
@@ -763,11 +760,11 @@ module interest_protocol::dex_stable {
 
     /**
     * @dev Admin only fn to transfer the ownership. 
-    * @param admin_cap the AdminCap 
+    * @param admin_cap the StableDEXAdminCap 
     * @param new_admin the new admin.
     */
     entry public fun transfer_admin_cap(
-      admin_cap: AdminCap,
+      admin_cap: StableDEXAdminCap,
       new_admin: address
     ) {
       transfer::transfer(admin_cap, new_admin);

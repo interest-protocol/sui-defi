@@ -15,7 +15,9 @@ module interest_protocol::master_chef {
   use interest_protocol::utils::{get_coin_info_string};
   use interest_protocol::math::{fdiv_u256, fmul_u256};
 
-  const START_TIMESTAMP: u64 = 0; // TODO needs to be updated based on real time before mainnet
+  // TODO needs to be updated based on real time before mainnet
+  const START_TIMESTAMP: u64 = 0;
+  // TODO need to be updated to match the tokenomics
   const IPX_PER_MS: u64 = 100000000; // 100e6 IPX | 100 IPX per second
   const IPX_POOL_KEY: u64 = 0;
 
@@ -58,7 +60,7 @@ module interest_protocol::master_chef {
     key: u64
   }
 
-  struct IPXAdmin has key {
+  struct MasterChefAdmin has key {
     id: UID
   }
 
@@ -92,9 +94,6 @@ module interest_protocol::master_chef {
   struct NewAdmin has drop, copy {
     admin: address
   }
-
-  // Any Value because we do not use
-  struct Value {}
 
   fun init(ctx: &mut TxContext) {
       // Set up tables for the storage objects 
@@ -156,7 +155,7 @@ module interest_protocol::master_chef {
       );
 
       // Give the admin_cap to the deployer
-      transfer::transfer(IPXAdmin { id: object::new(ctx) }, tx_context::sender(ctx));
+      transfer::transfer(MasterChefAdmin { id: object::new(ctx) }, tx_context::sender(ctx));
   }
 
 /**
@@ -170,8 +169,7 @@ module interest_protocol::master_chef {
   storage: &MasterChefStorage,
   clock_oject: &Clock,
   account_storage: &AccountStorage,
-  account: address,
-  ctx: &mut TxContext
+  account: address
   ): u256 {
     
     // If the user never deposited in T Pool, return 0
@@ -237,7 +235,7 @@ module interest_protocol::master_chef {
   ctx: &mut TxContext
  ): Coin<IPX> {
   // We need to update the pool rewards before any mutation
-  update_pool<T>(storage, clock_object, ctx);
+  update_pool<T>(storage, clock_object);
   // Save the sender in memory
   let sender = tx_context::sender(ctx);
   let key = get_pool_key<T>(storage);
@@ -318,7 +316,7 @@ module interest_protocol::master_chef {
   ctx: &mut TxContext
  ): (Coin<IPX>, Coin<T>) {
   // Need to update the rewards of the pool before any  mutation
-  update_pool<T>(storage, clock_object, ctx);
+  update_pool<T>(storage, clock_object);
   
   // Get mutable struct of the Pool and Account
   let key = get_pool_key<T>(storage);
@@ -383,7 +381,7 @@ module interest_protocol::master_chef {
   ctx: &mut TxContext
  ): Coin<IPX> {
   // Update the pool before any mutation
-  update_pool<T>(storage, clock_object, ctx);
+  update_pool<T>(storage, clock_object);
   
   // Get mutable Pool and Account structs
   let key = get_pool_key<T>(storage);
@@ -419,7 +417,7 @@ module interest_protocol::master_chef {
  * @notice Updates the reward info of all pools registered in this contract
  * @param storage The MasterChefStorage shared object
  */
- public fun update_all_pools(storage: &mut MasterChefStorage, clock_object: &Clock, ctx: &mut TxContext) {
+ public fun update_all_pools(storage: &mut MasterChefStorage, clock_object: &Clock) {
   // Find out how many pools are in the contract
   let length = table::length(&storage.pools);
 
@@ -437,7 +435,7 @@ module interest_protocol::master_chef {
     let pool = table::borrow_mut(&mut storage.pools, index);
 
     // Update the pool
-    update_pool_internal(pool, clock_object, ipx_per_ms, total_allocation_points, start_timestamp, ctx);
+    update_pool_internal(pool, clock_object, ipx_per_ms, total_allocation_points, start_timestamp);
 
     // Increment the index
     index = index + 1;
@@ -448,7 +446,7 @@ module interest_protocol::master_chef {
  * @notice Updates the reward info for T Pool
  * @param storage The MasterChefStorage shared object
  */
- public fun update_pool<T>(storage: &mut MasterChefStorage, clock_object: &Clock, ctx: &mut TxContext) {
+ public fun update_pool<T>(storage: &mut MasterChefStorage, clock_object: &Clock) {
   // Save in memory key information before mutating the storage struct
   let ipx_per_ms = storage.ipx_per_ms;
   let total_allocation_points = storage.total_allocation_points;
@@ -463,8 +461,7 @@ module interest_protocol::master_chef {
     clock_object,
     ipx_per_ms, 
     total_allocation_points, 
-    start_timestamp, 
-    ctx
+    start_timestamp
   );
  }
 
@@ -480,8 +477,7 @@ module interest_protocol::master_chef {
   clock_object: &Clock,
   ipx_per_ms: u64, 
   total_allocation_points: u64,
-  start_timestamp: u64,
-  ctx: &mut TxContext
+  start_timestamp: u64
   ) {
   // Save the current epoch in memory  
   let current_timestamp = clock::timestamp_ms(clock_object);
@@ -605,14 +601,13 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
 * - The caller must be the admin
 */ 
  entry public fun update_ipx_per_ms(
-  _: &IPXAdmin,
+  _: &MasterChefAdmin,
   storage: &mut MasterChefStorage,
   clock_object: &Clock,
-  ipx_per_ms: u64,
-  ctx: &mut TxContext
+  ipx_per_ms: u64
   ) {
     // Update all pools rewards info before updating the ipx_per_epoch
-    update_all_pools(storage, clock_object, ctx);
+    update_all_pools(storage, clock_object);
     storage.ipx_per_ms = ipx_per_ms;
  }
 
@@ -628,7 +623,7 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
 * - Only one Pool per Coin<T>
 */ 
  entry public fun add_pool<T>(
-  _: &IPXAdmin,
+  _: &MasterChefAdmin,
   storage: &mut MasterChefStorage,
   accounts_storage: &mut AccountStorage,
   clock_object: &Clock,
@@ -640,7 +635,7 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
   let total_allocation_points = storage.total_allocation_points;
   let start_timestamp = storage.start_timestamp;
   // Update all pools if true
-  if (update) update_all_pools(storage, clock_object, ctx);
+  if (update) update_all_pools(storage, clock_object);
 
   let coin_info_string = get_coin_info_string<T>();
 
@@ -713,17 +708,16 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
 * - The Pool must exist
 */ 
  entry public fun set_allocation_points<T>(
-  _: &IPXAdmin,
+  _: &MasterChefAdmin,
   storage: &mut MasterChefStorage,
   clock_object: &Clock,
   allocation_points: u64,
-  update: bool,
-  ctx: &mut TxContext
+  update: bool
  ) {
   // Save the total allocation points in memory
   let total_allocation_points = storage.total_allocation_points;
   // Update all pools
-  if (update) update_all_pools(storage, clock_object, ctx);
+  if (update) update_all_pools(storage, clock_object);
 
   // Get Pool key and Pool mutable Struct
   let key = get_pool_key<T>(storage);
@@ -757,7 +751,7 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
  * @param recipient The address of the new admin
  */
  entry public fun transfer_admin(
-  admin: IPXAdmin,
+  admin: MasterChefAdmin,
   recipient: address
  ) {
   transfer::transfer(admin, recipient);

@@ -13,9 +13,6 @@ module interest_protocol::dex_volatile {
   use interest_protocol::utils;
   use interest_protocol::math::{mul_div, sqrt_u256};
 
-  const DEV: address = @dev;
-  const ZERO_ACCOUNT: address = @0x0;
-
   const MINIMUM_LIQUIDITY: u64 = 10;
   const PRECISION: u256 = 1000000000000000000; //1e18;
   const FEE_PERCENT: u256 = 3000000000000000; //0.3%
@@ -36,7 +33,7 @@ module interest_protocol::dex_volatile {
   const ERROR_WRONG_REPAY_AMOUNT_Y: u64 = 13;
   const ERROR_UNSORTED_COINS: u64 = 14;
 
-    struct AdminCap has key {
+    struct VolatileDEXAdminCap has key {
       id: UID,
     }
 
@@ -102,18 +99,15 @@ module interest_protocol::dex_volatile {
       shares_destroyed: u64
     }
 
-    // Any Value because we do not use
-    struct Value {}
-
     /**
-    * @dev It gives the caller the AdminCap object. The AdminCap allows the holder to update the fee_to key. 
+    * @dev It gives the caller the VolatileDEXAdminCap object. The VolatileDEXAdminCap allows the holder to update the fee_to key. 
     * It shares the Storage object with the Sui Network.
     */
     fun init(ctx: &mut TxContext) {
       // Give administrator capabilities to the deployer
       // He has the ability to update the fee_to key on the Storage
       transfer::transfer(
-        AdminCap { 
+        VolatileDEXAdminCap { 
           id: object::new(ctx)
         }, 
         tx_context::sender(ctx)
@@ -124,7 +118,7 @@ module interest_protocol::dex_volatile {
          Storage {
            id: object::new(ctx),
            pools: bag::new(ctx),
-           fee_to: DEV
+           fee_to: @dev
          }
       );
     }
@@ -177,7 +171,7 @@ module interest_protocol::dex_volatile {
       let sender_balance = balance::increase_supply(&mut supply, shares);
 
       // Transfer the zero address shares
-      transfer::transfer(coin::from_balance(min_liquidity_balance, ctx), ZERO_ACCOUNT);
+      transfer::transfer(coin::from_balance(min_liquidity_balance, ctx), @0x0);
 
       // Calculate an id for the pool and the event
       let pool_id = object::new(ctx);
@@ -625,7 +619,7 @@ module interest_protocol::dex_volatile {
     */
       fun mint_fee<X, Y>(pool: &mut VPool<X, Y>, fee_to: address, ctx: &mut TxContext): bool {
           // If the `fee_to` is the zero address @0x0, we do not collect any protocol fees.
-          let is_fee_on = fee_to != ZERO_ACCOUNT;
+          let is_fee_on = fee_to != @0x0;
 
           if (is_fee_on) {
             // We need to know the last K to calculate how many fees were collected
@@ -660,12 +654,12 @@ module interest_protocol::dex_volatile {
 
     /**
     * @dev Admin only fn to update the fee_to. 
-    * @param _ the AdminCap 
+    * @param _ the VolatileDEXAdminCap 
     * @param storage the object that stores the pools Bag 
     * @param new_fee_to the new `fee_to`.
     */
     entry public fun update_fee_to(
-      _:&AdminCap, 
+      _:&VolatileDEXAdminCap, 
       storage: &mut Storage,
       new_fee_to: address
        ) {
@@ -674,11 +668,11 @@ module interest_protocol::dex_volatile {
 
     /**
     * @dev Admin only fn to transfer the ownership. 
-    * @param admin_cap the AdminCap 
+    * @param admin_cap the VolatileDEXAdminCap 
     * @param new_admin the new admin.
     */
     entry public fun transfer_admin_cap(
-      admin_cap: AdminCap,
+      admin_cap: VolatileDEXAdminCap,
       new_admin: address
     ) {
       transfer::transfer(admin_cap, new_admin);
