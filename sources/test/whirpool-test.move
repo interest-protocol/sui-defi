@@ -1,4 +1,3 @@
-#[test_only]
 module interest_protocol::whirpool_test {
   // use std::vector;
 

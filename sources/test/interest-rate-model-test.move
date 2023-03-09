@@ -1,4 +1,3 @@
-#[test_only]
 module interest_protocol::interest_rate_model_test {
 
   // use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
