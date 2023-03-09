@@ -9,6 +9,10 @@ module interest_protocol::ipx {
   use sui::url;
 
   friend interest_protocol::whirpool;
+  friend interest_protocol::master_chef;
+  friend interest_protocol::interface;
+
+  const IPX_PRE_MINT_AMOUNT: u64 = 600000000000000000; // 600M 60% of the supply
 
   struct IPX has drop {}
 
@@ -30,6 +34,14 @@ module interest_protocol::ipx {
         );
       // Transform the treasury_cap into a supply struct to allow this contract to mint/burn DNR
       let supply = coin::treasury_into_supply(treasury);
+
+      // Pre-mint 60% of the supply to distribute
+      transfer::transfer(
+        coin::from_balance(
+          balance::increase_supply(&mut supply, IPX_PRE_MINT_AMOUNT), ctx
+        ),
+        @dev
+      );
 
       transfer::share_object(
         IPXStorage {
