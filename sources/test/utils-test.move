@@ -3,10 +3,10 @@ module interest_protocol::utils_tests {
   use std::vector;
 
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
-  use sui::coin::{Coin, mint_for_testing as mint, destroy_for_testing as burn};
+  use sui::coin::{Coin, mint_for_testing as mint};
 
   use interest_protocol::utils;
-  use interest_protocol::test_utils::{people, scenario};
+  use interest_protocol::test_utils::{people, scenario, burn};
   
   struct Ether {}
 

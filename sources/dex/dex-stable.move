@@ -12,12 +12,11 @@ module interest_protocol::dex_stable {
   use sui::event;
 
   use interest_protocol::utils;
-  use interest_protocol::math::{mul_div, sqrt_u256};
+  use interest_protocol::math::{mul_div, sqrt_u256, scalar};
 
   const MINIMUM_LIQUIDITY: u64 = 10;
   const PRECISION: u256 = 1000000000000000000; //1e18;
   const FEE_PERCENT: u256 = 500000000000000; //0.05%
-  const DESCALE_FACTOR: u256 =  1000000000; //1e9 
   const FLASH_LOAN_FEE_PERCENT: u256 = 5000000000000000; //0.5% 
 
   const ERROR_CREATE_PAIR_ZERO_VALUE: u64 = 1;
@@ -173,7 +172,7 @@ module interest_protocol::dex_stable {
       // Calculate k = x^3y + y^3x
       let k = k(coin_x_value, coin_y_value, decimals_x, decimals_y);
       // Calculate the number of shares
-      let shares = ((sqrt_u256(k) / DESCALE_FACTOR) as u64) - MINIMUM_LIQUIDITY;
+      let shares = ((sqrt_u256(k) / scalar()) as u64) - MINIMUM_LIQUIDITY;
 
       // Create the SLP coin for the Pool<X, Y>. 
       // This coin has 0 decimals and no metadata 

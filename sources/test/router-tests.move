@@ -2,12 +2,12 @@
 module interest_protocol::router_tests {
   
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
-  use sui::coin::{Self, mint_for_testing as mint, destroy_for_testing as burn};
+  use sui::coin::{Self, mint_for_testing as mint};
 
   use interest_protocol::router;
   use interest_protocol::dex_stable::{Self as stable, Storage as SStorage, StableDEXAdminCap};
   use interest_protocol::dex_volatile::{Self as volatile, Storage as VStorage};
-  use interest_protocol::test_utils::{people, scenario};
+  use interest_protocol::test_utils::{people, scenario, burn};
 
   struct USDT {}
   struct USDC {}

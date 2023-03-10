@@ -18,7 +18,7 @@ module interest_protocol::master_chef {
   // TODO needs to be updated based on real time before mainnet
   const START_TIMESTAMP: u64 = 0;
   // TODO need to be updated to match the tokenomics
-  const IPX_PER_MS: u64 = 100000000; // 100e6 IPX | 100 IPX per second
+  const IPX_PER_MS: u64 = 1268391; // 40M IPX per year
   const IPX_POOL_KEY: u64 = 0;
 
   const ERROR_POOL_ADDED_ALREADY: u64 = 1;
@@ -167,8 +167,8 @@ module interest_protocol::master_chef {
 */
  public fun get_pending_rewards<T>(
   storage: &MasterChefStorage,
-  clock_oject: &Clock,
   account_storage: &AccountStorage,
+  clock_oject: &Clock,
   account: address
   ): u256 {
     

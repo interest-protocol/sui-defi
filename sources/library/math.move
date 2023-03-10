@@ -1,11 +1,7 @@
 module interest_protocol::math {
 
-  const SCALAR: u256 = 1000000000;
-  const DOUBLE_SCALAR: u256 = 1000000000000000000;
-
-  public fun fmul(x: u64, y: u64): u64 {
-    ((((x as u256) * (y as u256) ) / SCALAR) as u64)
-  }
+  const SCALAR: u256 = 1000000000; // 1e9 - Same as Sui decimals
+  const DOUBLE_SCALAR: u256 = 1000000000000000000; // 1e18 - More accuracy
 
   public fun fmul_u256(x: u256, y: u256): u256 {
     ((x * y ) / SCALAR)
@@ -15,8 +11,12 @@ module interest_protocol::math {
     (x * SCALAR ) / y
   }
 
-  public fun fdiv(x: u64, y: u64): u64 {
-    ((((x as u256) * SCALAR ) / (y as u256)) as u64)
+  public fun d_fmul(x: u64, y: u64): u64 {
+    ((((x as u256) * (y as u256) ) / DOUBLE_SCALAR) as u64)
+  }
+
+  public fun d_fdiv(x: u64, y: u64): u64 {
+    ((((x as u256) * DOUBLE_SCALAR ) / (y as u256)) as u64)
   }
     
   public fun mul_div_u256(x: u256, y: u256, z: u256): u256 {
@@ -46,7 +46,11 @@ module interest_protocol::math {
         z
   }
 
-  public fun one(): u256 {
+  public fun scalar(): u256 {
     SCALAR
+  }
+
+  public fun double_scalar(): u256 {
+    DOUBLE_SCALAR
   }
 }

@@ -2,9 +2,10 @@
 module interest_protocol::test_utils {
   
   use sui::test_scenario::{Self as test, Scenario, next_epoch};
-  use sui::coin::{mint_for_testing, Coin};
+  use sui::coin::{Self, mint_for_testing, Coin};
   use sui::tx_context::{TxContext};
   use sui::math;
+  use sui::transfer;
 
   public fun scenario(): Scenario { test::begin(@0x1) }
 
@@ -21,5 +22,11 @@ module interest_protocol::test_utils {
       next_epoch(test, sender);
       index = index + 1;
     }
+  }
+
+  public fun burn<T>(token: Coin<T>): u64 {
+    let value = coin::value(&token);
+    transfer::transfer(token, @0x0);
+    value
   }
 }
