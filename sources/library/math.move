@@ -11,12 +11,20 @@ module interest_protocol::math {
     (x * SCALAR ) / y
   }
 
-  public fun d_fmul(x: u64, y: u64): u64 {
-    ((((x as u256) * (y as u256) ) / DOUBLE_SCALAR) as u64)
+  public fun d_fmul(x: u64, y: u64): u256 {
+    (((x as u256) * (y as u256) ) / DOUBLE_SCALAR)
   }
 
-  public fun d_fdiv(x: u64, y: u64): u64 {
-    ((((x as u256) * DOUBLE_SCALAR ) / (y as u256)) as u64)
+  public fun d_fdiv(x: u64, y: u64): u256 {
+    (((x as u256) * DOUBLE_SCALAR ) / (y as u256))
+  }
+
+  public fun d_fmul_u256(x: u256, y: u256): u256 {
+    ((x * y ) / DOUBLE_SCALAR)
+  }
+
+  public fun d_div_u256(x: u256, y: u256): u256 {
+    (x * DOUBLE_SCALAR) / y
   }
     
   public fun mul_div_u256(x: u256, y: u256, z: u256): u256 {
