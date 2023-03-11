@@ -42,27 +42,27 @@ module interest_protocol::interest_rate_model {
       );
   }
 
-  public fun get_borrow_rate_per_epoch(
+  public fun get_borrow_rate_per_ms(
     storage: &InterestRateModelStorage,
     market_key: String,
     cash: u64,
     total_borrow_amount: u64,
     reserves: u64
-  ): u256 {
-    get_borrow_rate_per_ms_internal(storage, market_key, cash, total_borrow_amount, reserves)
+  ): u64 {
+    (get_borrow_rate_per_ms_internal(storage, market_key, cash, total_borrow_amount, reserves) as u64)
   }
 
-  public fun get_supply_rate_per_epoch(
+  public fun get_supply_rate_per_ms(
     storage: &InterestRateModelStorage,
     market_key: String,
     cash: u64,
     total_borrow_amount: u64,
     reserves: u64,
     reserve_factor: u256
-  ): u256 {
-    let borrow_rate = d_fmul_u256(get_borrow_rate_per_ms_internal(storage, market_key, cash, total_borrow_amount, reserves), double_scalar() - reserve_factor);
+  ): u64 {
+    let borrow_rate = d_fmul_u256((get_borrow_rate_per_ms_internal(storage, market_key, cash, total_borrow_amount, reserves) as u256), double_scalar() - reserve_factor);
 
-    d_fmul_u256(get_utilization_rate_internal(cash, total_borrow_amount, reserves), borrow_rate)
+    (d_fmul_u256(get_utilization_rate_internal(cash, total_borrow_amount, reserves), borrow_rate) as u64)
   }
 
   fun get_borrow_rate_per_ms_internal(
@@ -71,19 +71,19 @@ module interest_protocol::interest_rate_model {
     cash: u64,
     total_borrow_amount: u64,
     reserves: u64
-    ): u256 {
+    ): u64 {
       let utilization_rate = get_utilization_rate_internal(cash, total_borrow_amount, reserves);
 
       let data = table::borrow(&storage.interest_rate_table, market_key);
 
       if (data.kink >= utilization_rate) {
-        d_fmul_u256(utilization_rate, data.multiplier_per_ms) + data.base_rate_per_ms
+        (d_fmul_u256(utilization_rate, data.multiplier_per_ms) + data.base_rate_per_ms as u64)
       } else {
         let normal_rate = d_fmul_u256(data.kink, data.multiplier_per_ms) + data.base_rate_per_ms;
 
         let excess_utilization = utilization_rate - data.kink;
         
-        d_fmul_u256(excess_utilization, data.jump_multiplier_per_ms) + normal_rate
+        (d_fmul_u256(excess_utilization, data.jump_multiplier_per_ms) + normal_rate as u64)
       }
     }
 

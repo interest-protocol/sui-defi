@@ -1,5 +1,3 @@
-// We will convert all values to 1e18 scalar for accuracy
-// Need to convert values when depositing, withdrawing, borrowing, repaying.
 module interest_protocol::whirpool {
   use std::ascii::{String};
   use std::vector;
@@ -20,9 +18,9 @@ module interest_protocol::whirpool {
   use interest_protocol::dnr::{Self, DNR, DineroStorage};
   use interest_protocol::interest_rate_model::{Self, InterestRateModelStorage};
   use interest_protocol::oracle::{Self, OracleStorage};
-  use interest_protocol::utils::{get_coin_info};
+  use interest_protocol::utils::{get_coin_info_string};
   use interest_protocol::rebase::{Self, Rebase};
-  use interest_protocol::math::{d_fmul, d_fdiv, d_fmul_u256, double_scalar};
+  use interest_protocol::math::{d_fmul, d_fmul_u256, double_scalar};
 
   const INITIAL_RESERVE_FACTOR_MANTISSA: u256 = 200000000000000000; // 0.2e18 or 20%
   const INITIAL_IPX_PER_MS: u64 = 1268391; // 40M IPX per year
@@ -55,11 +53,11 @@ module interest_protocol::whirpool {
 
   struct MarketData has key, store {
     id: UID,
-    total_reserves: u256,
-    accrued_epoch: u256,
-    borrow_cap: u256,
-    collateral_cap: u256,
-    balance_value: u256, // cash
+    total_reserves: u64,
+    accrued_timestamp: u64,
+    borrow_cap: u64,
+    collateral_cap: u64,
+    balance_value: u64, // cash
     is_paused: bool,
     ltv: u256,
     reserve_factor: u256,
@@ -68,7 +66,7 @@ module interest_protocol::whirpool {
     accrued_loan_rewards_per_share: u256,
     collateral_rebase: Rebase,
     loan_rebase: Rebase,
-    decimals_factor: u256
+    decimals_factor: u64
   }
 
   struct MarketBalance<phantom T> has key, store {
@@ -89,13 +87,13 @@ module interest_protocol::whirpool {
     all_markets_keys: vector<String>,
     market_balance_bag: Bag, // get_coin_info -> MarketBalance,
     total_allocation_points: u256,
-    ipx_per_epoch: u256
+    ipx_per_ms: u64
   }
 
   struct Account has key, store {
     id: UID,
-    principal: u256,
-    shares: u256,
+    principal: u64,
+    shares: u64,
     collateral_rewards_paid: u256,
     loan_rewards_paid: u256
   }
@@ -109,28 +107,28 @@ module interest_protocol::whirpool {
   // Events
 
   struct Deposit<phantom T> has copy, drop {
-    shares: u256,
+    shares: u64,
     value: u64,
     pending_rewards: u256,
     sender: address
   }
 
   struct Withdraw<phantom T> has copy, drop {
-    shares: u256,
+    shares: u64,
     value: u64,
     pending_rewards: u256,
     sender: address
   }
 
   struct Borrow<phantom T> has copy, drop {
-    principal: u256,
+    principal: u64,
     value: u64,
     pending_rewards: u256,
     sender: address
   }
 
   struct Repay<phantom T> has copy, drop {
-    principal: u256,
+    principal: u64,
     value: u64,
     pending_rewards: u256,
     sender: address
@@ -159,9 +157,9 @@ module interest_protocol::whirpool {
   struct CreateMarket<phantom T> has copy, drop {
     borrow_cap: u64,
     collateral_cap: u64,
-    ltv: u64,
-    reserve_factor: u64,
-    allocation_points: u64,
+    ltv: u256,
+    reserve_factor: u256,
+    allocation_points: u256,
     decimals_factor: u64
   }
 
@@ -174,7 +172,7 @@ module interest_protocol::whirpool {
   }
 
   struct UpdateReserveFactor<phantom T> has copy, drop {
-    reserve_factor: u64
+    reserve_factor: u256
   }
 
   struct WithdrawReserves<phantom T> has copy, drop {
@@ -182,15 +180,15 @@ module interest_protocol::whirpool {
   }
 
   struct UpdateLTV<phantom T> has copy, drop {
-    ltv: u64
+    ltv: u256
   }
 
   struct UpdateAllocationPoints<phantom T> has copy, drop {
-    allocation_points: u64
+    allocation_points: u256
   }
 
-  struct UpdateIPXPerEpoch has copy, drop {
-    ipx_per_epoch: u64
+  struct UpdateIPXPerMS has copy, drop {
+    ipx_per_ms: u64
   }
 
   struct NewAdmin has copy, drop {
@@ -232,7 +230,7 @@ module interest_protocol::whirpool {
         all_markets_keys: vector::empty(),
         market_balance_bag: bag::new(ctx),
         total_allocation_points: 0,
-        ipx_per_epoch: INITIAL_IPX_PER_EPOCH
+        ipx_per_ms: INITIAL_IPX_PER_MS
       }
     );
 
@@ -246,52 +244,53 @@ module interest_protocol::whirpool {
   }
 
   /**
-  * TODO - UPDATE TO TIMESTAMPS
   * @notice It updates the loan and rewards information for the MarketData with collateral Coin<T> to the latest epoch.
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared storage object of ipx::interest_rate_model
+  * @param clock_object The shard Clock object
   */
   public fun accrue<T>(
     whirpool_storage: &mut WhirpoolStorage, 
     interest_rate_model_storage: &InterestRateModelStorage, 
+    clock_object: &Clock,
     ctx: &TxContext
   ) {
     // Save storage information before mutation
-    let market_key = get_coin_info<T>(); // Key of the current market being updated
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch; // IPX mint amount per epoch
+    let market_key = get_coin_info_string<T>(); // Key of the current market being updated
+    let ipx_per_ms = whirpool_storage.ipx_per_ms; // IPX mint amount per ms
     let total_allocation_points = whirpool_storage.total_allocation_points; // Total allocation points
 
     accrue_internal(
       borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key), 
       interest_rate_model_storage, 
+      clock_object,
       market_key, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      ipx_per_ms,
+      total_allocation_points
     );
   }
 
   /**
-  * TODO - UPDATE TO TIMESTAMPS
   * @notice It updates the loan information for the DNR MarketData
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param dinero_storage The shared storage object of ipx::dnr 
+  * @param clock_object The shard Clock object
   */
   public fun accrue_dnr(
     whirpool_storage: &mut WhirpoolStorage, 
     dinero_storage: &mut DineroStorage,
-    ctx: &mut TxContext
+    clock_object: &Clock
   ) {
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch; // IPX mint amount per epoch
+    let ipx_per_ms = whirpool_storage.ipx_per_ms; // IPX mint amount per ms
     let total_allocation_points = whirpool_storage.total_allocation_points; // Total allocation points
-    let market_key = get_coin_info<DNR>();
+    let market_key = get_coin_info_string<DNR>();
 
     accrue_internal_dnr(
       borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key), 
       dinero_storage, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      clock_object,
+      ipx_per_ms,
+      total_allocation_points
     );
   }
 
@@ -301,6 +300,7 @@ module interest_protocol::whirpool {
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param ipx_storage The shared object of the module ipx::ipx 
+  * @param clock_object The shared Clock object
   * @param asset The Coin<T> the user is depositing
   * @return Coin<IPX> It will mint IPX rewards to the user.
   * Requirements: 
@@ -312,16 +312,17 @@ module interest_protocol::whirpool {
     account_storage: &mut AccountStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage, 
+    clock_object: &Clock,
     asset: Coin<T>,
     ctx: &mut TxContext
   ): Coin<IPX> {
       // Get the type name of the Coin<T> of this market.
-      let market_key = get_coin_info<T>();
+      let market_key = get_coin_info_string<T>();
       // User cannot use DNR as collateral
-      assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+      assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
 
       // Reward information in memory
-      let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+      let ipx_per_ms = whirpool_storage.ipx_per_ms;
       let total_allocation_points = whirpool_storage.total_allocation_points;
       
       // Get market core information
@@ -338,10 +339,10 @@ module interest_protocol::whirpool {
       accrue_internal(
         market_data, 
         interest_rate_model_storage, 
+        clock_object,
         market_key, 
-        ipx_per_epoch,
-        total_allocation_points,
-        ctx
+        ipx_per_ms,
+        total_allocation_points
       );
 
       // Declare the pending rewards variable that will save the value of Coin<IPX> to mint.
@@ -400,6 +401,7 @@ module interest_protocol::whirpool {
   * @param ipx_storage The shared object of the module ipx::ipx 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
   * @param oracle_storage The shared object of the module ipx::oracle
+  * @param clock_object The shared Clock object
   * @param shares_to_remove The number of shares the user wishes to remove
   * @return (Coin<T>, Coin<IPX>)
   * Requirements: 
@@ -413,16 +415,17 @@ module interest_protocol::whirpool {
     ipx_storage: &mut IPXStorage, 
     dinero_storage: &DineroStorage,
     oracle_storage: &OracleStorage,
+    clock_object: &Clock,
     shares_to_remove: u64,
     ctx: &mut TxContext
   ): (Coin<T>, Coin<IPX>) {
     // Get the type name of the Coin<T> of this market.
-    let market_key = get_coin_info<T>();
+    let market_key = get_coin_info_string<T>();
     // User cannot use DNR as collateral
-    assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+    assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
 
     // Reward information in memory
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
       
     // Get market core information
@@ -433,10 +436,10 @@ module interest_protocol::whirpool {
     accrue_internal(
       market_data, 
       interest_rate_model_storage, 
+      clock_object,
       market_key, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      ipx_per_ms,
+      total_allocation_points
     );
 
     // Save the sender info in memory
@@ -478,11 +481,11 @@ module interest_protocol::whirpool {
       oracle_storage, 
       interest_rate_model_storage, 
       dinero_storage, 
-      ipx_per_epoch,
+      clock_object,
+      ipx_per_ms,
       total_allocation_points,
       market_key, 
-      sender, 
-      ctx
+      sender
      );
 
     emit(
@@ -507,6 +510,7 @@ module interest_protocol::whirpool {
   * @param ipx_storage The shared object of the module ipx::ipx 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
   * @param oracle_storage The shared object of the module ipx::oracle 
+  * @param clock_object The shared Clock object
   * @param borrow_value The value of Coin<T> the user wishes to borrow
   * @return (Coin<T>, Coin<IPX>)
   * Requirements: 
@@ -521,17 +525,18 @@ module interest_protocol::whirpool {
     ipx_storage: &mut IPXStorage, 
     dinero_storage: &DineroStorage,
     oracle_storage: &OracleStorage,
+    clock_object: &Clock,
     borrow_value: u64,
     ctx: &mut TxContext
   ): (Coin<T>, Coin<IPX>) {
     // Get the type name of the Coin<T> of this market.
-    let market_key = get_coin_info<T>();
-    let dnr_market_key = get_coin_info<DNR>();
+    let market_key = get_coin_info_string<T>();
+    let dnr_market_key = get_coin_info_string<DNR>();
     // User cannot use DNR as collateral
     assert!(market_key != dnr_market_key, ERROR_DNR_OPERATION_NOT_ALLOWED);
 
     // Reward information in memory
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
       
     // Get market core information
@@ -545,10 +550,10 @@ module interest_protocol::whirpool {
     accrue_internal(
       market_data, 
       interest_rate_model_storage, 
+      clock_object,
       market_key, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      ipx_per_ms,
+      total_allocation_points
     );
 
     // Save the sender address in memory
@@ -593,11 +598,12 @@ module interest_protocol::whirpool {
       oracle_storage, 
       interest_rate_model_storage, 
       dinero_storage,
-      ipx_per_epoch,
+      clock_object,
+      ipx_per_ms,
       total_allocation_points, 
       market_key, 
-      sender, 
-      ctx);
+      sender
+    );
 
     emit(
       Borrow<T> {
@@ -617,6 +623,7 @@ module interest_protocol::whirpool {
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param ipx_storage The shared object of the module ipx::ipx 
+  * @param clock_object The shared Clock object
   * @param asset The Coin<T> he is repaying. 
   * @param principal_to_repay The principal he wishes to repay
   * @return Coin<IPX> rewards
@@ -628,17 +635,18 @@ module interest_protocol::whirpool {
     account_storage: &mut AccountStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage, 
+    clock_object: &Clock,
     asset: Coin<T>,
     principal_to_repay: u64,
     ctx: &mut TxContext
   ): Coin<IPX> {
     // Get the type name of the Coin<T> of this market.
-    let market_key = get_coin_info<T>();
+    let market_key = get_coin_info_string<T>();
     // User cannot use DNR as collateral
-    assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+    assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
 
     // Reward information in memory
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
       
     // Get market core information
@@ -649,10 +657,10 @@ module interest_protocol::whirpool {
     accrue_internal(
       market_data, 
       interest_rate_model_storage, 
+      clock_object,
       market_key, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      ipx_per_ms,
+      total_allocation_points
     );
     
     // Save the sender in memory
@@ -711,20 +719,19 @@ module interest_protocol::whirpool {
   }
   
   /**
-  * TODO Update to use timestamps
-  * @notice It returns the current interest rate per epoch
+  * @notice It returns the current interest rate per ms
   * @param whirpool_storage The shared storage object of the ipx::whirpool module 
   * @param interest_rate_model_storage The shared storage object of the ipx::interest_rate_model 
   * @param dinero_storage The shared storage object of the ipx::dnr
-  * @return interest rate per epoch % for MarketData of Coin<T>
+  * @return interest rate per ms % for MarketData of Coin<T>
   */
-  public fun get_borrow_rate_per_epoch<T>(
+  public fun get_borrow_rate_per_ms<T>(
     whirpool_storage: &WhirpoolStorage, 
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
     ): u64 {
-    let market_key = get_coin_info<T>();
-    get_borrow_rate_per_epoch_internal(
+    let market_key = get_coin_info_string<T>();
+    get_borrow_rate_per_ms_internal(
       borrow_market_data(&whirpool_storage.market_data_table, market_key),
       interest_rate_model_storage,
       dinero_storage,
@@ -733,26 +740,25 @@ module interest_protocol::whirpool {
   }
 
   /**
-  * TODO Update to use timestamps
-  * @notice It returns the current interest rate per epoch
+  * @notice It returns the current interest rate per ms
   * @param market_data The MarketData struct of Market for Coin<T>
   * @param interest_rate_model_storage The shared storage object of the ipx::interest_rate_model 
   * @param dinero_storage The shared storage object of the ipx::dnr
   * @param market_key The key of the market
-  * @return interest rate per epoch % for MarketData of Coin<T>
+  * @return interest rate per ms % for MarketData of Coin<T>
   */
-  fun get_borrow_rate_per_epoch_internal(
+  fun get_borrow_rate_per_ms_internal(
     market_data: &MarketData, 
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
     market_key: String,
     ): u64 {
       // DNR has a constant interest_rate
-      if (get_coin_info<DNR>() == market_key) {
-        dnr::get_interest_rate_per_epoch(dinero_storage)
+      if (get_coin_info_string<DNR>() == market_key) {
+        dnr::get_interest_rate_per_ms(dinero_storage)
       } else {
        // Other coins follow the start jump rate interest rate model 
-        interest_rate_model::get_borrow_rate_per_epoch(
+        interest_rate_model::get_borrow_rate_per_ms(
           interest_rate_model_storage,
           market_key,
           market_data.balance_value,
@@ -763,22 +769,21 @@ module interest_protocol::whirpool {
   }
 
   /**
-  * TODO Update to use timestamps
-  * @notice It returns the current interest rate earned per epoch
+  * @notice It returns the current interest rate earned per ms
   * @param whirpool_storage The WhirpoolStorage shared object
   * @param interest_rate_model_storage The shared storage object of the ipx::interest_rate_model 
-  * @return interest rate earned per epoch % for MarketData of Coin<T>
+  * @return interest rate earned per ms % for MarketData of Coin<T>
   */
-  public fun get_supply_rate_per_epoch<T>(
+  public fun get_supply_rate_per_ms<T>(
     whirpool_storage: &WhirpoolStorage, 
     interest_rate_model_storage: &InterestRateModelStorage
   ): u64 {
-      let market_key = get_coin_info<T>();
-      assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+      let market_key = get_coin_info_string<T>();
+      assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
 
       let market_data = borrow_market_data(&whirpool_storage.market_data_table, market_key);
       // Other coins follow the start jump rate interest rate model       
-      interest_rate_model::get_supply_rate_per_epoch(
+      interest_rate_model::get_supply_rate_per_ms(
           interest_rate_model_storage,
           market_key,
           market_data.balance_value,
@@ -803,7 +808,7 @@ module interest_protocol::whirpool {
    let user_markets_in = borrow_mut_user_markets_in(&mut account_storage.markets_in_table, sender);
 
    // Save the market key in memory
-   let market_key = get_coin_info<T>();
+   let market_key = get_coin_info_string<T>();
    
    // Add the market_key to the account if it is not present
    if (!vector::contains(user_markets_in, &market_key)) { 
@@ -824,6 +829,7 @@ module interest_protocol::whirpool {
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
   * @param oracle_storage The shared object of the module ipx::oracle 
+  * @param clock_object The shared Clock object
   */
   public fun exit_market<T>(
     whirpool_storage: &mut WhirpoolStorage, 
@@ -831,13 +837,14 @@ module interest_protocol::whirpool {
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
     oracle_storage: &OracleStorage,
+    clock_object: &Clock,
     ctx: &mut TxContext
   ) {
-    let market_key = get_coin_info<T>();
+    let market_key = get_coin_info_string<T>();
     let sender = tx_context::sender(ctx);
     let account = borrow_account(account_storage, sender, market_key);
 
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
 
     // Sender cannot exist a market if he is currently borrowing from it
@@ -862,10 +869,10 @@ module interest_protocol::whirpool {
       oracle_storage, 
       interest_rate_model_storage, 
       dinero_storage, 
-      ipx_per_epoch,
+      clock_object,
+      ipx_per_ms,
       total_allocation_points,
-      sender, 
-      ctx
+      sender
      ), 
     ERROR_USER_IS_INSOLVENT);
 
@@ -882,6 +889,7 @@ module interest_protocol::whirpool {
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param clock_object The shared Clock object
   * @param user The address of the account we wish to check
   * @return (collateral value, loan value)
   */
@@ -890,12 +898,13 @@ module interest_protocol::whirpool {
     account_storage: &AccountStorage,
     interest_rate_model_storage: &InterestRateModelStorage, 
     dinero_storage: &DineroStorage,
+    clock_object: &Clock,
     user: address, 
     ctx: &mut TxContext
   ): (u64, u64) {
-    let market_key = get_coin_info<T>();  
+    let market_key = get_coin_info_string<T>();  
     let total_allocation_points = whirpool_storage.total_allocation_points;
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
 
     // Get the market data
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
@@ -907,10 +916,10 @@ module interest_protocol::whirpool {
       account, 
       interest_rate_model_storage, 
       dinero_storage, 
+      clock_object,
       market_key, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      ipx_per_ms,
+      total_allocation_points
     )
   }
 
@@ -920,8 +929,9 @@ module interest_protocol::whirpool {
   * @param account The account struct of a user
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param clock_object The shared Clock object
   * @param market_key The key of the market in question
-  * @param ipx_per_epoch The value of IPX to mint per epoch for the entire module
+  * @param ipx_per_ms The value of IPX to mint per epoch for the entire module
   * @param total_allocation_points It stores all allocation points assigned to all markets
   * @return (collateral value, loan value)
   */
@@ -930,28 +940,28 @@ module interest_protocol::whirpool {
     account: &Account,
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
+    clock_object: &Clock,
     market_key: String, 
-    ipx_per_epoch: u64,
-    total_allocation_points: u64, 
-    ctx: &mut TxContext
+    ipx_per_ms: u64,
+    total_allocation_points: u256
   ): (u64, u64) {
-    if (tx_context::epoch(ctx) > market_data.accrued_epoch) {
-        if (market_key == get_coin_info<DNR>()) {
+    if (clock::timestamp_ms(clock_object) > market_data.accrued_timestamp) {
+        if (market_key == get_coin_info_string<DNR>()) {
              accrue_internal_dnr(
               market_data, 
               dinero_storage, 
-              ipx_per_epoch,
-              total_allocation_points,
-              ctx
-             );
+              clock_object,
+              ipx_per_ms,
+              total_allocation_points
+            );
         } else {
           accrue_internal(
             market_data, 
             interest_rate_model_storage, 
-            market_key, 
-            ipx_per_epoch,
-            total_allocation_points,
-            ctx
+            clock_object, 
+            market_key,
+            ipx_per_ms,
+            total_allocation_points
           );  
         }
       };
@@ -966,37 +976,39 @@ module interest_protocol::whirpool {
   * @notice It updates the MarketData loan and rewards information
   * @param market_data The MarketData struct
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param clock_object The shared Clock object
   * @param ipx_per_epoch The value of IPX to mint per epoch for the entire module
   * @param total_allocation_points It stores all allocation points assigned to all markets
   */
   fun accrue_internal_dnr(
     market_data: &mut MarketData, 
     dinero_storage: &DineroStorage,
-    ipx_per_epoch: u64,
-    total_allocation_points: u64, 
-    ctx: &mut TxContext
+    clock_object: &Clock,
+    ipx_per_ms: u64,
+    total_allocation_points: u256
   ) {
-    let epochs_delta = tx_context::epoch(ctx) - market_data.accrued_epoch;
+    let current_timestamp_ms = clock::timestamp_ms(clock_object);
+    let timestamp_ms_delta = current_timestamp_ms - market_data.accrued_timestamp;
 
-    // If no epochs have passed since the last update, there is nothing to do.
-    if (epochs_delta == 0) return;
+    // If no time has passed since the last update, there is nothing to do.
+    if (timestamp_ms_delta == 0) return;
 
     // Calculate the interest rate % accumulated for all epochs since the last update
-    let interest_rate = epochs_delta * dnr::get_interest_rate_per_epoch(dinero_storage);
+    let interest_rate = timestamp_ms_delta * dnr::get_interest_rate_per_ms(dinero_storage);
 
     // Calculate the total interest rate amount earned by the protocol
-    let interest_rate_amount = fmul(interest_rate, rebase::elastic(&market_data.loan_rebase));
+    let interest_rate_amount = (d_fmul(interest_rate, rebase::elastic(&market_data.loan_rebase)) as u64);
 
     // Increase the total borrows by the interest rate amount
     rebase::increase_elastic(&mut market_data.loan_rebase, interest_rate_amount);
 
     // Update the accrued epoch
-    market_data.accrued_epoch = tx_context::epoch(ctx);
+    market_data.accrued_timestamp = current_timestamp_ms;
     // Update the reserves
     market_data.total_reserves = market_data.total_reserves + interest_rate_amount;
 
     // Total IPX rewards accumulated for all passing epochs
-    let rewards = ((market_data.allocation_points as u256) * (epochs_delta as u256) * (ipx_per_epoch as u256)) / (total_allocation_points as u256);
+    let rewards = (market_data.allocation_points * (timestamp_ms_delta as u256) * (ipx_per_ms as u256)) / total_allocation_points;
 
     // Get the total borrow amount of the market
     let total_principal = rebase::base(&market_data.loan_rebase);
@@ -1010,25 +1022,27 @@ module interest_protocol::whirpool {
   * @notice It updates the MarketData loan and rewards information
   * @param market_data The MarketData struct
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
+  * @param clock_object The shared Clock object
   * @param market_key The key of the market in question
-  * @param ipx_per_epoch The value of IPX to mint per epoch for the entire module
+  * @param ipx_per_ms The value of IPX to mint per epoch for the entire module
   * @param total_allocation_points It stores all allocation points assigned to all markets
   */
   fun accrue_internal(
     market_data: &mut MarketData, 
     interest_rate_model_storage: &InterestRateModelStorage,
+    clock_object: &Clock,
     market_key: String,
-    ipx_per_epoch: u64,
-    total_allocation_points: u64, 
-    ctx: &TxContext
+    ipx_per_ms: u64,
+    total_allocation_points: u256, 
   ) {
-    let epochs_delta = tx_context::epoch(ctx) - market_data.accrued_epoch;
+    let current_timestamp_ms = clock::timestamp_ms(clock_object);
+    let timestamp_ms_delta = current_timestamp_ms - market_data.accrued_timestamp;
 
     // If no epochs have passed since the last update, there is nothing to do.
-    if (epochs_delta == 0) return;
+    if (timestamp_ms_delta == 0) return;
 
     // Calculate the interest rate % accumulated for all epochs since the last update
-    let interest_rate = epochs_delta *  interest_rate_model::get_borrow_rate_per_epoch(
+    let interest_rate = timestamp_ms_delta * interest_rate_model::get_borrow_rate_per_ms(
           interest_rate_model_storage,
           market_key,
           market_data.balance_value,
@@ -1038,22 +1052,22 @@ module interest_protocol::whirpool {
 
 
     // Calculate the total interest rate amount earned by the protocol
-    let interest_rate_amount = fmul(interest_rate, rebase::elastic(&market_data.loan_rebase));
+    let interest_rate_amount = d_fmul(interest_rate, rebase::elastic(&market_data.loan_rebase));
     // Calculate how much interest rate will be given to the reserves
-    let reserve_interest_rate_amount = fmul(interest_rate_amount, market_data.reserve_factor);
+    let reserve_interest_rate_amount = d_fmul_u256(interest_rate_amount, market_data.reserve_factor);
 
     // Increase the total borrows by the interest rate amount
-    rebase::increase_elastic(&mut market_data.loan_rebase, interest_rate_amount);
+    rebase::increase_elastic(&mut market_data.loan_rebase, (interest_rate_amount as u64));
     // increase the total amount earned 
-    rebase::increase_elastic(&mut market_data.collateral_rebase, interest_rate_amount - reserve_interest_rate_amount);
+    rebase::increase_elastic(&mut market_data.collateral_rebase, (interest_rate_amount - reserve_interest_rate_amount as u64));
 
     // Update the accrued epoch
-    market_data.accrued_epoch = tx_context::epoch(ctx);
+    market_data.accrued_timestamp = current_timestamp_ms;
     // Update the reserves
-    market_data.total_reserves = market_data.total_reserves + reserve_interest_rate_amount;
+    market_data.total_reserves = market_data.total_reserves + (reserve_interest_rate_amount as u64);
 
     // Total IPX rewards accumulated for all passing epochs
-    let rewards = ((market_data.allocation_points as u256) * (epochs_delta as u256) * (ipx_per_epoch as u256)) / (total_allocation_points as u256);
+    let rewards = (market_data.allocation_points * (timestamp_ms_delta as u256) * (ipx_per_ms as u256)) / total_allocation_points;
 
     // Split the rewards evenly between loans and collateral
     let collateral_rewards = rewards / 2; 
@@ -1167,13 +1181,13 @@ module interest_protocol::whirpool {
   */
   fun get_price(oracle_storage: &OracleStorage, key: String): u64 {
     // DNR is always 1 USD regardless of prices anywhere else
-    if (key == get_coin_info<DNR>()) return (one() as u64);
+    if (key == get_coin_info_string<DNR>()) return (double_scalar() as u64);
 
     // Fetch the price from the oracle
     let (price, decimals) = oracle::get_price(oracle_storage, key);
 
     // Normalize the price to have 9 decimals to work with fmul and fdiv
-    (((price as u256) * one()) / (math::pow(10, decimals) as u256) as u64)
+    (((price as u256) * double_scalar()) / (math::pow(10, decimals) as u256) as u64)
   }
 
   /**
@@ -1181,6 +1195,7 @@ module interest_protocol::whirpool {
   * @param _ The WhirpoolAdminCap
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
+  * @param clock_object The shared Clock object
   * @param base_rate_per_year The minimum rate per year
   * @param multiplier_rate_per_year The rate applied as the liquidity decreases
   * @param jump_multiplier_rate_per_year An amplified rate once the kink is passed to address low liquidity levels
@@ -1193,26 +1208,27 @@ module interest_protocol::whirpool {
     _: &WhirpoolAdminCap,
     whirpool_storage: &mut WhirpoolStorage, 
     interest_rate_model_storage: &mut InterestRateModelStorage,
-    base_rate_per_year: u64,
-    multiplier_per_year: u64,
-    jump_multiplier_per_year: u64,
-    kink: u64,
+    clock_object: &Clock,
+    base_rate_per_year: u256,
+    multiplier_per_year: u256,
+    jump_multiplier_per_year: u256,
+    kink: u256,
     ctx: &mut TxContext
   ) {
-    let market_key = get_coin_info<T>();
-    assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+    let market_key = get_coin_info_string<T>();
+    assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
 
     let total_allocation_points = whirpool_storage.total_allocation_points;
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
 
     // Update the market information before updating its interest rate
     accrue_internal(
       borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key), 
       interest_rate_model_storage, 
+      clock_object,
       market_key, 
-      ipx_per_epoch,
+      ipx_per_ms,
       total_allocation_points, 
-      ctx
     );
 
     // Update the interest rate
@@ -1245,14 +1261,14 @@ module interest_protocol::whirpool {
   entry public fun update_liquidation<T>(
     _: &WhirpoolAdminCap, 
     whirpool_storage: &mut WhirpoolStorage, 
-    penalty_fee: u64,
-    protocol_percentage: u64
+    penalty_fee: u256,
+    protocol_percentage: u256
     ) {
     // Make sure the protocol can not seize the entire value of a position during liquidations
     assert!(TWENTY_FIVE_PER_CENT >= penalty_fee, ERROR_VALUE_TOO_HIGH);
     assert!(TWENTY_FIVE_PER_CENT >= protocol_percentage, ERROR_VALUE_TOO_HIGH);
 
-    let liquidation = table::borrow_mut(&mut whirpool_storage.liquidation_table, get_coin_info<T>());
+    let liquidation = table::borrow_mut(&mut whirpool_storage.liquidation_table, get_coin_info_string<T>());
     liquidation.penalty_fee = penalty_fee;
     liquidation.protocol_percentage = protocol_percentage;
 
@@ -1269,6 +1285,7 @@ module interest_protocol::whirpool {
   * @param _ The WhirpoolAdminCap
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param account_storage The shared account storage object of ipx::whirpool 
+  * @param clock_object The shared Clock object
   * @param borrow_cap The maximum value that can be borrowed for this market 
   * @param collateral_cap The maximum amount of collateral that can be added to this market
   * @param ltv The loan to value ratio of this market 
@@ -1281,12 +1298,13 @@ module interest_protocol::whirpool {
     _: &WhirpoolAdminCap, 
     whirpool_storage: &mut WhirpoolStorage, 
     account_storage: &mut AccountStorage, 
+    clock_object: &Clock,
     borrow_cap: u64,
     collateral_cap: u64,
-    ltv: u64,
-    allocation_points: u64,
-    penalty_fee: u64,
-    protocol_percentage: u64,
+    ltv: u256,
+    allocation_points: u256,
+    penalty_fee: u256,
+    protocol_percentage: u256,
     decimals: u8,
     ctx: &mut TxContext
     ) {
@@ -1294,7 +1312,7 @@ module interest_protocol::whirpool {
     assert!(TWENTY_FIVE_PER_CENT >= penalty_fee, ERROR_VALUE_TOO_HIGH);
     assert!(TWENTY_FIVE_PER_CENT >= protocol_percentage, ERROR_VALUE_TOO_HIGH);
 
-    let key = get_coin_info<T>();
+    let key = get_coin_info_string<T>();
 
     // We need this to loop through all the markets
     vector::push_back(&mut whirpool_storage.all_markets_keys, key);
@@ -1308,7 +1326,7 @@ module interest_protocol::whirpool {
       MarketData {
         id: object::new(ctx),
         total_reserves: 0,
-        accrued_epoch: tx_context::epoch(ctx),
+        accrued_timestamp: clock::timestamp_ms(clock_object),
         borrow_cap,
         collateral_cap,
         balance_value: 0,
@@ -1371,7 +1389,7 @@ module interest_protocol::whirpool {
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   */
   entry public fun pause_market<T>(_: &WhirpoolAdminCap, whirpool_storage: &mut WhirpoolStorage) {
-    let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, get_coin_info<T>());
+    let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, get_coin_info_string<T>());
     market_data.is_paused = true;
     emit(Paused<T> {});
   }
@@ -1382,7 +1400,7 @@ module interest_protocol::whirpool {
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   */
   entry public fun unpause_market<T>(_: &WhirpoolAdminCap, whirpool_storage: &mut WhirpoolStorage) {
-    let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, get_coin_info<T>());
+    let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, get_coin_info_string<T>());
     market_data.is_paused = false;
     emit(UnPaused<T> {});
   }
@@ -1398,7 +1416,7 @@ module interest_protocol::whirpool {
      whirpool_storage: &mut WhirpoolStorage,
     borrow_cap: u64
     ) {
-    let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, get_coin_info<T>());
+    let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, get_coin_info_string<T>());
      
      market_data.borrow_cap = borrow_cap;
 
@@ -1410,31 +1428,33 @@ module interest_protocol::whirpool {
   * @param _ The WhirpoolAdminCap
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
+  * @param clock_object The shared Clock object
   * @param new_reserve_factor The new reserve factor for market
   */
   entry public fun update_reserve_factor<T>(
     _: &WhirpoolAdminCap, 
     whirpool_storage: &mut WhirpoolStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
-    new_reserve_factor: u64,
+    clock_object: &Clock,
+    new_reserve_factor: u256,
     ctx: &mut TxContext
   ) {
     assert!(TWENTY_FIVE_PER_CENT >= new_reserve_factor, ERROR_VALUE_TOO_HIGH);
-    let market_key = get_coin_info<T>();
-    assert!(market_key != get_coin_info<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+    let market_key = get_coin_info_string<T>();
+    assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
 
     let total_allocation_points = whirpool_storage.total_allocation_points;
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
     // We need to update the loan information before updating the reserve factor
     accrue_internal(
       market_data, 
       interest_rate_model_storage, 
+      clock_object,
       market_key, 
-      ipx_per_epoch,
+      ipx_per_ms,
       total_allocation_points,
-      ctx
     );
 
     market_data.reserve_factor = new_reserve_factor;
@@ -1448,6 +1468,7 @@ module interest_protocol::whirpool {
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param clock_object The shared Clock object
   * @param withdraw_value The value of reserves to withdraw
   */
   entry public fun withdraw_reserves<T>(
@@ -1455,33 +1476,34 @@ module interest_protocol::whirpool {
     whirpool_storage: &mut WhirpoolStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &mut DineroStorage,
+    clock_object: &Clock,
     withdraw_value: u64,
     ctx: &mut TxContext
   ) {
-    let market_key = get_coin_info<T>();
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let market_key = get_coin_info_string<T>();
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
-    let is_dnr = market_key == get_coin_info<DNR>();
+    let is_dnr = market_key == get_coin_info_string<DNR>();
 
     if (is_dnr) {
       accrue_internal_dnr(
         market_data, 
         dinero_storage, 
-        ipx_per_epoch,
+        clock_object,
+        ipx_per_ms,
         total_allocation_points,
-        ctx
        );
     } else {
       // Need to update the loan information before withdrawing the reserves
       accrue_internal(
         market_data, 
         interest_rate_model_storage, 
+        clock_object,
         market_key, 
-        ipx_per_epoch,
-        total_allocation_points,
-        ctx
+        ipx_per_ms,
+        total_allocation_points
       );
 
       // There must be enough reserves and cash in the market
@@ -1516,6 +1538,7 @@ module interest_protocol::whirpool {
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param clock_object The shared Clock object
   * @param new_ltv The new ltv for the market
   */
   entry public fun update_ltv<T>(
@@ -1523,31 +1546,32 @@ module interest_protocol::whirpool {
     whirpool_storage: &mut WhirpoolStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
-    new_ltv: u64,
+    clock_object: &Clock,
+    new_ltv: u256,
     ctx: &mut TxContext
   ) {
-    let market_key = get_coin_info<T>();
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let market_key = get_coin_info_string<T>();
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
-    if (market_key == get_coin_info<DNR>()) {
+    if (market_key == get_coin_info_string<DNR>()) {
       accrue_internal_dnr(
         market_data, 
-        dinero_storage, 
-        ipx_per_epoch,
-        total_allocation_points,
-        ctx
+        dinero_storage,
+        clock_object, 
+        ipx_per_ms,
+        total_allocation_points
        );
     } else {
       // Need to update the loan information before withdrawing the reserves
       accrue_internal(
         market_data, 
         interest_rate_model_storage, 
+        clock_object,
         market_key, 
-        ipx_per_epoch,
-        total_allocation_points,
-        ctx
+        ipx_per_ms,
+        total_allocation_points
       );
     };
 
@@ -1560,19 +1584,21 @@ module interest_protocol::whirpool {
   * @notice It allows the admin to update the dinero interest rate per epoch
   * @param _ The WhirpoolAdminCap
   * @param whirpool_storage The shared storage object of ipx::whirpool 
-  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param dinero_storage The shared object of the module ipx::dnr 
+  * @param clock_object The shared Clock obkect
   * @param new_interest_rate_per_year The new Dinero interest rate
   */
-  entry public fun update_dnr_interest_rate_per_epoch(
+  entry public fun update_dnr_interest_rate_per_ms(
     _: &WhirpoolAdminCap, 
     whirpool_storage: &mut WhirpoolStorage,
     dinero_storage: &mut DineroStorage,
+    clock_object: &Clock,
     new_interest_rate_per_year: u64,
     ctx: &mut TxContext
   ) {
     // Get DNR key
-    let market_key = get_coin_info<DNR>();
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let market_key = get_coin_info_string<DNR>();
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
@@ -1580,12 +1606,12 @@ module interest_protocol::whirpool {
     accrue_internal_dnr(
       market_data, 
       dinero_storage, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      clock_object,
+      ipx_per_ms,
+      total_allocation_points
     );
 
-    dnr::update_interest_rate_per_epoch(dinero_storage, new_interest_rate_per_year)
+    dnr::update_interest_rate_per_ms(dinero_storage, new_interest_rate_per_year)
   }
 
   /**
@@ -1594,6 +1620,7 @@ module interest_protocol::whirpool {
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param clock_object The shared Clock object
   * @param new_allocation_points The new allocation points for Market T
   */
   entry public fun update_allocation_points<T>(
@@ -1601,31 +1628,32 @@ module interest_protocol::whirpool {
     whirpool_storage: &mut WhirpoolStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
-    new_allocation_points: u64,
+    clock_object: &Clock,
+    new_allocation_points: u256,
     ctx: &mut TxContext
   ) {
-    let market_key = get_coin_info<T>();
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let market_key = get_coin_info_string<T>();
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
-    if (market_key == get_coin_info<DNR>()) {
+    if (market_key == get_coin_info_string<DNR>()) {
       accrue_internal_dnr(
         market_data, 
         dinero_storage, 
-        ipx_per_epoch,
-        total_allocation_points,
-        ctx
+        clock_object,
+        ipx_per_ms,
+        total_allocation_points
        );
     } else {
       // Need to update the loan information before withdrawing the reserves
       accrue_internal(
         market_data, 
         interest_rate_model_storage, 
+        clock_object,
         market_key, 
-        ipx_per_epoch,
-        total_allocation_points,
-        ctx
+        ipx_per_ms,
+        total_allocation_points
       );
     };
 
@@ -1644,17 +1672,19 @@ module interest_protocol::whirpool {
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param clock_object The shared Clock object
   * @param new_ipx_per_epoch The value of Coin<IPX> that this module will mint per epoch
   */
-  entry public fun update_ipx_per_epoch(
+  entry public fun update_ipx_per_ms(
     _: &WhirpoolAdminCap, 
     whirpool_storage: &mut WhirpoolStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
-    new_ipx_per_epoch: u64,
+    clock_object: &Clock,
+    new_ipx_per_ms: u64,
     ctx: &mut TxContext
   ) {
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
 
     let copy_vector = vector::empty<String>();
@@ -1668,36 +1698,35 @@ module interest_protocol::whirpool {
       // Put the key back in the copy
       vector::push_back(&mut copy_vector, key);
 
-      if (key == get_coin_info<DNR>()) {
+      if (key == get_coin_info_string<DNR>()) {
         accrue_internal_dnr(
           borrow_mut_market_data(&mut whirpool_storage.market_data_table, key), 
           dinero_storage, 
-          ipx_per_epoch,
+          clock_object,
+          ipx_per_ms,
           total_allocation_points,
-          ctx
         );
     } else {
       // Need to update the loan information before withdrawing the reserves
       accrue_internal(
         borrow_mut_market_data(&mut whirpool_storage.market_data_table, key), 
         interest_rate_model_storage, 
-        key, 
-        ipx_per_epoch,
-        total_allocation_points,
-        ctx
+        clock_object,
+        key,
+        ipx_per_ms,
+        total_allocation_points
       );
     };
-
 
       index = index + 1;
     };
 
-    // Update the ipx per epoch
-    whirpool_storage.ipx_per_epoch = new_ipx_per_epoch;
+    // Update the ipx per ms
+    whirpool_storage.ipx_per_ms = new_ipx_per_ms;
     // Restore the all markets keys
     whirpool_storage.all_markets_keys = copy_vector;
 
-    emit(UpdateIPXPerEpoch { ipx_per_epoch: new_ipx_per_epoch });
+    emit(UpdateIPXPerMS { ipx_per_ms: new_ipx_per_ms });
   }
 
   /**
@@ -1727,6 +1756,7 @@ module interest_protocol::whirpool {
   * @param ipx_storage The shared object of the module ipx::ipx 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
   * @param oracle_storage The shared object of the module ipx::oracle 
+  * @param clock_object The shared Clock object
   * @param borrow_value The value of Coin<T> the user wishes to borrow
   * @return (Coin<DNR>, Coin<IPX>)
   * Requirements: 
@@ -1741,14 +1771,15 @@ module interest_protocol::whirpool {
     ipx_storage: &mut IPXStorage,
     dinero_storage: &mut DineroStorage,
     oracle_storage: &OracleStorage,
+    clock_object: &Clock,
     borrow_value: u64,
     ctx: &mut TxContext
   ): (Coin<DNR>, Coin<IPX>) {
     // Get the type name of the Coin<DNR> of this market.
-    let market_key = get_coin_info<DNR>();
+    let market_key = get_coin_info_string<DNR>();
 
     // Reward information in memory
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
       
     // Get market core information
@@ -1758,9 +1789,9 @@ module interest_protocol::whirpool {
     accrue_internal_dnr(
       market_data, 
       dinero_storage, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      clock_object,
+      ipx_per_ms,
+      total_allocation_points
     );
 
     // Save the sender address in memory
@@ -1800,11 +1831,11 @@ module interest_protocol::whirpool {
       oracle_storage, 
       interest_rate_model_storage, 
       dinero_storage,
-      ipx_per_epoch,
+      clock_object,
+      ipx_per_ms,
       total_allocation_points, 
       market_key, 
-      sender, 
-      ctx
+      sender
     );
 
     emit(
@@ -1828,7 +1859,7 @@ module interest_protocol::whirpool {
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param ipx_storage The shared object of the module ipx::ipx 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
-  * @param oracle_storage The shared object of the module ipx::oracle 
+  * @param clock_object The shared Clock object
   * @param asset The Coin<DNR> he is repaying. 
   * @param principal_to_repay The principal he wishes to repay
   * @return Coin<IPX> rewards
@@ -1840,15 +1871,16 @@ module interest_protocol::whirpool {
     account_storage: &mut AccountStorage,
     ipx_storage: &mut IPXStorage, 
     dinero_storage: &mut DineroStorage,
+    clock_object: &Clock,
     asset: Coin<DNR>,
     principal_to_repay: u64,
     ctx: &mut TxContext 
   ): Coin<IPX> {
   // Get the type name of the Coin<DNR> of this market.
-    let market_key = get_coin_info<DNR>();
+    let market_key = get_coin_info_string<DNR>();
 
     // Reward information in memory
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
       
     // Get market core information
@@ -1858,9 +1890,9 @@ module interest_protocol::whirpool {
     accrue_internal_dnr(
       market_data, 
       dinero_storage, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      clock_object,
+      ipx_per_ms,
+      total_allocation_points
     );
     
     // Save the sender in memory
@@ -1925,6 +1957,7 @@ module interest_protocol::whirpool {
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param ipx_storage The shared object of the module ipx::ipx 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param clock_object The shared Clock object
   * @return Coin<IPX> It will mint IPX rewards to the user.
   */
   public fun get_rewards<T>(
@@ -1933,6 +1966,7 @@ module interest_protocol::whirpool {
     interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage, 
     dinero_storage: &mut DineroStorage,
+    clock_object: &Clock,
     ctx: &mut TxContext 
   ): Coin<IPX> {
 
@@ -1944,9 +1978,9 @@ module interest_protocol::whirpool {
       account_storage, 
       interest_rate_model_storage, 
       dinero_storage, 
-      sender,
-      ctx
-    ); 
+      clock_object,
+      sender
+     ); 
 
     let rewards = collateral_rewards + loan_rewards;
 
@@ -1968,6 +2002,7 @@ module interest_protocol::whirpool {
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param ipx_storage The shared object of the module ipx::ipx 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param clock_object The shared Clock object
   * @return Coin<IPX> It will mint IPX rewards to the user.
   */
   fun get_all_rewards(
@@ -1976,6 +2011,7 @@ module interest_protocol::whirpool {
     interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage, 
     dinero_storage: &mut DineroStorage,
+    clock_object: &Clock,
     ctx: &mut TxContext 
   ): Coin<IPX> {
     let all_market_keys = whirpool_storage.all_markets_keys;
@@ -1997,9 +2033,9 @@ module interest_protocol::whirpool {
         account_storage,
         interest_rate_model_storage, 
         dinero_storage,
+        clock_object,
         key,
-        sender,
-        ctx
+        sender
       );  
 
       // Add the rewards
@@ -2030,6 +2066,7 @@ module interest_protocol::whirpool {
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param ipx_storage The shared object of the module ipx::ipx 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param clock_object The shared Clock object
   * @param user The address of the account
   * @return Coin<IPX> It will mint IPX rewards to the user.
   */
@@ -2038,20 +2075,20 @@ module interest_protocol::whirpool {
     account_storage: &mut AccountStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &mut DineroStorage,
-    user: address,
-    ctx: &mut TxContext 
+    clock_object: &Clock,
+    user: address
   ): (u256, u256) {
         // Get the type name of the Coin<T> of this market.
-    let market_key = get_coin_info<T>();
+    let market_key = get_coin_info_string<T>();
 
     get_pending_rewards_internal(
       whirpool_storage,
       account_storage,
       interest_rate_model_storage, 
       dinero_storage,
+      clock_object,
       market_key,
-      user,
-      ctx
+      user
     )  
   }
 
@@ -2432,14 +2469,14 @@ module interest_protocol::whirpool {
   * @return (u64, u64, u256, u256) (shares, principal, collateteral_rewards_paid, loan_rewards_paid)
   */
   public fun get_account_info<T>(account_storage: &AccountStorage, user: address): (u64, u64, u256, u256) {
-    let account = borrow_account(account_storage, user, get_coin_info<T>());
+    let account = borrow_account(account_storage, user, get_coin_info_string<T>());
     (account.shares, account.principal, account.collateral_rewards_paid, account.loan_rewards_paid)
   }
 
   /**
   * @notice It unpacks a MarketData struct
   * @param whirpool_storage The shared WhirpoolStorage object
-  * @return (u64, u64, u64, u64, u64, bool, u64, u64, u64, u256, u256, u64, u64, u64, u64) (total_reserves, accrued_epoch, borrow_cap, collateral_cap, balance_value, is_paused, ltv, reserve_factor, allocation_points, accrued_collateral_rewards_per_share, accrued_loan_rewards_per_share, total_shares, total_collateral, total_principal, total_borrows)
+  * @return (u64, u64, u64, u64, u64, bool, u256, u256, u256, u256, u256, u64, u64, u64, u64) (total_reserves, accrued_epoch, borrow_cap, collateral_cap, balance_value, is_paused, ltv, reserve_factor, allocation_points, accrued_collateral_rewards_per_share, accrued_loan_rewards_per_share, total_shares, total_collateral, total_principal, total_borrows)
   */
   public fun get_market_info<T>(whirpool_storage: &WhirpoolStorage): (
     u64,
@@ -2448,9 +2485,9 @@ module interest_protocol::whirpool {
     u64,
     u64,
     bool,
-    u64,
-    u64,
-    u64,
+    u256,
+    u256,
+    u256,
     u256,
     u256,
     u64,
@@ -2458,10 +2495,10 @@ module interest_protocol::whirpool {
     u64,
     u64
   ) {
-    let market_data = borrow_market_data(&whirpool_storage.market_data_table, get_coin_info<T>());
+    let market_data = borrow_market_data(&whirpool_storage.market_data_table, get_coin_info_string<T>());
     (
       market_data.total_reserves,
-      market_data.accrued_epoch,
+      market_data.accrued_timestamp,
       market_data.borrow_cap,
       market_data.collateral_cap,
       market_data.balance_value,
@@ -2506,7 +2543,8 @@ module interest_protocol::whirpool {
   * @param oracle_storage The shared object of the module ipx::oracle 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
-  * @param ipx_per_epoch The value of Coin<IPX> this module can mint per epoch
+  * @param clock_object The shared Clock object
+  * @param ipx_per_ms The value of Coin<IPX> this module can mint per ms
   * @param total_allocation_points The total rewards points in the module
   * @param market_key The key of the market the user is trying to withdraw
   * @param user The address of the user that is trying to withdraw
@@ -2520,12 +2558,12 @@ module interest_protocol::whirpool {
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
-    ipx_per_epoch: u64,
-    total_allocation_points: u64, 
+    clock_object: &Clock,
+    ipx_per_ms: u64,
+    total_allocation_points: u256, 
     market_key: String,
-    user: address, 
-    ctx: &mut TxContext
-  ) {
+    user: address
+    ) {
     // Market is not paused
     assert!(!borrow_market_data(market_table, market_key).is_paused, ERROR_MARKET_IS_PAUSED);
 
@@ -2538,11 +2576,12 @@ module interest_protocol::whirpool {
         oracle_storage, 
         interest_rate_model_storage, 
         dinero_storage,
-        ipx_per_epoch,
+        clock_object,
+        ipx_per_ms,
         total_allocation_points, 
-        user, 
-        ctx
-      ), ERROR_USER_IS_INSOLVENT);
+        user
+       ), 
+       ERROR_USER_IS_INSOLVENT);
     
   }
 
@@ -2553,7 +2592,8 @@ module interest_protocol::whirpool {
   * @param oracle_storage The shared object of the module ipx::oracle 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
-  * @param ipx_per_epoch The value of Coin<IPX> this module can mint per epoch
+  * @param clock_object The shared Clock object
+  * @param ipx_per_ms The value of Coin<IPX> this module can mint per ms
   * @param total_allocation_points The total rewards points in the module
   * @param market_key The key of the market the user is trying to borrow from
   * @param user The address of the user that is trying to borrow
@@ -2567,12 +2607,12 @@ module interest_protocol::whirpool {
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
-    ipx_per_epoch: u64,
-    total_allocation_points: u64, 
+    clock_object: &Clock,
+    ipx_per_ms: u64,
+    total_allocation_points: u256, 
     market_key: String,
-    user: address, 
-    ctx: &mut TxContext
-    ) {
+    user: address
+  ) {
       let current_market_data = borrow_market_data(market_table, market_key);
 
       assert!(!current_market_data.is_paused, ERROR_MARKET_IS_PAUSED);
@@ -2595,11 +2635,12 @@ module interest_protocol::whirpool {
         oracle_storage, 
         interest_rate_model_storage, 
         dinero_storage, 
-        ipx_per_epoch,
+        clock_object,
+        ipx_per_ms,
         total_allocation_points,
-        user, 
-        ctx
-      ), ERROR_USER_IS_SOLVENT);
+        user
+       ), 
+       ERROR_USER_IS_SOLVENT);
   }
 
 
@@ -2619,6 +2660,7 @@ module interest_protocol::whirpool {
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param ipx_storage The shared object of the module ipx::ipx 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param clock_object The shared Clock object
   * @param user The address of the account
   * @return Coin<IPX> It will mint IPX rewards to the user.
   */
@@ -2627,35 +2669,35 @@ module interest_protocol::whirpool {
     account_storage: &mut AccountStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
+    clock_object: &Clock,
     market_key: String,
-    user: address,
-    ctx: &mut TxContext 
+    user: address
   ): (u256, u256) {
 
     // Reward information in memory
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
       
     // Get market core information
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
-    if (market_key == get_coin_info<DNR>()) {
+    if (market_key == get_coin_info_string<DNR>()) {
       accrue_internal_dnr(
         market_data, 
         dinero_storage, 
-        ipx_per_epoch,
+        clock_object,
+        ipx_per_ms,
         total_allocation_points,
-        ctx
       );
     } else {
       // Update the market rewards & loans before any mutations
       accrue_internal(
         market_data, 
         interest_rate_model_storage, 
+        clock_object,
         market_key, 
-        ipx_per_epoch,
+        ipx_per_ms,
         total_allocation_points,
-        ctx
         );
     };
 
@@ -2692,7 +2734,8 @@ module interest_protocol::whirpool {
   * @param oracle_storage The shared object of the module ipx::oracle 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param dinero_storage The shared ofbject of the module ipx::dnr 
-  * @param ipx_per_epoch The value of Coin<IPX> this module can mint per epoch
+  * @param clock_object The shared clock object
+  * @param ipx_per_ms The value of Coin<IPX> this module can mint per ms
   * @param total_allocation_points The total rewards points in the module
   * @param user The address of the user that is trying to borrow or withdraw
   * @return bool true if the user can borrow
@@ -2703,11 +2746,11 @@ module interest_protocol::whirpool {
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
-    ipx_per_epoch: u64,
-    total_allocation_points: u64, 
-    user: address,
-    ctx: &mut TxContext
-  ): bool {
+    clock_object: &Clock,
+    ipx_per_ms: u64,
+    total_allocation_points: u256, 
+    user: address
+    ): bool {
     // Get the list of the markets the user is in. 
     // No point to calculate the data for markets the user is not in.
     let user_markets_in = borrow_mut_user_markets_in(&mut account_storage.markets_in_table, user);
@@ -2740,10 +2783,10 @@ module interest_protocol::whirpool {
         account, 
         interest_rate_model_storage, 
         dinero_storage, 
+        clock_object,
         key, 
-        ipx_per_epoch,
-        total_allocation_points, 
-        ctx
+        ipx_per_ms,
+        total_allocation_points
       );
 
       // Get the price of the Coin
@@ -2753,9 +2796,9 @@ module interest_protocol::whirpool {
       assert!(price_normalized != 0, ERROR_ZERO_ORACLE_PRICE);
 
       // Update the collateral and borrow
-      total_collateral_in_usd = total_collateral_in_usd + fmul_u256(fmul_u256((collateral_balance as u256) * one() / (market_data.decimals_factor as u256), price_normalized), (market_data.ltv as u256));
+      total_collateral_in_usd = total_collateral_in_usd + d_fmul_u256(d_fmul_u256((collateral_balance as u256) * double_scalar() / (market_data.decimals_factor as u256), price_normalized), (market_data.ltv as u256));
 
-      total_borrows_in_usd = total_borrows_in_usd + fmul_u256((borrow_balance as u256) * one() / (market_data.decimals_factor as u256), price_normalized);
+      total_borrows_in_usd = total_borrows_in_usd + d_fmul_u256((borrow_balance as u256) * double_scalar() / (market_data.decimals_factor as u256), price_normalized);
 
       // increment the index
       index = index + 1;
@@ -2776,25 +2819,25 @@ module interest_protocol::whirpool {
   }
 
   #[test_only]
-  public fun get_liquidation_info<T>(whirpool_storage: &WhirpoolStorage): (u64, u64) {
-    let liquidation = table::borrow(&whirpool_storage.liquidation_table, get_coin_info<T>());
+  public fun get_liquidation_info<T>(whirpool_storage: &WhirpoolStorage): (u256, u256) {
+    let liquidation = table::borrow(&whirpool_storage.liquidation_table, get_coin_info_string<T>());
     (liquidation.penalty_fee, liquidation.protocol_percentage)
   }
 
   #[test_only]
   public fun is_market_paused<T>(whirpool_storage: &WhirpoolStorage): bool {
-    let market_data = table::borrow(&whirpool_storage.market_data_table, get_coin_info<T>());
+    let market_data = table::borrow(&whirpool_storage.market_data_table, get_coin_info_string<T>());
     market_data.is_paused
   }
 
   #[test_only]
-  public fun get_total_allocation_points(whirpool_storage: &WhirpoolStorage): u64 {
+  public fun get_total_allocation_points(whirpool_storage: &WhirpoolStorage): u256 {
     whirpool_storage.total_allocation_points
   }
 
   #[test_only]
-  public fun get_ipx_per_epoch(whirpool_storage: &WhirpoolStorage): u64 {
-    whirpool_storage.ipx_per_epoch
+  public fun get_ipx_per_ms(whirpool_storage: &WhirpoolStorage): u64 {
+    whirpool_storage.ipx_per_ms
   }
 
   #[test_only]

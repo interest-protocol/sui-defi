@@ -23,7 +23,7 @@ module interest_protocol::dnr {
   struct DineroStorage has key {
     id: UID,
     supply: Supply<DNR>,
-    interest_rate_per_epoch: u64
+    interest_rate_per_ms: u64
   }
 
   struct Update_Interest_Rate has drop, copy {
@@ -50,7 +50,7 @@ module interest_protocol::dnr {
         DineroStorage {
           id: object::new(ctx),
           supply,
-          interest_rate_per_epoch: INITIAL_INTEREST_RATE_PER_YEAR / get_ms_per_year()
+          interest_rate_per_ms: INITIAL_INTEREST_RATE_PER_YEAR / get_ms_per_year()
         }
       );
 
@@ -66,19 +66,21 @@ module interest_protocol::dnr {
     balance::decrease_supply(&mut storage.supply, coin::into_balance(coin_dnr))
   }
 
-  public(friend) fun update_interest_rate_per_epoch(storage: &mut DineroStorage, new_interest_rate: u64) {
+  public(friend) fun update_interest_rate_per_ms(storage: &mut DineroStorage, new_interest_rate: u64) {
     assert!(MAX_INTEREST_RATE_PER_YEAR >= new_interest_rate, ERROR_INTEREST_RATE_TOO_HIGH);
+
+    let new_interest_rate_per_ms = new_interest_rate / get_ms_per_year();
     event::emit(
       Update_Interest_Rate {
-        old_value: storage.interest_rate_per_epoch,
-        new_value: new_interest_rate
+        old_value: storage.interest_rate_per_ms,
+        new_value: new_interest_rate_per_ms
       }
     );
-    storage.interest_rate_per_epoch = new_interest_rate / get_ms_per_year();
+    storage.interest_rate_per_ms = new_interest_rate_per_ms;
   }
 
-  public fun get_interest_rate_per_epoch(storage: &DineroStorage): u64 {
-    storage.interest_rate_per_epoch
+  public fun get_interest_rate_per_ms(storage: &DineroStorage): u64 {
+    storage.interest_rate_per_ms
   }
 
   public entry fun transfer(c: coin::Coin<DNR>, recipient: address) {

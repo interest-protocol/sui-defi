@@ -22,15 +22,7 @@ module interest_protocol::math {
   public fun d_fmul_u256(x: u256, y: u256): u256 {
     ((x * y ) / DOUBLE_SCALAR)
   }
-
-  public fun d_div_u256(x: u256, y: u256): u256 {
-    (x * DOUBLE_SCALAR) / y
-  }
-    
-  public fun mul_div_u256(x: u256, y: u256, z: u256): u256 {
-    (x * y) / z
-  }
-
+  
   public fun mul_div_u128(x: u128, y: u128, z: u128): u128 {
     ((x as u256) * (y as u256) / (z as u256) as u128)
   }
