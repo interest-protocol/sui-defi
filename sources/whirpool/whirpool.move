@@ -20,7 +20,7 @@ module interest_protocol::whirpool {
   use interest_protocol::oracle::{Self, OracleStorage};
   use interest_protocol::utils::{get_coin_info_string};
   use interest_protocol::rebase::{Self, Rebase};
-  use interest_protocol::math::{d_fmul, d_fmul_u256, double_scalar};
+  use interest_protocol::math::{d_fmul, d_fdiv, d_fdiv_u256, d_fmul_u256, double_scalar};
 
   const INITIAL_RESERVE_FACTOR_MANTISSA: u256 = 200000000000000000; // 0.2e18 or 20%
   const INITIAL_IPX_PER_MS: u64 = 1268391; // 40M IPX per year
@@ -207,9 +207,9 @@ module interest_protocol::whirpool {
 
   struct Liquidate<phantom C, phantom L> has copy, drop {
     principal_repaid: u64,
-    liquidator_amount: u64,
-    protocol_amount: u64,
-    collateral_seized: u64,
+    liquidator_amount: u256,
+    protocol_amount: u256,
+    collateral_seized: u256,
     borrower: address,
     liquidator: address
   }
@@ -252,9 +252,8 @@ module interest_protocol::whirpool {
   public fun accrue<T>(
     whirpool_storage: &mut WhirpoolStorage, 
     interest_rate_model_storage: &InterestRateModelStorage, 
-    clock_object: &Clock,
-    ctx: &TxContext
-  ) {
+    clock_object: &Clock
+    ) {
     // Save storage information before mutation
     let market_key = get_coin_info_string<T>(); // Key of the current market being updated
     let ipx_per_ms = whirpool_storage.ipx_per_ms; // IPX mint amount per ms
@@ -899,9 +898,8 @@ module interest_protocol::whirpool {
     interest_rate_model_storage: &InterestRateModelStorage, 
     dinero_storage: &DineroStorage,
     clock_object: &Clock,
-    user: address, 
-    ctx: &mut TxContext
-  ): (u64, u64) {
+    user: address
+   ): (u64, u64) {
     let market_key = get_coin_info_string<T>();  
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
@@ -1436,9 +1434,8 @@ module interest_protocol::whirpool {
     whirpool_storage: &mut WhirpoolStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     clock_object: &Clock,
-    new_reserve_factor: u256,
-    ctx: &mut TxContext
-  ) {
+    new_reserve_factor: u256
+    ) {
     assert!(TWENTY_FIVE_PER_CENT >= new_reserve_factor, ERROR_VALUE_TOO_HIGH);
     let market_key = get_coin_info_string<T>();
     assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
@@ -1547,9 +1544,8 @@ module interest_protocol::whirpool {
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
     clock_object: &Clock,
-    new_ltv: u256,
-    ctx: &mut TxContext
-  ) {
+    new_ltv: u256
+    ) {
     let market_key = get_coin_info_string<T>();
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
@@ -1593,8 +1589,7 @@ module interest_protocol::whirpool {
     whirpool_storage: &mut WhirpoolStorage,
     dinero_storage: &mut DineroStorage,
     clock_object: &Clock,
-    new_interest_rate_per_year: u64,
-    ctx: &mut TxContext
+    new_interest_rate_per_year: u64
   ) {
     // Get DNR key
     let market_key = get_coin_info_string<DNR>();
@@ -1629,8 +1624,7 @@ module interest_protocol::whirpool {
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
     clock_object: &Clock,
-    new_allocation_points: u256,
-    ctx: &mut TxContext
+    new_allocation_points: u256
   ) {
     let market_key = get_coin_info_string<T>();
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
@@ -1681,8 +1675,7 @@ module interest_protocol::whirpool {
     interest_rate_model_storage: &InterestRateModelStorage,
     dinero_storage: &DineroStorage,
     clock_object: &Clock,
-    new_ipx_per_ms: u64,
-    ctx: &mut TxContext
+    new_ipx_per_ms: u64
   ) {
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
@@ -2112,17 +2105,18 @@ module interest_protocol::whirpool {
     ipx_storage: &mut IPXStorage,
     dinero_storage: &DineroStorage,
     oracle_storage: &OracleStorage,
+    clock_object: &Clock,
     asset: Coin<L>,
     borrower: address,
     ctx: &mut TxContext
   ) {
     // Get keys for collateral, loan and dnr market
-    let collateral_market_key = get_coin_info<C>();
-    let loan_market_key = get_coin_info<L>();
-    let dnr_market_key = get_coin_info<DNR>();
+    let collateral_market_key = get_coin_info_string<C>();
+    let loan_market_key = get_coin_info_string<L>();
+    let dnr_market_key = get_coin_info_string<DNR>();
     let liquidator_address = tx_context::sender(ctx);
     
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
 
     // Get liquidation info for collateral market
@@ -2141,20 +2135,20 @@ module interest_protocol::whirpool {
     // Update the collateral market
     accrue_internal(
       borrow_mut_market_data(&mut whirpool_storage.market_data_table, collateral_market_key), 
-      interest_rate_model_storage, 
+      interest_rate_model_storage,
+      clock_object, 
       collateral_market_key, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      ipx_per_ms,
+      total_allocation_points
     );
     // Update the loan market
     accrue_internal(
       borrow_mut_market_data(&mut whirpool_storage.market_data_table, loan_market_key), 
-      interest_rate_model_storage, 
+      interest_rate_model_storage,
+      clock_object, 
       loan_market_key, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      ipx_per_ms,
+      total_allocation_points
     );
 
     // Accounts must exist or there is no point o proceed.
@@ -2172,11 +2166,11 @@ module interest_protocol::whirpool {
       oracle_storage, 
       interest_rate_model_storage, 
       dinero_storage, 
-      ipx_per_epoch,
+      clock_object,
+      ipx_per_ms,
       total_allocation_points,
-      borrower, 
-      ctx), 
-    ERROR_USER_IS_SOLVENT);
+      borrower), 
+     ERROR_USER_IS_SOLVENT);
 
     // Get the borrower loan account information
     let borrower_loan_account = borrow_mut_account(account_storage, borrower, loan_market_key);
@@ -2229,12 +2223,12 @@ module interest_protocol::whirpool {
     let collateral_price_normalized = get_price(oracle_storage, collateral_market_key);
     let loan_price_normalized = get_price(oracle_storage, loan_market_key);
 
-    let collateral_seize_amount = fdiv(fmul(loan_price_normalized, repay_max_amount), collateral_price_normalized); 
-    let penalty_fee_amount = fmul(collateral_seize_amount, penalty_fee);
+    let collateral_seize_amount = d_fdiv_u256(d_fmul(loan_price_normalized, repay_max_amount), (collateral_price_normalized as u256)); 
+    let penalty_fee_amount = d_fmul_u256(collateral_seize_amount, penalty_fee);
     let collateral_seize_amount_with_fee = collateral_seize_amount + penalty_fee_amount;
 
     // Calculate how much collateral to assign to the protocol and liquidator
-    let protocol_amount = fmul(penalty_fee_amount, protocol_fee);
+    let protocol_amount = d_fmul_u256(penalty_fee_amount, protocol_fee);
     let liquidator_amount = collateral_seize_amount_with_fee - protocol_amount;
 
     // Get the borrower collateral account
@@ -2249,7 +2243,7 @@ module interest_protocol::whirpool {
           borrower_collateral_account.collateral_rewards_paid;
 
     // Remove the shares from the borrower
-    borrower_collateral_account.shares = borrower_collateral_account.shares - math::min(rebase::to_base(&collateral_market_data.collateral_rebase, collateral_seize_amount_with_fee, true), borrower_collateral_account.shares);
+    borrower_collateral_account.shares = borrower_collateral_account.shares - math::min(rebase::to_base(&collateral_market_data.collateral_rebase, (collateral_seize_amount_with_fee as u64), true), borrower_collateral_account.shares);
 
     // Consider all rewards earned by the sender paid
     borrower_collateral_account.collateral_rewards_paid = (borrower_collateral_account.shares as u256) * collateral_market_data.accrued_collateral_rewards_per_share / (collateral_market_data.decimals_factor as u256);
@@ -2257,13 +2251,13 @@ module interest_protocol::whirpool {
     // Give the shares to the liquidator
     let liquidator_collateral_account = borrow_mut_account(account_storage, liquidator_address, collateral_market_key);
 
-    liquidator_collateral_account.shares = liquidator_collateral_account.shares + rebase::to_base(&collateral_market_data.collateral_rebase, liquidator_amount, false);
+    liquidator_collateral_account.shares = liquidator_collateral_account.shares + rebase::to_base(&collateral_market_data.collateral_rebase, (liquidator_amount as u64), false);
     // Consider the liquidator rewards paid
     liquidator_collateral_account.collateral_rewards_paid = (liquidator_collateral_account.shares as u256) * collateral_market_data.accrued_collateral_rewards_per_share / (collateral_market_data.decimals_factor as u256);
 
     // Give reserves to the protocol
     let collateral_market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, collateral_market_key);
-    collateral_market_data.total_reserves = collateral_market_data.total_reserves + protocol_amount;
+    collateral_market_data.total_reserves = collateral_market_data.total_reserves + (protocol_amount as u64);
 
     // Send the rewards to the borrower
     transfer::transfer(mint_ipx(ipx_storage, pending_rewards, ctx), borrower);
@@ -2298,16 +2292,17 @@ module interest_protocol::whirpool {
     ipx_storage: &mut IPXStorage,
     dinero_storage: &mut DineroStorage,
     oracle_storage: &OracleStorage,
+    clock_object: &Clock,
     asset: Coin<DNR>,
     borrower: address,
     ctx: &mut TxContext
   ) {
     // Get keys for collateral, loan and dnr market
-    let collateral_market_key = get_coin_info<C>();
-    let dnr_market_key = get_coin_info<DNR>();
+    let collateral_market_key = get_coin_info_string<C>();
+    let dnr_market_key = get_coin_info_string<DNR>();
     let liquidator_address = tx_context::sender(ctx);
     
-    let ipx_per_epoch = whirpool_storage.ipx_per_epoch;
+    let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
 
     // Get liquidation info for collateral market
@@ -2324,20 +2319,20 @@ module interest_protocol::whirpool {
     // Update the collateral market
     accrue_internal(
       borrow_mut_market_data(&mut whirpool_storage.market_data_table, collateral_market_key), 
-      interest_rate_model_storage, 
+      interest_rate_model_storage,
+      clock_object, 
       collateral_market_key, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      ipx_per_ms,
+      total_allocation_points
     );
 
     // Update the market rewards & loans before any mutations
     accrue_internal_dnr(
       borrow_mut_market_data(&mut whirpool_storage.market_data_table, dnr_market_key), 
       dinero_storage, 
-      ipx_per_epoch,
-      total_allocation_points,
-      ctx
+      clock_object, 
+      ipx_per_ms,
+      total_allocation_points
     );
 
     // Accounts must exist or there is no point o proceed.
@@ -2355,10 +2350,10 @@ module interest_protocol::whirpool {
       oracle_storage, 
       interest_rate_model_storage, 
       dinero_storage, 
-      ipx_per_epoch,
+      clock_object,
+      ipx_per_ms,
       total_allocation_points,
-      borrower, 
-      ctx), 
+      borrower), 
     ERROR_USER_IS_SOLVENT);
 
     // Get the borrower loan account information
@@ -2411,12 +2406,12 @@ module interest_protocol::whirpool {
 
     let collateral_price_normalized = get_price(oracle_storage, collateral_market_key);
 
-    let collateral_seize_amount = fdiv(repay_max_amount, collateral_price_normalized); 
-    let penalty_fee_amount = fmul(collateral_seize_amount, penalty_fee);
+    let collateral_seize_amount = d_fdiv(repay_max_amount, collateral_price_normalized); 
+    let penalty_fee_amount = d_fmul_u256(collateral_seize_amount, penalty_fee);
     let collateral_seize_amount_with_fee = collateral_seize_amount + penalty_fee_amount;
 
     // Calculate how much collateral to assign to the protocol and liquidator
-    let protocol_amount = fmul(penalty_fee_amount, protocol_fee);
+    let protocol_amount = d_fmul_u256(penalty_fee_amount, protocol_fee);
     let liquidator_amount = collateral_seize_amount_with_fee - protocol_amount;
 
     
@@ -2433,7 +2428,7 @@ module interest_protocol::whirpool {
           borrower_collateral_account.collateral_rewards_paid;
 
     // Remove the shares from the borrower
-    borrower_collateral_account.shares = borrower_collateral_account.shares - math::min(rebase::to_base(&collateral_market_data.collateral_rebase, collateral_seize_amount_with_fee, true), borrower_collateral_account.shares);
+    borrower_collateral_account.shares = borrower_collateral_account.shares - math::min(rebase::to_base(&collateral_market_data.collateral_rebase, (collateral_seize_amount_with_fee as u64), true), borrower_collateral_account.shares);
 
     // Consider all rewards earned by the sender paid
     borrower_collateral_account.collateral_rewards_paid = (borrower_collateral_account.shares as u256) * collateral_market_data.accrued_collateral_rewards_per_share / (collateral_market_data.decimals_factor as u256);
@@ -2441,13 +2436,13 @@ module interest_protocol::whirpool {
     // Give the shares to the liquidator
     let liquidator_collateral_account = borrow_mut_account(account_storage, liquidator_address, collateral_market_key);
 
-    liquidator_collateral_account.shares = liquidator_collateral_account.shares + rebase::to_base(&collateral_market_data.collateral_rebase, liquidator_amount, false);
+    liquidator_collateral_account.shares = liquidator_collateral_account.shares + rebase::to_base(&collateral_market_data.collateral_rebase, (liquidator_amount as u64), false);
     // Consider the liquidator rewards paid
     liquidator_collateral_account.collateral_rewards_paid = (liquidator_collateral_account.shares as u256) * collateral_market_data.accrued_collateral_rewards_per_share / (collateral_market_data.decimals_factor as u256);
 
     // Give reserves to the protocol
     let collateral_market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, collateral_market_key);
-    collateral_market_data.total_reserves = collateral_market_data.total_reserves + protocol_amount;
+    collateral_market_data.total_reserves = collateral_market_data.total_reserves + (protocol_amount as u64);
 
     // Send the rewards to the borrower
     transfer::transfer(mint_ipx(ipx_storage, pending_rewards, ctx), borrower);
