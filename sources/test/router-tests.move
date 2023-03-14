@@ -2,15 +2,15 @@
 module interest_protocol::router_tests {
   
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
-  use sui::coin::{Self, mint_for_testing as mint};
+  use sui::coin::{Self, mint_for_testing as mint, CoinMetadata};
+  use interest_protocol::usdc::{Self, USDC};
+  use interest_protocol::usdt::{Self, USDT};
 
   use interest_protocol::router;
-  use interest_protocol::dex_stable::{Self as stable, Storage as SStorage, StableDEXAdminCap};
+  use interest_protocol::dex_stable::{Self as stable, Storage as SStorage};
   use interest_protocol::dex_volatile::{Self as volatile, Storage as VStorage};
   use interest_protocol::test_utils::{people, scenario, burn};
 
-  struct USDT {}
-  struct USDC {}
   struct BTC {}
   struct Ether {}
 
@@ -66,28 +66,29 @@ module interest_protocol::router_tests {
     let (alice, _) = people();
 
     let usdc_amount = 360000000 * 1000000;
-    let usdt_amount = 360000000 * 1000000;
+    let usdt_amount = 360000000 * 1000000000;
     
     init_markets(test);
     
     next_tx(test, alice);
     {
      let storage = test::take_shared<SStorage>(test);
-     let admin_cap = test::take_from_address<StableDEXAdminCap>(test, alice);
+     let usdc_coin_metadata = test::take_immutable<CoinMetadata<USDC>>(test);
+     let usdt_coin_metadata = test::take_immutable<CoinMetadata<USDT>>(test);
 
       let lp_coin = stable::create_pool(
-          &admin_cap,
           &mut storage,
           mint<USDC>(usdc_amount, ctx(test)),
           mint<USDT>(usdt_amount, ctx(test)),
-          6,
-          6,
+          &usdc_coin_metadata,
+          &usdt_coin_metadata,
           ctx(test)
         );
 
         burn(lp_coin);
+        test::return_immutable(usdc_coin_metadata);
+        test::return_immutable(usdt_coin_metadata);
         test::return_shared(storage);
-        test::return_to_address(alice, admin_cap);
     };
 
      next_tx(test, alice);
@@ -120,31 +121,32 @@ module interest_protocol::router_tests {
 
     // USDC buys more USDT in this pool
     let v_usdc_amount = 360000000 * 1000000;
-    let v_usdt_amount = 400000000 * 1000000;
+    let v_usdt_amount = 400000000 * 1000000000;
 
     let s_usdc_amount = 360000000 * 1000000;
-    let s_usdt_amount = 360000000 * 1000000;
+    let s_usdt_amount = 360000000 * 1000000000;
     
     init_markets(test);
 
     next_tx(test, alice);
     {
      let storage = test::take_shared<SStorage>(test);
-     let admin_cap = test::take_from_address<StableDEXAdminCap>(test, alice);
+     let usdc_coin_metadata = test::take_immutable<CoinMetadata<USDC>>(test);
+     let usdt_coin_metadata = test::take_immutable<CoinMetadata<USDT>>(test);
 
       let lp_coin = stable::create_pool(
-          &admin_cap,
           &mut storage,
           mint<USDC>(s_usdc_amount, ctx(test)),
           mint<USDT>(s_usdt_amount, ctx(test)),
-          6,
-          6,
+          &usdc_coin_metadata,
+          &usdt_coin_metadata,
           ctx(test)
         );
 
         burn(lp_coin);
         test::return_shared(storage);
-        test::return_to_address(alice, admin_cap);
+        test::return_immutable(usdc_coin_metadata);
+        test::return_immutable(usdt_coin_metadata);
     };
 
     next_tx(test, alice);
@@ -448,6 +450,8 @@ module interest_protocol::router_tests {
     {
       volatile::init_for_testing(ctx(test));
       stable::init_for_testing(ctx(test));
+      usdc::init_for_testing(ctx(test));
+      usdt::init_for_testing(ctx(test));
     };
   }
 }

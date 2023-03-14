@@ -3,7 +3,7 @@ module interest_protocol::dex_stable {
   use std::ascii::{String}; 
 
   use sui::tx_context::{Self, TxContext};
-  use sui::coin::{Self, Coin};
+  use sui::coin::{Self, Coin, CoinMetadata};
   use sui::balance::{Self, Supply, Balance};
   use sui::object::{Self,UID, ID};
   use sui::transfer;
@@ -142,12 +142,11 @@ module interest_protocol::dex_stable {
     * - There can only be one pool per each token pair, regardless of their order.
     */
     public fun create_pool<X, Y>(
-      _: &StableDEXAdminCap,
       storage: &mut Storage,
       coin_x: Coin<X>,
       coin_y: Coin<Y>,
-      decimals_x: u8,
-      decimals_y: u8,      
+      coin_x_metadata: &CoinMetadata<X>,
+      coin_y_metadata: &CoinMetadata<Y>,        
       ctx: &mut TxContext
     ): Coin<SLPCoin<X, Y>> {
       // Store the value of the coins locally
@@ -166,8 +165,8 @@ module interest_protocol::dex_stable {
       assert!(!bag::contains(&storage.pools, type), ERROR_POOL_EXISTS);
 
       // Calculate the scalar of the decimals.
-      let decimals_x = math::pow(10, decimals_x);
-      let decimals_y = math::pow(10, decimals_y);
+      let decimals_x = math::pow(10, coin::get_decimals(coin_x_metadata));
+      let decimals_y = math::pow(10, coin::get_decimals(coin_y_metadata));
 
       // Calculate k = x^3y + y^3x
       let k = k(coin_x_value, coin_y_value, decimals_x, decimals_y);

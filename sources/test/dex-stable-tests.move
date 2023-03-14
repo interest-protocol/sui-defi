@@ -1,16 +1,15 @@
 #[test_only]
 module interest_protocol::dex_stable_tests {
 
-    use sui::coin::{Self, mint_for_testing as mint};
+    use sui::coin::{Self, mint_for_testing as mint, CoinMetadata};
     use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
     use sui::object;
 
     use interest_protocol::dex_stable::{Self as dex, Storage, StableDEXAdminCap, SLPCoin};
     use interest_protocol::test_utils::{people, scenario, burn};
     use interest_protocol::math::{sqrt_u256};
-
-    struct USDT has drop {}
-    struct USDC has drop {}
+    use interest_protocol::usdc::{Self, USDC};
+    use interest_protocol::usdt::{Self, USDT};
 
     const USDT_DECIMAL_SCALAR: u64 = 1000000000; // 9 decimals
     const INITIAL_USDT_VALUE: u64 = 100 * 1000000000; //100 * 1e9
@@ -30,26 +29,29 @@ module interest_protocol::dex_stable_tests {
       next_tx(test, alice);
       {
         dex::init_for_testing(ctx(test));
+        usdc::init_for_testing(ctx(test));
+        usdt::init_for_testing(ctx(test));
       };
 
       next_tx(test, alice);
       {
         let storage = test::take_shared<Storage>(test);
-        let admin_cap = test::take_from_address<StableDEXAdminCap>(test, alice);
+        let usdc_coin_metadata = test::take_immutable<CoinMetadata<USDC>>(test);
+        let usdt_coin_metadata = test::take_immutable<CoinMetadata<USDT>>(test);
 
         let lp_coin = dex::create_pool(
-          &admin_cap,
           &mut storage,
           mint<USDC>(INITIAL_USDC_VALUE, ctx(test)),
           mint<USDT>(INITIAL_USDT_VALUE, ctx(test)),
-          6,
-          9,
+          &usdc_coin_metadata,
+          &usdt_coin_metadata,
           ctx(test)
         );
 
         assert!(burn(lp_coin) == lp_coin_initial_user_balance, 0);
         test::return_shared(storage);
-        test::return_to_address(alice, admin_cap);
+        test::return_immutable(usdc_coin_metadata);
+        test::return_immutable(usdt_coin_metadata);
       };
 
       next_tx(test, alice);
