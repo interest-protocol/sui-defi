@@ -5,7 +5,7 @@ module interest_protocol::interest_rate_model {
   use sui::tx_context::{TxContext};
   use sui::transfer;
   use sui::object::{Self, UID};
-  use sui::table::{Self, Table};
+  use sui::object_table::{Self, ObjectTable};
   use sui::event;
 
   use interest_protocol::math::{d_fdiv, d_fmul_u256, double_scalar};
@@ -23,7 +23,7 @@ module interest_protocol::interest_rate_model {
 
   struct InterestRateModelStorage has key {
     id: UID,
-    interest_rate_table: Table<String, InterestRateData>
+    interest_rate_object_table: ObjectTable<String, InterestRateData>
   }
 
   struct NewInterestRateData<phantom T> has copy, drop {
@@ -37,7 +37,7 @@ module interest_protocol::interest_rate_model {
       transfer::share_object(
         InterestRateModelStorage {
           id: object::new(ctx),
-          interest_rate_table: table::new<String, InterestRateData>(ctx)
+          interest_rate_object_table: object_table::new<String, InterestRateData>(ctx)
         }
       );
   }
@@ -74,7 +74,7 @@ module interest_protocol::interest_rate_model {
     ): u64 {
       let utilization_rate = get_utilization_rate_internal(cash, total_borrow_amount, reserves);
 
-      let data = table::borrow(&storage.interest_rate_table, market_key);
+      let data = object_table::borrow(&storage.interest_rate_object_table, market_key);
 
       if (data.kink >= utilization_rate) {
         (d_fmul_u256(utilization_rate, data.multiplier_per_ms) + data.base_rate_per_ms as u64)
@@ -109,16 +109,16 @@ module interest_protocol::interest_rate_model {
     let multiplier_per_ms = multiplier_per_year / ms_per_year;
     let jump_multiplier_per_ms = jump_multiplier_per_year / ms_per_year;
 
-    if (table::contains(&storage.interest_rate_table, key)) {
-      let data = table::borrow_mut(&mut storage.interest_rate_table, key); 
+    if (object_table::contains(&storage.interest_rate_object_table, key)) {
+      let data = object_table::borrow_mut(&mut storage.interest_rate_object_table, key); 
 
       data.base_rate_per_ms = base_rate_per_ms;
       data.multiplier_per_ms = multiplier_per_ms;
       data.jump_multiplier_per_ms = jump_multiplier_per_ms;
       data.kink = kink;
     } else {
-      table::add(
-        &mut storage.interest_rate_table,
+      object_table::add(
+        &mut storage.interest_rate_object_table,
         key,
         InterestRateData {
           id: object::new(ctx),
@@ -159,7 +159,7 @@ module interest_protocol::interest_rate_model {
 
   #[test_only]
   public fun get_interest_rate_data<T>(storage: &InterestRateModelStorage): (u256, u256, u256, u256) {
-    let data = table::borrow(&storage.interest_rate_table, get_coin_info_string<T>());
+    let data = object_table::borrow(&storage.interest_rate_object_table, get_coin_info_string<T>());
     (data.base_rate_per_ms, data.multiplier_per_ms, data.jump_multiplier_per_ms, data.kink)
   }
 }

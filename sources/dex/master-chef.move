@@ -5,7 +5,8 @@ module interest_protocol::master_chef {
   use sui::tx_context::{Self, TxContext};
   use sui::clock::{Self, Clock};
   use sui::balance::{Self, Balance};
-  use sui::bag::{Self, Bag};
+  use sui::object_bag::{Self, ObjectBag};
+  use sui::object_table::{Self, ObjectTable};
   use sui::table::{Self, Table};
   use sui::transfer;
   use sui::coin::{Self, Coin};
@@ -22,7 +23,7 @@ module interest_protocol::master_chef {
   const IPX_POOL_KEY: u64 = 0;
 
   const ERROR_POOL_ADDED_ALREADY: u64 = 1;
-  const ERROR_ACCOUNT_BAG_ADDED_ALREADY: u64 = 2;
+  const ERROR_ACCOUNT_object_bag_ADDED_ALREADY: u64 = 2;
   const ERROR_NOT_ENOUGH_BALANCE: u64 = 3;
   const ERROR_NO_PENDING_REWARDS: u64 = 4;
 
@@ -31,7 +32,7 @@ module interest_protocol::master_chef {
     ipx_per_ms: u64,
     total_allocation_points: u64,
     pool_keys: Table<String, PoolKey>,
-    pools: Table<u64, Pool>,
+    pools: ObjectTable<u64, Pool>,
     start_timestamp: u64
   }
 
@@ -46,7 +47,7 @@ module interest_protocol::master_chef {
 
   struct AccountStorage has key {
     id: UID,
-    accounts: Table<u64, Bag>
+    accounts: ObjectTable<u64, ObjectBag>
   }
 
   struct Account<phantom T> has key, store {
@@ -55,8 +56,7 @@ module interest_protocol::master_chef {
     rewards_paid: u256
   }
 
-  struct PoolKey has key, store {
-    id: UID,
+  struct PoolKey has store {
     key: u64
   }
 
@@ -96,10 +96,10 @@ module interest_protocol::master_chef {
   }
 
   fun init(ctx: &mut TxContext) {
-      // Set up tables for the storage objects 
-      let pools = table::new<u64, Pool>(ctx);  
+      // Set up object_tables for the storage objects 
+      let pools = object_table::new<u64, Pool>(ctx);  
       let pool_keys = table::new<String, PoolKey>(ctx);
-      let accounts = table::new<u64, Bag>(ctx);
+      let accounts = object_table::new<u64, ObjectBag>(ctx);
 
       let coin_info_string = get_coin_info_string<IPX>();
       
@@ -108,22 +108,21 @@ module interest_protocol::master_chef {
         &mut pool_keys, 
         coin_info_string, 
         PoolKey { 
-          id: object::new(ctx), 
           key: 0,
           }
         );
 
-      // Register the Account Bag
-      table::add(
+      // Register the Account object_bag
+      object_table::add(
         &mut accounts,
          0,
-        bag::new(ctx)
+        object_bag::new(ctx)
       );
 
       // Register the IPX farm on pools
-      table::add(
+      object_table::add(
         &mut pools, 
-        0, // Key is the length of the bag before a new element is added 
+        0, // Key is the length of the object_bag before a new element is added 
         Pool {
           id: object::new(ctx),
           allocation_points: 1000,
@@ -173,7 +172,7 @@ module interest_protocol::master_chef {
   ): u256 {
     
     // If the user never deposited in T Pool, return 0
-    if ((!bag::contains<address>(table::borrow(&account_storage.accounts, get_pool_key<T>(storage)), account))) return 0;
+    if ((!object_bag::contains<address>(object_table::borrow(&account_storage.accounts, get_pool_key<T>(storage)), account))) return 0;
 
     // Borrow the pool
     let pool = borrow_pool<T>(storage);
@@ -241,9 +240,9 @@ module interest_protocol::master_chef {
   let key = get_pool_key<T>(storage);
 
    // Register the sender if it is his first time depositing in this pool 
-  if (!bag::contains<address>(table::borrow(&accounts_storage.accounts, key), sender)) {
-    bag::add(
-      table::borrow_mut(&mut accounts_storage.accounts, key),
+  if (!object_bag::contains<address>(object_table::borrow(&accounts_storage.accounts, key), sender)) {
+    object_bag::add(
+      object_table::borrow_mut(&mut accounts_storage.accounts, key),
       sender,
       Account<T> {
         id: object::new(ctx),
@@ -318,7 +317,7 @@ module interest_protocol::master_chef {
   // Need to update the rewards of the pool before any  mutation
   update_pool<T>(storage, clock_object);
   
-  // Get mutable struct of the Pool and Account
+  // Get muobject_table struct of the Pool and Account
   let key = get_pool_key<T>(storage);
   let pool = borrow_mut_pool<T>(storage);
   let account = borrow_mut_account<T>(accounts_storage, key, tx_context::sender(ctx));
@@ -383,7 +382,7 @@ module interest_protocol::master_chef {
   // Update the pool before any mutation
   update_pool<T>(storage, clock_object);
   
-  // Get mutable Pool and Account structs
+  // Get muobject_table Pool and Account structs
   let key = get_pool_key<T>(storage);
   let pool = borrow_pool<T>(storage);
   let account = borrow_mut_account<T>(accounts_storage, key, tx_context::sender(ctx));
@@ -419,7 +418,7 @@ module interest_protocol::master_chef {
  */
  public fun update_all_pools(storage: &mut MasterChefStorage, clock_object: &Clock) {
   // Find out how many pools are in the contract
-  let length = table::length(&storage.pools);
+  let length = object_table::length(&storage.pools);
 
   // Index to keep track of how many pools we have updated
   let index = 0;
@@ -431,8 +430,8 @@ module interest_protocol::master_chef {
 
   // Loop to iterate through all pools
   while (index < length) {
-    // Borrow mutable Pool Struct
-    let pool = table::borrow_mut(&mut storage.pools, index);
+    // Borrow muobject_table Pool Struct
+    let pool = object_table::borrow_mut(&mut storage.pools, index);
 
     // Update the pool
     update_pool_internal(pool, clock_object, ipx_per_ms, total_allocation_points, start_timestamp);
@@ -452,7 +451,7 @@ module interest_protocol::master_chef {
   let total_allocation_points = storage.total_allocation_points;
   let start_timestamp = storage.start_timestamp;
 
-  // Borrow mutable Pool Struct
+  // Borrow muobject_table Pool Struct
   let pool = borrow_mut_pool<T>(storage);
 
   // Update the pool
@@ -514,7 +513,7 @@ module interest_protocol::master_chef {
     // Save the total allocation points in memory
     let total_allocation_points = storage.total_allocation_points;
 
-    // Borrow the IPX mutable pool struct
+    // Borrow the IPX muobject_table pool struct
     let pool = borrow_mut_pool<IPX>(storage);
 
     // Get points of all other pools
@@ -534,21 +533,21 @@ module interest_protocol::master_chef {
   /**
   * @dev Finds T Pool from MasterChefStorage
   * @param storage The IPXStorage shared object
-  * @return mutable T Pool
+  * @return muobject_table T Pool
   */
  fun borrow_mut_pool<T>(storage: &mut MasterChefStorage): &mut Pool {
   let key = get_pool_key<T>(storage);
-  table::borrow_mut(&mut storage.pools, key)
+  object_table::borrow_mut(&mut storage.pools, key)
  }
 
 /**
 * @dev Finds T Pool from MasterChefStorage
 * @param storage The IPXStorage shared object
-* @return immutable T Pool
+* @return immuobject_table T Pool
 */
 public fun borrow_pool<T>(storage: &MasterChefStorage): &Pool {
   let key = get_pool_key<T>(storage);
-  table::borrow(&storage.pools, key)
+  object_table::borrow(&storage.pools, key)
  }
 
 /**
@@ -565,10 +564,10 @@ public fun borrow_pool<T>(storage: &MasterChefStorage): &Pool {
 * @param storage The MasterChefStorage shared object
 * @param accounts_storage The AccountStorage shared object
 * @param sender The address of the account we wish to find
-* @return immutable AccountStruct of sender for T Pool
+* @return immuobject_table AccountStruct of sender for T Pool
 */ 
  public fun borrow_account<T>(storage: &MasterChefStorage, accounts_storage: &AccountStorage, sender: address): &Account<T> {
-  bag::borrow(table::borrow(&accounts_storage.accounts, get_pool_key<T>(storage)), sender)
+  object_bag::borrow(object_table::borrow(&accounts_storage.accounts, get_pool_key<T>(storage)), sender)
  }
 
 /**
@@ -576,20 +575,20 @@ public fun borrow_pool<T>(storage: &MasterChefStorage): &Pool {
 * @param storage The MasterChefStorage shared object
 * @param accounts_storage The AccountStorage shared object
 * @param sender The address of the account we wish to find
-* @return immutable AccountStruct of sender for T Pool
+* @return immuobject_table AccountStruct of sender for T Pool
 */ 
  public fun account_exists<T>(storage: &MasterChefStorage, accounts_storage: &AccountStorage, sender: address): bool {
-  bag::contains(table::borrow(&accounts_storage.accounts, get_pool_key<T>(storage)), sender)
+  object_bag::contains(object_table::borrow(&accounts_storage.accounts, get_pool_key<T>(storage)), sender)
  }
 
 /**
 * @dev Finds an Account struct for T Pool
 * @param accounts_storage The AccountStorage shared object
 * @param sender The address of the account we wish to find
-* @return mutable AccountStruct of sender for T Pool
+* @return muobject_table AccountStruct of sender for T Pool
 */ 
 fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sender: address): &mut Account<T> {
-  bag::borrow_mut(table::borrow_mut(&mut accounts_storage.accounts, key), sender)
+  object_bag::borrow_mut(object_table::borrow_mut(&mut accounts_storage.accounts, key), sender)
  }
 
 /**
@@ -648,14 +647,14 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
   // Current number of pools is the key of the new pool
   let key = table::length(&storage.pool_keys);
 
-  // Insaniy check if the pool is not registered, there is also no Account Bag registered
-  assert!(!table::contains(&accounts_storage.accounts, key), ERROR_ACCOUNT_BAG_ADDED_ALREADY);
+  // Insaniy check if the pool is not registered, there is also no Account object_bag registered
+  assert!(!object_table::contains(&accounts_storage.accounts, key), ERROR_ACCOUNT_object_bag_ADDED_ALREADY);
 
-  // Register the Account Bag
-  table::add(
+  // Register the Account object_bag
+  object_table::add(
     &mut accounts_storage.accounts,
     key,
-    bag::new(ctx)
+    object_bag::new(ctx)
   );
 
   // Register the PoolKey
@@ -663,7 +662,6 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
     &mut storage.pool_keys,
     coin_info_string,
     PoolKey {
-      id: object::new(ctx),
       key
     }
   );
@@ -672,7 +670,7 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
   let current_timestamp = clock::timestamp_ms(clock_object);
 
   // Register the Pool in IPXStorage
-  table::add(
+  object_table::add(
     &mut storage.pools,
     key,
     Pool {
@@ -719,7 +717,7 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
   // Update all pools
   if (update) update_all_pools(storage, clock_object);
 
-  // Get Pool key and Pool mutable Struct
+  // Get Pool key and Pool muobject_table Struct
   let key = get_pool_key<T>(storage);
   let pool = borrow_mut_pool<T>(storage);
 
@@ -766,7 +764,7 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
  * @return balance of the account on T Pool and rewards paid 
  */
  public fun get_account_info<T>(storage: &MasterChefStorage, accounts_storage: &AccountStorage, sender: address): (u64, u256) {
-    let account = bag::borrow<address, Account<T>>(table::borrow(&accounts_storage.accounts, get_pool_key<T>(storage)), sender);
+    let account = object_bag::borrow<address, Account<T>>(object_table::borrow(&accounts_storage.accounts, get_pool_key<T>(storage)), sender);
     (
       balance::value(&account.balance),
       account.rewards_paid
@@ -780,7 +778,7 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
  */
   public fun get_pool_info<T>(storage: &MasterChefStorage): (u64, u64, u256, u64) {
     let key = get_pool_key<T>(storage);
-    let pool = table::borrow(&storage.pools, key);
+    let pool = object_table::borrow(&storage.pools, key);
     (
       pool.allocation_points,
       pool.last_reward_timestamp,

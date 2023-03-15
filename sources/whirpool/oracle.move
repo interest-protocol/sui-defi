@@ -4,7 +4,7 @@ module interest_protocol::oracle {
   use sui::tx_context::{Self, TxContext};
   use sui::transfer;
   use sui::object::{Self, UID};
-  use sui::table::{Self, Table};
+  use sui::object_table::{Self, ObjectTable};
 
   use interest_protocol::utils::{get_coin_info_string};
 
@@ -20,7 +20,7 @@ module interest_protocol::oracle {
 
   struct OracleStorage has key {
       id: UID,
-      price_table: Table<String, PriceData>
+      price_table: ObjectTable<String, PriceData>
   }
 
   fun init(ctx: &mut TxContext) {
@@ -34,7 +34,7 @@ module interest_protocol::oracle {
       transfer::share_object(
         OracleStorage {
           id: object::new(ctx),
-          price_table: table::new<String, PriceData>(ctx)
+          price_table: object_table::new<String, PriceData>(ctx)
         }
       );
   }
@@ -48,12 +48,12 @@ module interest_protocol::oracle {
     ) {
       let key = get_coin_info_string<T>();
 
-      if (table::contains(&storage.price_table, key)) {
-        let data = table::borrow_mut(&mut storage.price_table, key);
+      if (object_table::contains(&storage.price_table, key)) {
+        let data = object_table::borrow_mut(&mut storage.price_table, key);
         data.price = price;
         data.decimals = decimals;
       } else {
-        table::add(&mut storage.price_table, key, PriceData {
+        object_table::add(&mut storage.price_table, key, PriceData {
           id: object::new(ctx),
           price,
           decimals
@@ -62,7 +62,7 @@ module interest_protocol::oracle {
   }
 
   public fun get_price(storage: &OracleStorage, key: String): (u256, u8)  {
-    let price_data = table::borrow(&storage.price_table, key);
+    let price_data = object_table::borrow(&storage.price_table, key);
     (price_data.price, price_data.decimals)
   }
 

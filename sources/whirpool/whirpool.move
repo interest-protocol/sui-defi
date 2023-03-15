@@ -7,6 +7,7 @@ module interest_protocol::whirpool {
   use sui::object::{Self, UID};
   use sui::bag::{Self, Bag};
   use sui::table::{Self, Table};
+  use sui::object_table::{Self, ObjectTable};
   use sui::balance::{Self, Balance};
   use sui::coin::{Self, Coin};
   use sui::pay;
@@ -69,20 +70,18 @@ module interest_protocol::whirpool {
     decimals_factor: u64
   }
 
-  struct MarketBalance<phantom T> has key, store {
-    id: UID,
+  struct MarketBalance<phantom T> has store {
     balance: Balance<T>
   }
 
-  struct Liquidation has key, store {
-    id: UID,
+  struct Liquidation has store {
     penalty_fee: u256,
     protocol_percentage: u256
   }
 
   struct WhirpoolStorage has key {
     id: UID,
-    market_data_table: Table<String, MarketData>,
+    market_data_table: ObjectTable<String, MarketData>,
     liquidation_table: Table<String, Liquidation>,
     all_markets_keys: vector<String>,
     market_balance_bag: Bag, // get_coin_info -> MarketBalance,
@@ -100,7 +99,7 @@ module interest_protocol::whirpool {
 
   struct AccountStorage has key {
      id: UID,
-     accounts_table: Table<String, Table<address, Account>>, // get_coin_info -> address -> Account
+     accounts_table: Table<String, ObjectTable<address, Account>>, // get_coin_info -> address -> Account
      markets_in_table: Table<address, vector<String>>  
   }
 
@@ -225,7 +224,7 @@ module interest_protocol::whirpool {
     transfer::share_object(
       WhirpoolStorage {
         id: object::new(ctx),
-        market_data_table: table::new(ctx),
+        market_data_table: object_table::new(ctx),
         liquidation_table: table::new(ctx),
         all_markets_keys: vector::empty(),
         market_balance_bag: bag::new(ctx),
@@ -1098,20 +1097,20 @@ module interest_protocol::whirpool {
     bag::borrow_mut(market_balance, market_key)
   }
 
-  fun borrow_market_data(market_data: &Table<String, MarketData>, market_key: String): &MarketData {
-    table::borrow(market_data, market_key)
+  fun borrow_market_data(market_data: &ObjectTable<String, MarketData>, market_key: String): &MarketData {
+    object_table::borrow(market_data, market_key)
   }
 
-  fun borrow_mut_market_data(market_data: &mut Table<String, MarketData>, market_key: String): &mut MarketData {
-    table::borrow_mut(market_data, market_key)
+  fun borrow_mut_market_data(market_data: &mut ObjectTable<String, MarketData>, market_key: String): &mut MarketData {
+    object_table::borrow_mut(market_data, market_key)
   }
 
   fun borrow_account(account_storage: &AccountStorage, user: address, market_key: String): &Account {
-    table::borrow(table::borrow(&account_storage.accounts_table, market_key), user)
+    object_table::borrow(table::borrow(&account_storage.accounts_table, market_key), user)
   }
 
   fun borrow_mut_account(account_storage: &mut AccountStorage, user: address, market_key: String): &mut Account {
-    table::borrow_mut(table::borrow_mut(&mut account_storage.accounts_table, market_key), user)
+    object_table::borrow_mut(table::borrow_mut(&mut account_storage.accounts_table, market_key), user)
   }
 
   fun borrow_user_markets_in(markets_in: &Table<address, vector<String>>, user: address): &vector<String> {
@@ -1123,7 +1122,7 @@ module interest_protocol::whirpool {
   }
 
   fun account_exists(account_storage: &AccountStorage, user: address, market_key: String): bool {
-    table::contains(table::borrow(&account_storage.accounts_table, market_key), user)
+    object_table::contains(table::borrow(&account_storage.accounts_table, market_key), user)
   }
 
   /**
@@ -1133,7 +1132,7 @@ module interest_protocol::whirpool {
   */
   fun init_account(account_storage: &mut AccountStorage, user: address, key: String, ctx: &mut TxContext) {
     if (!account_exists(account_storage, user, key)) {
-          table::add(
+          object_table::add(
             table::borrow_mut(&mut account_storage.accounts_table, key),
             user,
             Account {
@@ -1318,7 +1317,7 @@ module interest_protocol::whirpool {
     let decimals_factor = math::pow(10, decimals);
 
     // Register the MarketData
-    table::add(
+    object_table::add(
       &mut whirpool_storage.market_data_table, 
       key,
       MarketData {
@@ -1344,7 +1343,6 @@ module interest_protocol::whirpool {
       &mut whirpool_storage.liquidation_table,
       key,
       Liquidation {
-        id: object::new(ctx),
         penalty_fee,
         protocol_percentage
       }
@@ -1355,7 +1353,6 @@ module interest_protocol::whirpool {
       &mut whirpool_storage.market_balance_bag, 
       key,
       MarketBalance {
-        id: object::new(ctx),
         balance: balance::zero<T>()
       });  
 
@@ -1363,7 +1360,7 @@ module interest_protocol::whirpool {
     table::add(
       &mut account_storage.accounts_table,
       key,
-      table::new(ctx)
+      object_table::new(ctx)
     );  
 
     // Update the total allocation points
@@ -2548,7 +2545,7 @@ module interest_protocol::whirpool {
   * - The user must be solvent after withdrawing.
   */
   fun withdraw_allowed(
-    market_table: &mut Table<String, MarketData>, 
+    market_table: &mut ObjectTable<String, MarketData>, 
     account_storage: &mut AccountStorage, 
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
@@ -2597,7 +2594,7 @@ module interest_protocol::whirpool {
   * - The user must be solvent after withdrawing.
   */
   fun borrow_allowed(
-    market_table: &mut Table<String, MarketData>, 
+    market_table: &mut ObjectTable<String, MarketData>, 
     account_storage: &mut AccountStorage, 
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
@@ -2736,7 +2733,7 @@ module interest_protocol::whirpool {
   * @return bool true if the user can borrow
   */
   fun is_user_solvent(
-    market_table: &mut Table<String, MarketData>, 
+    market_table: &mut ObjectTable<String, MarketData>, 
     account_storage: &mut AccountStorage,
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
@@ -2767,7 +2764,7 @@ module interest_protocol::whirpool {
       vector::push_back(&mut markets_in_copy, key);
 
       // Get the user account
-      let account = table::borrow(table::borrow(&account_storage.accounts_table, key), user);
+      let account = object_table::borrow(table::borrow(&account_storage.accounts_table, key), user);
 
       // Get the market data
       let market_data = borrow_mut_market_data(market_table, key);
@@ -2821,7 +2818,7 @@ module interest_protocol::whirpool {
 
   #[test_only]
   public fun is_market_paused<T>(whirpool_storage: &WhirpoolStorage): bool {
-    let market_data = table::borrow(&whirpool_storage.market_data_table, get_coin_info_string<T>());
+    let market_data = object_table::borrow(&whirpool_storage.market_data_table, get_coin_info_string<T>());
     market_data.is_paused
   }
 

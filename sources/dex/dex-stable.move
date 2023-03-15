@@ -8,7 +8,7 @@ module interest_protocol::dex_stable {
   use sui::object::{Self,UID, ID};
   use sui::transfer;
   use sui::math;
-  use sui::bag::{Self, Bag};
+  use sui::object_bag::{Self, ObjectBag};
   use sui::event;
 
   use interest_protocol::utils;
@@ -40,7 +40,7 @@ module interest_protocol::dex_stable {
 
     struct Storage has key {
       id: UID,
-      pools: Bag,
+      pools: ObjectBag,
       fee_to: address
     }
 
@@ -120,7 +120,7 @@ module interest_protocol::dex_stable {
       transfer::share_object(
          Storage {
            id: object::new(ctx),
-           pools: bag::new(ctx),
+           pools: object_bag::new(ctx),
            fee_to: @dev
          }
       );
@@ -131,7 +131,7 @@ module interest_protocol::dex_stable {
     * @notice Please make sure that the tokens X and Y are sorted before calling this fn.
     * @dev It creates a new Pool with X and Y coins. The pool accepts swaps using the x^3y+y^3x >= k invariant.
     * @param _ The StableDEXAdminCap
-    * @param storage the object that stores the pools Bag
+    * @param storage the object that stores the pools object_bag
     * @oaram coin_x the first token of the pool
     * @param coin_y the scond token of the pool
     * @return The number of shares as VLPCoins that can be used later on to redeem his coins + commissions.
@@ -162,7 +162,7 @@ module interest_protocol::dex_stable {
       let type = utils::get_coin_info_string<SLPCoin<X, Y>>();
 
       // Checks that the pool does not exist.
-      assert!(!bag::contains(&storage.pools, type), ERROR_POOL_EXISTS);
+      assert!(!object_bag::contains(&storage.pools, type), ERROR_POOL_EXISTS);
 
       // Calculate the scalar of the decimals.
       let decimals_x = math::pow(10, coin::get_decimals(coin_x_metadata));
@@ -196,7 +196,7 @@ module interest_protocol::dex_stable {
         );
 
       // Store the new pool in Storage.pools
-      bag::add(
+      object_bag::add(
         &mut storage.pools,
         type,
         SPool {
@@ -217,7 +217,7 @@ module interest_protocol::dex_stable {
     /**
     * @dev This fn allows the caller to deposit coins X and Y on the Pool<X, Y>.
     * This function will not throw if one of the coins has a value of 0, but the caller will get shares (SLPCoin) with a value of 0.
-    * @param storage the object that stores the pools Bag 
+    * @param storage the object that stores the pools object_bag 
     * @param coin_x The Coin<X> the user wishes to deposit on Pool<X, Y>
     * @param coin_y The Coin<Y> the user wishes to deposit on Pool<X, Y>
     * @param vlp_coin_min_amount the minimum amount of shares to receive. It prevents high slippage from frontrunning. 
@@ -286,7 +286,7 @@ module interest_protocol::dex_stable {
 
     /**
     * @dev It allows the caller to redeem his underlying coins in proportions to the SLPCoins he burns. 
-    * @param storage the object that stores the pools Bag 
+    * @param storage the object that stores the pools object_bag 
     * @param lp_coin the shares to burn
     * @param coin_x_min_amount the minimum value of Coin<X> the caller wishes to receive.
     * @param coin_y_min_amount the minimum value of Coin<Y> the caller wishes to receive.
@@ -357,24 +357,24 @@ module interest_protocol::dex_stable {
 
     /**
     * @dev It returns an immutable Pool<X, Y>. 
-    * @param storage the object that stores the pools Bag 
+    * @param storage the object that stores the pools object_bag 
     * @return The pool for Coins X and Y.
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
     public fun borrow_pool<X, Y>(storage: &Storage): &SPool<X, Y> {
-      bag::borrow<String, SPool<X, Y>>(&storage.pools, utils::get_coin_info_string<SLPCoin<X, Y>>())
+      object_bag::borrow<String, SPool<X, Y>>(&storage.pools, utils::get_coin_info_string<SLPCoin<X, Y>>())
     }
 
     /**
     * @dev It indicates to the caller if Pool<X, Y> has been deployed. 
-    * @param storage the object that stores the pools Bag 
+    * @param storage the object that stores the pools object_bag 
     * @return bool True if the pool has been deployed.
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
     public fun is_pool_deployed<X, Y>(storage: &Storage):bool {
-      bag::contains(&storage.pools, utils::get_coin_info_string<SLPCoin<X, Y>>())
+      object_bag::contains(&storage.pools, utils::get_coin_info_string<SLPCoin<X, Y>>())
     }
 
     /**
@@ -442,7 +442,7 @@ module interest_protocol::dex_stable {
 
    /**
    * @dev It sells the Coin<X> in a Pool<X, Y> for Coin<Y>. 
-   * @param storage the object that stores the pools Bag 
+   * @param storage the object that stores the pools object_bag 
    * @param coin_x Coin<X> being sold. 
    * @param coin_y_min_value the minimum value of Coin<Y> the caller will accept.
    * @return Coin<Y> bought.
@@ -496,7 +496,7 @@ module interest_protocol::dex_stable {
 
   /**
    * @dev It sells the Coin<Y> in a Pool<X, Y> for Coin<X>. 
-   * @param storage the object that stores the pools Bag 
+   * @param storage the object that stores the pools object_bag 
    * @param coin_y Coin<Y> being sold. 
    * @param coin_x_min_value the minimum value of Coin<X> the caller will accept.
    * @return Coin<X> bought.
@@ -548,7 +548,7 @@ module interest_protocol::dex_stable {
    
    /**
    * @dev It lends Coin<X> and Coin<Y> to the caller from SPool<X, Y>. 
-   * @param storage the object that stores the pools Bag 
+   * @param storage the object that stores the pools object_bag 
    * @param amount_x The amount of Coin<X> the caller wishes to borrow
    * @param amount_y The amount of Coin<Y> the caller wishes to borrow
    * @return Receipt<X, Y>, Coin<X>, Coin<Y>
@@ -584,7 +584,7 @@ module interest_protocol::dex_stable {
 
   /**
    * @dev It allows the caller to repay his flash loan. 
-   * @param storage the object that stores the pools Bag 
+   * @param storage the object that stores the pools object_bag 
    * @param receipt The Receipt struct created by the flash loan
    * @param coin_x The Coin<X> to be repaid to SPool<X, Y>
    * @param coin_y The Coin<Y> to be repaid to SPool<X, Y>
@@ -630,13 +630,13 @@ module interest_protocol::dex_stable {
 
     /**
     * @dev It returns a mutable Pool<X, Y>. 
-    * @param storage the object that stores the pools Bag 
+    * @param storage the object that stores the pools object_bag 
     * @return The pool for Coins X and Y.
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
     fun borrow_mut_pool<X, Y>(storage: &mut Storage): &mut SPool<X, Y> {
-        bag::borrow_mut<String, SPool<X, Y>>(&mut storage.pools, utils::get_coin_info_string<SLPCoin<X, Y>>())
+        object_bag::borrow_mut<String, SPool<X, Y>>(&mut storage.pools, utils::get_coin_info_string<SLPCoin<X, Y>>())
       }   
 
     /**
@@ -744,7 +744,7 @@ module interest_protocol::dex_stable {
     /**
     * @dev Admin only fn to update the fee_to. 
     * @param _ the StableDEXAdminCap
-    * @param storage the object that stores the pools Bag 
+    * @param storage the object that stores the pools object_bag 
     * @param new_fee_to the new `fee_to`.
     */
     entry public fun update_fee_to(
