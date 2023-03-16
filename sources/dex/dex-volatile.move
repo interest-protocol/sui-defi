@@ -367,6 +367,17 @@ module interest_protocol::dex_volatile {
     }
 
     /**
+    * @dev It returns the ID of a pool
+    * @return pool ID
+    * Requirements: 
+    * - Coins X and Y must be sorted.
+    */
+    public fun get_pool_id<X, Y>(storage: &Storage): ID {
+      let pool = borrow_pool<X, Y>(storage);
+      object::id(pool)
+    }
+
+    /**
     * @param pool an immutable Pool<X, Y>
     * @return It returns a triple of Tuple<coin_x_reserves, coin_y_reserves, lp_coin_supply>. 
     */

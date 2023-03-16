@@ -1,10 +1,11 @@
 module interest_protocol::interface {
   use std::vector;
 
-  use sui::coin::{Coin};
+  use sui::coin::{Coin, CoinMetadata};
   use sui::tx_context::{Self, TxContext};
   use sui::transfer;
   use sui::clock::{Clock};
+  use sui::object::{ID};
 
   use interest_protocol::dex_volatile::{Self as volatile, Storage as VStorage, VLPCoin};
   use interest_protocol::dex_stable::{Self as stable, Storage as SStorage, SLPCoin};
@@ -22,7 +23,7 @@ module interest_protocol::interface {
   * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
   * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
   */
-  entry public fun create_pool<X, Y>(
+  entry public fun create_v_pool<X, Y>(
       storage: &mut VStorage,
       vector_x: vector<Coin<X>>,
       vector_y: vector<Coin<Y>>,
@@ -53,6 +54,61 @@ module interest_protocol::interface {
           storage,
           coin_y,
           coin_x,
+          ctx
+        ),
+        tx_context::sender(ctx)
+      )
+    }
+  }
+
+    /**
+  * @dev This function does not require the coins to be sorted. It will send back any unused value. 
+  * It create a volatile Pool with Coins X and Y
+  * @param storage The storage object of the ipx::dex_volatile 
+  * @param vector_x A vector of several Coin<X> 
+  * @param vector_y A vector of several Coin<Y> 
+  * @param coin_x_metadata The CoinMetadata object of Coin<X>
+  * @param coin_y_metadata The CoinMetadata object of Coin<Y>
+  * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
+  * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
+  */
+  entry public fun create_s_pool<X, Y>(
+      storage: &mut SStorage,
+      vector_x: vector<Coin<X>>,
+      vector_y: vector<Coin<Y>>,
+      coin_x_metadata: &CoinMetadata<X>,
+      coin_y_metadata: &CoinMetadata<Y>,
+      coin_x_amount: u64,
+      coin_y_amount: u64,
+      ctx: &mut TxContext
+  ) {
+    
+    // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
+    // vector total value - coin desired value
+    let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
+    let coin_y = handle_coin_vector<Y>(vector_y, coin_y_amount, ctx);
+
+    // Sorts for the caller - to make it easier for the frontend
+    if (are_coins_sorted<X, Y>()) {
+      transfer::transfer(
+        stable::create_pool(
+          storage,
+          coin_x,
+          coin_y,
+          coin_x_metadata,
+          coin_y_metadata,
+          ctx
+        ),
+        tx_context::sender(ctx)
+      )
+    } else {
+      transfer::transfer(
+        stable::create_pool(
+          storage,
+          coin_y,
+          coin_x,
+          coin_y_metadata,
+          coin_x_metadata,
           ctx
         ),
         tx_context::sender(ctx)
@@ -457,6 +513,22 @@ module interest_protocol::interface {
     // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
     // vector total value - coin desired value
     ipx::burn(storage, handle_coin_vector(coin_vector, coin_value, ctx));
+  }
+
+  public fun get_v_pool_id<X, Y>(storage: &VStorage): ID {
+    if (are_coins_sorted<X, Y>()) {
+      volatile::get_pool_id<X, Y>(storage)
+    } else {
+      volatile::get_pool_id<Y, X>(storage)
+    }
+  }
+
+  public fun get_s_pool_id<X, Y>(storage: &SStorage): ID {
+    if (are_coins_sorted<X, Y>()) {
+      stable::get_pool_id<X, Y>(storage)
+    } else {
+      stable::get_pool_id<Y, X>(storage)
+    }
   }
 
   fun get_farm<X>(

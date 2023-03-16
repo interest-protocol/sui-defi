@@ -134,6 +134,8 @@ module interest_protocol::dex_stable {
     * @param storage the object that stores the pools object_bag
     * @oaram coin_x the first token of the pool
     * @param coin_y the scond token of the pool
+    * @param coin_x_metadata The CoinMetadata object of Coin<X>
+    * @param coin_y_metadata The CoinMetadata object of Coin<Y>
     * @return The number of shares as VLPCoins that can be used later on to redeem his coins + commissions.
     * Requirements: 
     * - It will throw if the X and Y are not sorted.
@@ -375,6 +377,17 @@ module interest_protocol::dex_stable {
     */
     public fun is_pool_deployed<X, Y>(storage: &Storage):bool {
       object_bag::contains(&storage.pools, utils::get_coin_info_string<SLPCoin<X, Y>>())
+    }
+
+    /**
+    * @dev It returns the ID of a pool
+    * @return pool ID
+    * Requirements: 
+    * - Coins X and Y must be sorted.
+    */
+    public fun get_pool_id<X, Y>(storage: &Storage): ID {
+      let pool = borrow_pool<X, Y>(storage);
+      object::id(pool)
     }
 
     /**
