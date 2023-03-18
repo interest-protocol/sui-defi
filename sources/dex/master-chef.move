@@ -23,8 +23,7 @@ module interest_protocol::master_chef {
   const IPX_POOL_KEY: u64 = 0;
 
   const ERROR_POOL_ADDED_ALREADY: u64 = 1;
-  const ERROR_ACCOUNT_object_bag_ADDED_ALREADY: u64 = 2;
-  const ERROR_NOT_ENOUGH_BALANCE: u64 = 3;
+  const ERROR_NOT_ENOUGH_BALANCE: u64 = 2;
   const ERROR_NO_PENDING_REWARDS: u64 = 4;
 
   struct MasterChefStorage has key {
@@ -647,9 +646,6 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
   // Current number of pools is the key of the new pool
   let key = table::length(&storage.pool_keys);
 
-  // Insaniy check if the pool is not registered, there is also no Account object_bag registered
-  assert!(!object_table::contains(&accounts_storage.accounts, key), ERROR_ACCOUNT_object_bag_ADDED_ALREADY);
-
   // Register the Account object_bag
   object_table::add(
     &mut accounts_storage.accounts,
@@ -792,7 +788,7 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
  * @param storage The MasterChefStorage shared object
  * @return total ipx_per_ms, total_allocation_points, start_timestamp
  */
-  public fun get_ipx_storage_info(storage: &MasterChefStorage): (u64, u64, u64) {
+  public fun get_master_chef_storage_info(storage: &MasterChefStorage): (u64, u64, u64) {
     (
       storage.ipx_per_ms,
       storage.total_allocation_points,
