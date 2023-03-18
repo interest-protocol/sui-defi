@@ -93,7 +93,6 @@ module interest_protocol::ipx_tests {
 
       clock::increment_for_testing(&mut clock_object, 12000);
 
-
       let (_, rewards_paid) = master_chef::get_account_info<LPCoin>(&master_chef_storage, &account_storage, alice);
 
       let pending_rewards = master_chef::get_pending_rewards<LPCoin>(&master_chef_storage, &account_storage, &clock_object, alice);
@@ -132,54 +131,78 @@ module interest_protocol::ipx_tests {
     test::end(scenario);
   }
 
-  // fun test_unstake_(test: &mut Scenario) {
-  //   let (alice, _) = people();
+  fun test_unstake_(test: &mut Scenario) {
+    let (alice, _) = people();
 
-  //   register_token(test);
+    register_token(test);
 
-  //   next_tx(test, alice);
-  //   {
-  //     let ipx_storage = test::take_shared<IPXStorage>(test);
-  //     let account_storage = test::take_shared<AccountStorage>(test);
+    next_tx(test, alice);
+    {
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let clock_object = test::take_shared<Clock>(test);
+      let master_chef_storage = test::take_shared<MasterChefStorage>(test);
 
-  //     burn(ipx::stake(&mut ipx_storage, &mut account_storage, mint<LPCoin>(500, ctx(test)), ctx(test)));
+      burn(
+        master_chef::stake(
+          &mut master_chef_storage, 
+          &mut account_storage, 
+          &mut ipx_storage,
+          &clock_object,
+          mint<LPCoin>(500, ctx(test)), 
+          ctx(test))
+       );
+     
+      test::return_shared(master_chef_storage);
+      test::return_shared(clock_object);
+      test::return_shared(ipx_storage);
+      test::return_shared(account_storage);
+    };
 
-  //     test::return_shared(ipx_storage);
-  //     test::return_shared(account_storage);
-  //   };
+    next_tx(test, alice);
+    {
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let clock_object = test::take_shared<Clock>(test);
+      let master_chef_storage = test::take_shared<MasterChefStorage>(test);
 
-  //   advance_epoch(test, alice, 6);
-  //   next_tx(test, alice);
-  //   {
-  //     let ipx_storage = test::take_shared<IPXStorage>(test);
-  //     let account_storage = test::take_shared<AccountStorage>(test);
+      clock::increment_for_testing(&mut clock_object, 5000);
 
-  //     let pending_rewards = ipx::get_pending_rewards<LPCoin>(&ipx_storage, &account_storage, alice, ctx(test));
+      let pending_rewards = master_chef::get_pending_rewards<LPCoin>(&master_chef_storage, &account_storage, &clock_object, alice);
 
-  //     let (coin_ipx, lp_coin)= ipx::unstake<LPCoin>(&mut ipx_storage, &mut account_storage, 300, ctx(test));
+      let (coin_ipx, lp_coin)= master_chef::unstake<LPCoin>(
+        &mut master_chef_storage, 
+        &mut account_storage, 
+        &mut ipx_storage,
+        &clock_object,
+        300, 
+        ctx(test)
+      );
 
-  //     let (_, last_reward_epoch, accrued_ipx_per_share, balance) = ipx::get_pool_info<LPCoin>(&ipx_storage);
-  //     let (user_balance, rewards_paid) = ipx::get_account_info<LPCoin>(&ipx_storage, &account_storage, alice);
+      let (_, last_reward_timestamp, accrued_ipx_per_share, balance) = master_chef::get_pool_info<LPCoin>(&master_chef_storage);
+      let (user_balance, rewards_paid) = master_chef::get_account_info<LPCoin>(&master_chef_storage, &account_storage, alice);
 
-  //     assert!(burn(lp_coin) == 300, 0);
-  //     assert!((burn(coin_ipx) as u256) == (500 * accrued_ipx_per_share), 0);
-  //     assert!(pending_rewards == (500 * accrued_ipx_per_share), 0);
-  //     assert!(balance == 200, 0);
-  //     assert!(user_balance == 200, 0);
-  //     assert!(rewards_paid == 200 * accrued_ipx_per_share, 0);
-  //     assert!(last_reward_epoch == 6, 0);
+      assert!(burn(lp_coin) == 300, 0);
+      assert!((burn(coin_ipx) as u256) == (500 * accrued_ipx_per_share), 0);
+      assert!(pending_rewards == (500 * accrued_ipx_per_share), 0);
+      assert!(balance == 200, 0);
+      assert!(user_balance == 200, 0);
+      assert!(rewards_paid == 200 * accrued_ipx_per_share, 0);
+      assert!(last_reward_timestamp == 5000, 0);
+      
+      test::return_shared(master_chef_storage);
+      test::return_shared(clock_object);
+      test::return_shared(ipx_storage);
+      test::return_shared(account_storage);
+    };
+  }
 
-  //     test::return_shared(ipx_storage);
-  //     test::return_shared(account_storage);
-  //   };
-  // }
-
-  // #[test]
-  // fun test_unstake() {
-  //   let scenario = scenario();
-  //   test_unstake_(&mut scenario);
-  //   test::end(scenario);
-  // }
+  #[test]
+  fun test_unstake() {
+    let scenario = scenario();
+    test_unstake_(&mut scenario);
+    test::end(scenario);
+  }
 
   // fun test_init_(test: &mut Scenario) {
   //   let (owner, _) = people();

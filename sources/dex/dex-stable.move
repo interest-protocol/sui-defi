@@ -22,17 +22,16 @@ module interest_protocol::dex_stable {
   const ERROR_CREATE_PAIR_ZERO_VALUE: u64 = 1;
   const ERROR_POOL_EXISTS: u64 = 2;
   const ERROR_ZERO_VALUE_SWAP: u64 = 3;
-  const ERROR_NOT_ENOUGH_LIQUIDITY: u64 = 4;
+  const ERROR_UNSORTED_COINS: u64 = 4;
   const ERROR_SLIPPAGE: u64 = 5;
   const ERROR_ADD_LIQUIDITY_ZERO_AMOUNT: u64 = 6;
   const ERROR_REMOVE_LIQUIDITY_ZERO_AMOUNT: u64 = 7;
   const ERROR_REMOVE_LIQUIDITY_X_AMOUNT: u64 = 8;
   const ERROR_REMOVE_LIQUIDITY_Y_AMOUNT: u64 = 9;
-  const ERROR_NOT_ENOUGHT_LIQUIDITY_TO_LEND: u64 = 10;
+  const ERROR_NOT_ENOUGH_LIQUIDITY_TO_LEND: u64 = 10;
   const ERROR_WRONG_POOL: u64 = 11;
   const ERROR_WRONG_REPAY_AMOUNT_X: u64 = 12;
   const ERROR_WRONG_REPAY_AMOUNT_Y: u64 = 13;
-  const ERROR_UNSORTED_COINS: u64 = 14;
 
     struct StableDEXAdminCap has key {
       id: UID,
@@ -488,8 +487,6 @@ module interest_protocol::dex_stable {
 
         // Make sure the caller receives more than the minimum amount. 
         assert!(coin_y_value >=  coin_y_min_value, ERROR_SLIPPAGE);
-        // Makes sure the Pool<X, Y> has enough reserves to cover the swap.
-        assert!(coin_y_reserve > coin_y_value, ERROR_NOT_ENOUGH_LIQUIDITY);
 
         // Emit the SwapTokenX event
         event::emit(
@@ -541,8 +538,6 @@ module interest_protocol::dex_stable {
         let coin_x_value = calculate_value_out(pool, coin_y_value, coin_x_reserve, coin_y_reserve, false);
 
         assert!(coin_x_value >=  coin_x_min_value, ERROR_SLIPPAGE);
-        // Makes sure the Pool<X, Y> has enough reserves to cover the swap.
-        assert!(coin_x_reserve > coin_x_value, ERROR_NOT_ENOUGH_LIQUIDITY);
 
         event::emit(
           SwapTokenY<X, Y> {
@@ -578,7 +573,7 @@ module interest_protocol::dex_stable {
         let pool = borrow_mut_pool<X, Y>(storage);
 
         // The pool must have enough liquidity to lend
-        assert!(balance::value(&pool.balance_x) >= amount_x && balance::value(&pool.balance_y) >= amount_y, ERROR_NOT_ENOUGHT_LIQUIDITY_TO_LEND);
+        assert!(balance::value(&pool.balance_x) >= amount_x && balance::value(&pool.balance_y) >= amount_y, ERROR_NOT_ENOUGH_LIQUIDITY_TO_LEND);
 
         // Remove the coins from the pool
         let coin_x = coin::take(&mut pool.balance_x, amount_x, ctx);

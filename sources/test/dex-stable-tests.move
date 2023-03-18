@@ -437,7 +437,7 @@ module interest_protocol::dex_stable_tests {
         test::end(scenario);
     }
 
-        fun test_flash_loan_(test: &mut Scenario) {
+      fun test_flash_loan_(test: &mut Scenario) {
       test_create_pool_(test);
 
       let (_, bob) = people();
@@ -481,6 +481,589 @@ module interest_protocol::dex_stable_tests {
         let scenario = scenario();
         test_flash_loan_(&mut scenario);
         test::end(scenario);
+    }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_CREATE_PAIR_ZERO_VALUE)]
+  fun test_create_pool_zero_value_y_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      next_tx(test, alice);
+      {
+        dex::init_for_testing(ctx(test));
+        usdc::init_for_testing(ctx(test));
+        usdt::init_for_testing(ctx(test));
+      };
+
+      next_tx(test, alice);
+      {
+        let storage = test::take_shared<Storage>(test);
+        let usdc_coin_metadata = test::take_immutable<CoinMetadata<USDC>>(test);
+        let usdt_coin_metadata = test::take_immutable<CoinMetadata<USDT>>(test);
+
+        burn(dex::create_pool(
+          &mut storage,
+          mint<USDC>(INITIAL_USDC_VALUE, ctx(test)),
+          mint<USDT>(0, ctx(test)),
+          &usdc_coin_metadata,
+          &usdt_coin_metadata,
+          ctx(test)
+        ));
+
+        test::return_shared(storage);
+        test::return_immutable(usdc_coin_metadata);
+        test::return_immutable(usdt_coin_metadata);
+      };
+      
+      test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_CREATE_PAIR_ZERO_VALUE)]
+  fun test_create_pool_zero_value_x_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      next_tx(test, alice);
+      {
+        dex::init_for_testing(ctx(test));
+        usdc::init_for_testing(ctx(test));
+        usdt::init_for_testing(ctx(test));
+      };
+
+      next_tx(test, alice);
+      {
+        let storage = test::take_shared<Storage>(test);
+        let usdc_coin_metadata = test::take_immutable<CoinMetadata<USDC>>(test);
+        let usdt_coin_metadata = test::take_immutable<CoinMetadata<USDT>>(test);
+
+        burn(dex::create_pool(
+          &mut storage,
+          mint<USDC>(0, ctx(test)),
+          mint<USDT>(INITIAL_USDT_VALUE, ctx(test)),
+          &usdc_coin_metadata,
+          &usdt_coin_metadata,
+          ctx(test)
+        ));
+
+        test::return_shared(storage);
+        test::return_immutable(usdc_coin_metadata);
+        test::return_immutable(usdt_coin_metadata);
+      };
+      
+      test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_UNSORTED_COINS)]
+  fun test_create_pool_zero_unsorted_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      next_tx(test, alice);
+      {
+        dex::init_for_testing(ctx(test));
+        usdc::init_for_testing(ctx(test));
+        usdt::init_for_testing(ctx(test));
+      };
+
+      next_tx(test, alice);
+      {
+        let storage = test::take_shared<Storage>(test);
+        let usdc_coin_metadata = test::take_immutable<CoinMetadata<USDC>>(test);
+        let usdt_coin_metadata = test::take_immutable<CoinMetadata<USDT>>(test);
+
+        burn(dex::create_pool(
+          &mut storage,
+          mint<USDT>(INITIAL_USDT_VALUE, ctx(test)),
+          mint<USDC>(INITIAL_USDC_VALUE, ctx(test)),
+          &usdt_coin_metadata,
+          &usdc_coin_metadata,
+          ctx(test)
+        ));
+
+        test::return_shared(storage);
+        test::return_immutable(usdc_coin_metadata);
+        test::return_immutable(usdt_coin_metadata);
+      };
+      
+      test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_ADD_LIQUIDITY_ZERO_AMOUNT)]
+  fun test_add_liquidity_zero_amount_x_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+      
+      let usdt_value = INITIAL_USDT_VALUE / 10;
+      let usdc_value = 0;
+
+      next_tx(test, alice);
+      {
+        let storage = test::take_shared<Storage>(test);
+
+        burn(dex::add_liquidity(
+          &mut storage,
+          mint<USDC>(usdc_value, ctx(test)),
+          mint<USDT>(usdt_value, ctx(test)),
+          0,
+          ctx(test)
+        ));
+        
+        test::return_shared(storage);
+      }; 
+      test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_ADD_LIQUIDITY_ZERO_AMOUNT)]
+  fun test_add_liquidity_zero_amount_y_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+      
+      let usdt_value = 0;
+      let usdc_value = INITIAL_USDC_VALUE / 10;
+
+      next_tx(test, alice);
+      {
+        let storage = test::take_shared<Storage>(test);
+
+        burn(dex::add_liquidity(
+          &mut storage,
+          mint<USDC>(usdc_value, ctx(test)),
+          mint<USDT>(usdt_value, ctx(test)),
+          0,
+          ctx(test)
+        ));
+        
+        test::return_shared(storage);
+      }; 
+      test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_REMOVE_LIQUIDITY_ZERO_AMOUNT)]
+  fun test_remove_liquidity_zero_amount_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+      
+      next_tx(test, alice);
+      {
+        let storage = test::take_shared<Storage>(test);
+          
+        let (usdc, usdt) = dex::remove_liquidity(
+          &mut storage,
+          mint<SLPCoin<USDC, USDT>>(0, ctx(test)),
+          0,
+          0,
+          ctx(test)
+        );
+
+        burn(usdc);
+        burn(usdt);
+
+        test::return_shared(storage);
+      };
+      test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_REMOVE_LIQUIDITY_X_AMOUNT)]
+  fun test_remove_liquidity_x_amount_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+      remove_fee(test);
+      
+      let usdt_value = INITIAL_USDT_VALUE / 10;
+      let usdc_value = INITIAL_USDC_VALUE / 10;
+
+       next_tx(test, alice);
+        {
+          let storage = test::take_shared<Storage>(test);
+
+          let lp_coin = dex::add_liquidity(
+            &mut storage,
+            mint<USDC>(usdc_value, ctx(test)),
+            mint<USDT>(usdt_value, ctx(test)),
+            0,
+            ctx(test)
+          );
+
+          let (usdc, usdt) = dex::remove_liquidity(
+              &mut storage,
+              lp_coin,
+              usdc_value,
+              0,
+              ctx(test)
+          );
+
+          burn(usdc);
+          burn(usdt);
+          test::return_shared(storage);
+        };
+      test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_REMOVE_LIQUIDITY_Y_AMOUNT)]
+  fun test_remove_liquidity_y_amount_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+      remove_fee(test);
+      
+      let usdt_value = INITIAL_USDT_VALUE / 10;
+      let usdc_value = INITIAL_USDC_VALUE / 10;
+
+       next_tx(test, alice);
+        {
+          let storage = test::take_shared<Storage>(test);
+
+          let lp_coin = dex::add_liquidity(
+            &mut storage,
+            mint<USDC>(usdc_value, ctx(test)),
+            mint<USDT>(usdt_value, ctx(test)),
+            0,
+            ctx(test)
+          );
+
+          let (usdc, usdt) = dex::remove_liquidity(
+              &mut storage,
+              lp_coin,
+              0,
+              usdt_value,
+              ctx(test)
+          );
+
+          burn(usdc);
+          burn(usdt);
+          test::return_shared(storage);
+        };
+      test::end(scenario);
+    }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_ZERO_VALUE_SWAP)]
+  fun test_swap_token_x_zero_value_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+      remove_fee(test);
+      
+      next_tx(test, alice);
+       {
+        let storage = test::take_shared<Storage>(test);
+
+        let usdc_amount = INITIAL_USDC_VALUE / 10;
+
+        let pool = dex::borrow_pool<USDC, USDT>(&storage);
+        let (usdc_reserves, usdt_reserves, _) = dex::get_amounts(pool);
+
+        let token_in_amount = usdc_amount - ((usdc_amount * 30) / 10000);
+        // 9086776671
+        let v_usdt_amount_received = (usdt_reserves * token_in_amount) / (token_in_amount + usdc_reserves);
+        // calculated off chain to save time
+        let s_usdt_amount_received = 9990015154;
+
+
+        let usdt = dex::swap_token_x<USDC, USDT>(
+          &mut storage,
+          mint<USDC>(0, ctx(test)),
+          0,
+          ctx(test)
+        );
+
+        assert!(burn(usdt) == s_usdt_amount_received, 0);
+        // 10% less slippage
+        assert!(s_usdt_amount_received > v_usdt_amount_received, 0);
+        
+        test::return_shared(storage);
+      };
+      test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_SLIPPAGE)]
+  fun test_swap_token_x_slippage_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+      remove_fee(test);
+      
+      next_tx(test, alice);
+       {
+        let storage = test::take_shared<Storage>(test);
+
+        let usdc_amount = INITIAL_USDC_VALUE / 10;
+
+        let pool = dex::borrow_pool<USDC, USDT>(&storage);
+        let (usdc_reserves, usdt_reserves, _) = dex::get_amounts(pool);
+
+        let token_in_amount = usdc_amount - ((usdc_amount * 30) / 10000);
+        // 9086776671
+        let v_usdt_amount_received = (usdt_reserves * token_in_amount) / (token_in_amount + usdc_reserves);
+        // calculated off chain to save time
+        let s_usdt_amount_received = 9990015154;
+
+
+        let usdt = dex::swap_token_x<USDC, USDT>(
+          &mut storage,
+          mint<USDC>(token_in_amount, ctx(test)),
+          s_usdt_amount_received + 1,
+          ctx(test)
+        );
+
+        assert!(burn(usdt) == s_usdt_amount_received, 0);
+        // 10% less slippage
+        assert!(s_usdt_amount_received > v_usdt_amount_received, 0);
+        
+        test::return_shared(storage);
+      };
+      test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_ZERO_VALUE_SWAP)]
+  fun test_swap_token_y_zero_value_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+      remove_fee(test);
+      
+      next_tx(test, alice);
+       {
+        let storage = test::take_shared<Storage>(test);
+
+        let usdt_amount = INITIAL_USDT_VALUE / 10;
+
+        let pool = dex::borrow_pool<USDC, USDT>(&storage);
+        let (usdc_reserves, usdt_reserves, _) = dex::get_amounts(pool);
+
+        let token_in_amount = usdt_amount - ((usdt_amount * 50) / 100000);
+        // 9086776
+        let v_usdc_amount_received = (usdc_reserves * token_in_amount) / (token_in_amount + usdt_reserves);
+        // calculated off chain to save time
+        let s_usdc_amount_received = 9990015;
+
+
+        let usdc = dex::swap_token_y<USDC, USDT>(
+          &mut storage,
+          mint<USDT>(0, ctx(test)),
+          0,
+          ctx(test)
+        );
+
+        assert!(burn(usdc) == s_usdc_amount_received, 0);
+        // 10% less slippage
+        assert!(s_usdc_amount_received > v_usdc_amount_received, 0);
+        
+        test::return_shared(storage);
+       };
+
+      test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_SLIPPAGE)]
+  fun test_swap_token_y_slippage_error() {
+      let scenario = scenario();
+      let (alice, _) = people();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+      remove_fee(test);
+      
+      next_tx(test, alice);
+       {
+        let storage = test::take_shared<Storage>(test);
+
+        let usdt_amount = INITIAL_USDT_VALUE / 10;
+
+        let pool = dex::borrow_pool<USDC, USDT>(&storage);
+        let (usdc_reserves, usdt_reserves, _) = dex::get_amounts(pool);
+
+        let token_in_amount = usdt_amount - ((usdt_amount * 50) / 100000);
+        // 9086776
+        let v_usdc_amount_received = (usdc_reserves * token_in_amount) / (token_in_amount + usdt_reserves);
+        // calculated off chain to save time
+        let s_usdc_amount_received = 9990015;
+
+
+        let usdc = dex::swap_token_y<USDC, USDT>(
+          &mut storage,
+          mint<USDT>(token_in_amount, ctx(test)),
+          s_usdc_amount_received + 1,
+          ctx(test)
+        );
+
+        assert!(burn(usdc) == s_usdc_amount_received, 0);
+        // 10% less slippage
+        assert!(s_usdc_amount_received > v_usdc_amount_received, 0);
+        
+        test::return_shared(storage);
+       };
+
+      test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_NOT_ENOUGH_LIQUIDITY_TO_LEND)]
+  fun test_flash_loan_not_enough_liquidity_error() {
+       let scenario = scenario();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+
+      let (_, bob) = people();
+        
+      next_tx(test, bob);
+      {
+        let storage = test::take_shared<Storage>(test);
+
+        let (receipt, usdc, usdt) = dex::flash_loan<USDC, USDT>(&mut storage, INITIAL_USDC_VALUE + 1, INITIAL_USDT_VALUE / 3, ctx(test));
+
+        let pool = dex::borrow_pool<USDC, USDT>(&storage);
+
+        let (recipet_pool_id, repay_amount_x, repay_amount_y) = dex::get_receipt_data(&receipt);
+        let (fee, precision) = dex::get_flash_loan_fee_percent();
+
+        let amount_to_mint_x = (((INITIAL_USDC_VALUE / 2 as u256) * fee / precision) as u64);
+        let amount_to_mint_y = (((INITIAL_USDT_VALUE / 3 as u256) * fee / precision) as u64);
+
+        assert!(coin::value(&usdc) == INITIAL_USDC_VALUE / 2, 0);
+        assert!(coin::value(&usdt) == INITIAL_USDT_VALUE / 3, 0);
+        assert!(object::id(pool) == recipet_pool_id, 0);
+        assert!(repay_amount_x == INITIAL_USDC_VALUE / 2 + amount_to_mint_x, 0);
+        assert!(repay_amount_y == INITIAL_USDT_VALUE / 3 + amount_to_mint_y, 0);
+
+        coin::join(&mut usdc, mint<USDC>(amount_to_mint_x, ctx(test)));
+        coin::join(&mut usdt, mint<USDT>(amount_to_mint_y, ctx(test)));
+
+        dex::repay_flash_loan(
+          &mut storage,
+          receipt,
+          usdc,
+          usdt
+        );
+
+        test::return_shared(storage);
+      };
+      test::end(scenario);
+    }
+
+  #[test]
+  #[expected_failure(abort_code = dex::ERROR_WRONG_REPAY_AMOUNT_X)]
+  fun test_flash_loan_wrong_repay_amount_x_error() {
+       let scenario = scenario();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+
+      let (_, bob) = people();
+        
+      next_tx(test, bob);
+      {
+        let storage = test::take_shared<Storage>(test);
+
+        let (receipt, usdc, usdt) = dex::flash_loan<USDC, USDT>(&mut storage, INITIAL_USDC_VALUE / 2, INITIAL_USDT_VALUE / 3, ctx(test));
+
+        let pool = dex::borrow_pool<USDC, USDT>(&storage);
+
+        let (recipet_pool_id, repay_amount_x, repay_amount_y) = dex::get_receipt_data(&receipt);
+        let (fee, precision) = dex::get_flash_loan_fee_percent();
+
+        let amount_to_mint_x = (((INITIAL_USDC_VALUE / 2 as u256) * fee / precision) as u64);
+        let amount_to_mint_y = (((INITIAL_USDT_VALUE / 3 as u256) * fee / precision) as u64);
+
+        assert!(coin::value(&usdc) == INITIAL_USDC_VALUE / 2, 0);
+        assert!(coin::value(&usdt) == INITIAL_USDT_VALUE / 3, 0);
+        assert!(object::id(pool) == recipet_pool_id, 0);
+        assert!(repay_amount_x == INITIAL_USDC_VALUE / 2 + amount_to_mint_x, 0);
+        assert!(repay_amount_y == INITIAL_USDT_VALUE / 3 + amount_to_mint_y, 0);
+
+        coin::join(&mut usdc, mint<USDC>(amount_to_mint_x - 1, ctx(test)));
+        coin::join(&mut usdt, mint<USDT>(amount_to_mint_y, ctx(test)));
+
+        dex::repay_flash_loan(
+          &mut storage,
+          receipt,
+          usdc,
+          usdt
+        );
+
+        test::return_shared(storage);
+      };
+      test::end(scenario);
+    }
+
+      #[test]
+  #[expected_failure(abort_code = dex::ERROR_WRONG_REPAY_AMOUNT_Y)]
+  fun test_flash_loan_wrong_repay_amount_y_error() {
+       let scenario = scenario();
+      let test = &mut scenario;
+
+      test_create_pool_(test);
+
+      let (_, bob) = people();
+        
+      next_tx(test, bob);
+      {
+        let storage = test::take_shared<Storage>(test);
+
+        let (receipt, usdc, usdt) = dex::flash_loan<USDC, USDT>(&mut storage, INITIAL_USDC_VALUE / 2, INITIAL_USDT_VALUE / 3, ctx(test));
+
+        let pool = dex::borrow_pool<USDC, USDT>(&storage);
+
+        let (recipet_pool_id, repay_amount_x, repay_amount_y) = dex::get_receipt_data(&receipt);
+        let (fee, precision) = dex::get_flash_loan_fee_percent();
+
+        let amount_to_mint_x = (((INITIAL_USDC_VALUE / 2 as u256) * fee / precision) as u64);
+        let amount_to_mint_y = (((INITIAL_USDT_VALUE / 3 as u256) * fee / precision) as u64);
+
+        assert!(coin::value(&usdc) == INITIAL_USDC_VALUE / 2, 0);
+        assert!(coin::value(&usdt) == INITIAL_USDT_VALUE / 3, 0);
+        assert!(object::id(pool) == recipet_pool_id, 0);
+        assert!(repay_amount_x == INITIAL_USDC_VALUE / 2 + amount_to_mint_x, 0);
+        assert!(repay_amount_y == INITIAL_USDT_VALUE / 3 + amount_to_mint_y, 0);
+
+        coin::join(&mut usdc, mint<USDC>(amount_to_mint_x, ctx(test)));
+        coin::join(&mut usdt, mint<USDT>(amount_to_mint_y - 1, ctx(test)));
+
+        dex::repay_flash_loan(
+          &mut storage,
+          receipt,
+          usdc,
+          usdt
+        );
+
+        test::return_shared(storage);
+      };
+      test::end(scenario);
     }
 
     fun remove_fee(test: &mut Scenario) {
