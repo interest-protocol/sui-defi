@@ -24,7 +24,7 @@ module interest_protocol::master_chef {
 
   const ERROR_POOL_ADDED_ALREADY: u64 = 1;
   const ERROR_NOT_ENOUGH_BALANCE: u64 = 2;
-  const ERROR_NO_PENDING_REWARDS: u64 = 4;
+  const ERROR_NO_PENDING_REWARDS: u64 = 3;
 
   struct MasterChefStorage has key {
     id: UID,

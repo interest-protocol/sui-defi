@@ -894,7 +894,7 @@ module interest_protocol::dex_volatile_tests {
     test::end(scenario);
   }
 
-    #[test]
+  #[test]
   #[expected_failure(abort_code = dex::ERROR_WRONG_REPAY_AMOUNT_Y)]
   fun test_flash_loan_wrong_repay_amount_y_error() {
     let scenario = scenario();
