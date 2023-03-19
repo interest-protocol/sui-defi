@@ -1,4 +1,5 @@
 module interest_protocol::whirpool {
+
   use std::ascii::{String};
   use std::vector;
 
@@ -21,7 +22,7 @@ module interest_protocol::whirpool {
   use interest_protocol::oracle::{Self, OracleStorage};
   use interest_protocol::utils::{get_coin_info_string};
   use interest_protocol::rebase::{Self, Rebase};
-  use interest_protocol::math::{d_fmul, d_fdiv, d_fdiv_u256, d_fmul_u256, double_scalar};
+  use interest_protocol::math::{d_fmul, d_fdiv_u256, d_fmul_u256, double_scalar};
 
   const INITIAL_RESERVE_FACTOR_MANTISSA: u256 = 200000000000000000; // 0.2e18 or 20%
   const INITIAL_IPX_PER_MS: u64 = 1268391; // 40M IPX per year
@@ -1176,15 +1177,15 @@ module interest_protocol::whirpool {
   * @param oracle_storage The shared object of the module ipx::oracle 
   * @param The key of the Coin
   */
-  fun get_price(oracle_storage: &OracleStorage, key: String): u64 {
+  fun get_price(oracle_storage: &OracleStorage, key: String): u256 {
     // DNR is always 1 USD regardless of prices anywhere else
-    if (key == get_coin_info_string<DNR>()) return (double_scalar() as u64);
+    if (key == get_coin_info_string<DNR>()) return double_scalar();
 
     // Fetch the price from the oracle
     let (price, decimals) = oracle::get_price(oracle_storage, key);
 
     // Normalize the price to have 9 decimals to work with fmul and fdiv
-    (((price as u256) * double_scalar()) / (math::pow(10, decimals) as u256) as u64)
+    ((price as u256) * double_scalar()) / (math::pow(10, decimals) as u256)
   }
 
   /**
@@ -2220,7 +2221,7 @@ module interest_protocol::whirpool {
     let collateral_price_normalized = get_price(oracle_storage, collateral_market_key);
     let loan_price_normalized = get_price(oracle_storage, loan_market_key);
 
-    let collateral_seize_amount = d_fdiv_u256(d_fmul(loan_price_normalized, repay_max_amount), (collateral_price_normalized as u256)); 
+    let collateral_seize_amount = d_fdiv_u256(d_fmul_u256(loan_price_normalized, (repay_max_amount as u256)), (collateral_price_normalized as u256)); 
     let penalty_fee_amount = d_fmul_u256(collateral_seize_amount, penalty_fee);
     let collateral_seize_amount_with_fee = collateral_seize_amount + penalty_fee_amount;
 
@@ -2403,15 +2404,13 @@ module interest_protocol::whirpool {
 
     let collateral_price_normalized = get_price(oracle_storage, collateral_market_key);
 
-    let collateral_seize_amount = d_fdiv(repay_max_amount, collateral_price_normalized); 
+    let collateral_seize_amount = d_fdiv_u256((repay_max_amount as u256), collateral_price_normalized); 
     let penalty_fee_amount = d_fmul_u256(collateral_seize_amount, penalty_fee);
     let collateral_seize_amount_with_fee = collateral_seize_amount + penalty_fee_amount;
 
     // Calculate how much collateral to assign to the protocol and liquidator
     let protocol_amount = d_fmul_u256(penalty_fee_amount, protocol_fee);
     let liquidator_amount = collateral_seize_amount_with_fee - protocol_amount;
-
-    
 
     // Get the borrower collateral account
     let collateral_market_data = borrow_market_data(&mut whirpool_storage.market_data_table, collateral_market_key);
@@ -2792,7 +2791,7 @@ module interest_protocol::whirpool {
 
       total_borrows_in_usd = total_borrows_in_usd + d_fmul_u256((borrow_balance as u256) * double_scalar() / (market_data.decimals_factor as u256), price_normalized);
 
-      // increment the index
+      // increment the index 
       index = index + 1;
     };
 
