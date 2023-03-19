@@ -1,313 +1,336 @@
-module interest_protocol::whirpool_test {
+#[test_only]
+module interest_protocol::whirpool_tests {
   // use std::vector;
 
-  // use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
-  // use sui::test_utils::{assert_eq};
-  // use sui::coin::{destroy_for_testing as burn};
-  // use sui::math;
+  use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
+  use sui::test_utils::{assert_eq};
+  use sui::coin::{destroy_for_testing as burn};
+  use sui::math;
+  use sui::clock::{Self, Clock};
 
-  // use interest_protocol::whirpool::{Self, WhirpoolAdminCap, WhirpoolStorage, AccountStorage};
-  // use interest_protocol::ipx::{Self, IPXStorage};
-  // use interest_protocol::dnr::{Self, DineroStorage, DNR};
-  // use interest_protocol::oracle::{Self, OracleStorage, OracleAdminCap};
-  // use interest_protocol::interest_rate_model::{Self as model, InterestRateModelStorage};
-  // use interest_protocol::math::{fmul};
-  // use interest_protocol::utils::{get_coin_info, get_epochs_per_year};
-  // use interest_protocol::test_utils::{people, scenario, mint, advance_epoch};
+  use interest_protocol::whirpool::{Self, WhirpoolAdminCap, WhirpoolStorage, AccountStorage};
+  use interest_protocol::ipx::{Self, IPXStorage};
+  use interest_protocol::dnr::{Self, DNR};
+  use interest_protocol::oracle::{Self, OracleStorage, OracleAdminCap};
+  use interest_protocol::interest_rate_model::{Self as model, InterestRateModelStorage};
+  // use interest_protocol::math::{d_fmul};
+  // use interest_protocol::utils::{get_coin_info_string};
+  use interest_protocol::test_utils::{people, scenario, mint};
 
-  // const ONE_PERCENT: u64 = 10000000;
-  // const TWO_PERCENT: u64 = 20000000;
-  // const THREE_PERCENT: u64 = 30000000;
-  // const KINK: u64 = 700000000; // 70%
-  // const INITIAL_BTC_PRICE: u64 = 200000000000; // 20k - 7 decimals
-  // const INITIAL_ETH_PRICE: u64 = 140000000000; // 1400 - 8 decimals
-  // const INITIAL_ADA_PRICE: u64 = 300000000; // 30 cents - 9 decimals
-  // const DNR_PRICE: u64 = 1000000000; // 1 USD
-  // const BTC_BORROW_CAP: u64 = 100000000000; // 100 BTC - 9 decimals
-  // const ETH_BORROW_CAP: u64 = 50000000000; // 500 ETH 8 decimals
-  // const ADA_BORROW_CAP: u64 = 100000000000000; // 10M 7 decimals
-  // const DNR_BORROW_CAP: u64 = 100000000000000; // 100k 9 decimals
-  // const BTC_DECIMALS: u8 = 9;
-  // const ETH_DECIMALS: u8 = 8;
-  // const ADA_DECIMALS: u8 = 7;
-  // const DNR_DECIMALS: u8 = 9;
-  // const IPX_DECIMALS_FACTOR: u256 = 1000000000;
-  // const BTC_DECIMALS_FACTOR: u256 = 1000000000;
-  // const ETH_DECIMALS_FACTOR: u256 = 100000000;
-  // const ADA_DECIMALS_FACTOR: u256 = 10000000;
-  // const DNR_DECIMALS_FACTOR: u256 = 1000000000;
-  // const INITIAL_RESERVE_FACTOR_MANTISSA: u64 = 200000000; // 0.2e9 or 20%
+  const ONE_PERCENT: u256 = 10000000000000000;
+  const TWO_PERCENT: u256 = 20000000000000000;
+  const KINK: u256 = 700000000000000000; // 70%
+  const INITIAL_BTC_PRICE: u256 = 200000000000; // 20k - 7 decimals
+  const INITIAL_ETH_PRICE: u256 = 140000000000; // 1400 - 8 decimals
+  const INITIAL_ADA_PRICE: u256 = 300000000; // 30 cents - 9 decimals
+  const DNR_PRICE: u64 = 1000000000; // 1 USD
+  const BTC_BORROW_CAP: u64 = 100000000000; // 100 BTC - 9 decimals
+  const ETH_BORROW_CAP: u64 = 50000000000; // 500 ETH 8 decimals
+  const ADA_BORROW_CAP: u64 = 100000000000000; // 10M 7 decimals
+  const DNR_BORROW_CAP: u64 = 100000000000000; // 100k 9 decimals
+  const BTC_DECIMALS: u8 = 9;
+  const ETH_DECIMALS: u8 = 8;
+  const ADA_DECIMALS: u8 = 7;
+  const DNR_DECIMALS: u8 = 9;
+  const IPX_DECIMALS_FACTOR: u256 = 1000000000;
+  const BTC_DECIMALS_FACTOR: u256 = 1000000000;
+  const ETH_DECIMALS_FACTOR: u256 = 100000000;
+  const ADA_DECIMALS_FACTOR: u256 = 10000000;
+  const DNR_DECIMALS_FACTOR: u256 = 1000000000;
+  const INITIAL_RESERVE_FACTOR_MANTISSA: u64 = 200000000; // 0.2e9 or 20%
+  const MS_PER_YEAR: u256 = 31536000000; 
+  // ATTENTION This needs to be updated when the module constant is updated.
+  const INITIAL_IPX_PER_MS: u256 = 1268391; // 40M IPX per year
 
-  // struct BTC {}
-  // struct ETH {}
-  // struct ADA {}
+  struct BTC {}
+  struct ETH {}
+  struct ADA {}
 
-  // fun init_test(test: &mut Scenario) {
-  //   let (alice, _) = people();
+  fun init_test(test: &mut Scenario) {
+    let (alice, _) = people();
 
-  //   // Init modules
-  //   next_tx(test, alice);
-  //   {
-  //     whirpool::init_for_testing(ctx(test));
-  //     ipx::init_for_testing(ctx(test));
-  //     dnr::init_for_testing(ctx(test));
-  //     model::init_for_testing(ctx(test));
-  //     oracle::init_for_testing(ctx(test));
-  //   };
+    // Init modules
+    next_tx(test, alice);
+    {
+      whirpool::init_for_testing(ctx(test));
+      ipx::init_for_testing(ctx(test));
+      dnr::init_for_testing(ctx(test));
+      model::init_for_testing(ctx(test));
+      oracle::init_for_testing(ctx(test));
+      clock::create_for_testing(ctx(test));
+    };
 
-  //   // BTC/ETH/ADA Interest Rate
-  //   next_tx(test, alice);
-  //   {
-  //     let storage = test::take_shared<InterestRateModelStorage>(test);
+    // BTC/ETH/ADA Interest Rate
+    next_tx(test, alice);
+    {
+      let storage = test::take_shared<InterestRateModelStorage>(test);
 
-  //     // BTC
-  //     model::set_interest_rate_data_test<BTC>(
-  //       &mut storage,
-  //       ONE_PERCENT, // base 
-  //       TWO_PERCENT, // multiplier
-  //       THREE_PERCENT, // jump
-  //       KINK,
-  //       ctx(test)
-  //     );
+      // BTC
+      model::set_interest_rate_data_test<BTC>(
+        &mut storage,
+        ONE_PERCENT, // base 
+        TWO_PERCENT, // multiplier
+        ONE_PERCENT + TWO_PERCENT, // jump
+        KINK,
+        ctx(test)
+      );
 
-  //     // ETH
-  //     model::set_interest_rate_data_test<ETH>(
-  //       &mut storage,
-  //       ONE_PERCENT * 2, // base 
-  //       TWO_PERCENT, // multiplier
-  //       THREE_PERCENT * 2, // jump
-  //       KINK,
-  //       ctx(test)
-  //     );
+      // ETH
+      model::set_interest_rate_data_test<ETH>(
+        &mut storage,
+        ONE_PERCENT * 2, // base 
+        TWO_PERCENT, // multiplier
+        TWO_PERCENT * 3, // jump
+        KINK,
+        ctx(test)
+      );
 
-  //      // ADA
-  //     model::set_interest_rate_data_test<ADA>(
-  //       &mut storage,
-  //       ONE_PERCENT, // base 
-  //       THREE_PERCENT, // multiplier
-  //       THREE_PERCENT * 3, // jump
-  //       KINK,
-  //       ctx(test)
-  //     );
-  //     test::return_shared(storage);
-  //   };
+       // ADA
+      model::set_interest_rate_data_test<ADA>(
+        &mut storage,
+        ONE_PERCENT, // base 
+        TWO_PERCENT + ONE_PERCENT, // multiplier
+        (TWO_PERCENT + ONE_PERCENT) * 3, // jump
+        KINK,
+        ctx(test)
+      );
+      test::return_shared(storage);
+    };
 
-  //   // Oracle
-  //   next_tx(test, alice);
-  //   {
-  //     let oracle_admin_cap = test::take_from_address<OracleAdminCap>(test, alice);
-  //     let oracle_storage = test::take_shared<OracleStorage>(test);
+    // Oracle
+    next_tx(test, alice);
+    {
+      let oracle_admin_cap = test::take_from_address<OracleAdminCap>(test, alice);
+      let oracle_storage = test::take_shared<OracleStorage>(test);
 
-  //     // BTC
-  //     oracle::set_price<BTC>(
-  //       &oracle_admin_cap,
-  //       &mut oracle_storage,
-  //       INITIAL_BTC_PRICE,
-  //       7,
-  //       ctx(test)
-  //     );
+      // BTC
+      oracle::set_price<BTC>(
+        &oracle_admin_cap,
+        &mut oracle_storage,
+        INITIAL_BTC_PRICE,
+        7,
+        ctx(test)
+      );
 
-  //     // ETH
-  //     oracle::set_price<ETH>(
-  //       &oracle_admin_cap,
-  //       &mut oracle_storage,
-  //       INITIAL_ETH_PRICE,
-  //       8,
-  //       ctx(test)
-  //     );
+      // ETH
+      oracle::set_price<ETH>(
+        &oracle_admin_cap,
+        &mut oracle_storage,
+        INITIAL_ETH_PRICE,
+        8,
+        ctx(test)
+      );
 
-  //      // ADA
-  //     oracle::set_price<ADA>(
-  //       &oracle_admin_cap,
-  //       &mut oracle_storage,
-  //       INITIAL_ADA_PRICE,
-  //       9,
-  //       ctx(test)
-  //     );
+       // ADA
+      oracle::set_price<ADA>(
+        &oracle_admin_cap,
+        &mut oracle_storage,
+        INITIAL_ADA_PRICE,
+        9,
+        ctx(test)
+      );
 
-  //     test::return_to_address(alice, oracle_admin_cap);
-  //     test::return_shared(oracle_storage);
-  //   };
+      test::return_to_address(alice, oracle_admin_cap);
+      test::return_shared(oracle_storage);
+    };
 
-  //   next_tx(test, alice);
-  //   {
-  //     let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
-  //     let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
-  //     let account_storage = test::take_shared<AccountStorage>(test);
+    // Add Markets
+    next_tx(test, alice);
+    {
+      let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let clock_object = test::take_shared<Clock>(test);
 
-  //     whirpool::create_market<BTC>(
-  //       &whirpool_admin_cap,
-  //       &mut whirpool_storage,
-  //       &mut account_storage,
-  //       BTC_BORROW_CAP,
-  //       BTC_BORROW_CAP * 2,
-  //       700000000, // 70% ltv
-  //       500, // allocation points
-  //       50000000, // 5% penalty fee
-  //       200000000, // 20% protocol fee
-  //       BTC_DECIMALS,
-  //       ctx(test)
-  //     );
+      whirpool::create_market<BTC>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        &mut account_storage,
+        &clock_object,
+        BTC_BORROW_CAP,
+        BTC_BORROW_CAP * 2,
+        700000000, // 70% ltv
+        500, // allocation points
+        50000000, // 5% penalty fee
+        200000000, // 20% protocol fee
+        BTC_DECIMALS,
+        ctx(test)
+      );
 
-  //     whirpool::create_market<ETH>(
-  //       &whirpool_admin_cap,
-  //       &mut whirpool_storage,
-  //       &mut account_storage,
-  //       ETH_BORROW_CAP,
-  //       ETH_BORROW_CAP * 2,
-  //       650000000, // 65% ltv
-  //       700, // allocation points
-  //       70000000, // 7% penalty fee
-  //       100000000, // 10% protocol fee
-  //       ETH_DECIMALS,
-  //       ctx(test)
-  //     );
+      whirpool::create_market<ETH>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        &mut account_storage,
+        &clock_object,
+        ETH_BORROW_CAP,
+        ETH_BORROW_CAP * 2,
+        650000000, // 65% ltv
+        700, // allocation points
+        70000000, // 7% penalty fee
+        100000000, // 10% protocol fee
+        ETH_DECIMALS,
+        ctx(test)
+      );
 
 
-  //     whirpool::create_market<ADA>(
-  //       &whirpool_admin_cap,
-  //       &mut whirpool_storage,
-  //       &mut account_storage,
-  //       ADA_BORROW_CAP,
-  //       ADA_BORROW_CAP * 2,
-  //       500000000, // 50% ltv
-  //       900, // allocation points
-  //       100000000, // 10% penalty fee
-  //       200000000, // 20% protocol fee
-  //       ADA_DECIMALS,
-  //       ctx(test)
-  //     );
+      whirpool::create_market<ADA>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        &mut account_storage,
+        &clock_object,
+        ADA_BORROW_CAP,
+        ADA_BORROW_CAP * 2,
+        500000000, // 50% ltv
+        900, // allocation points
+        100000000, // 10% penalty fee
+        200000000, // 20% protocol fee
+        ADA_DECIMALS,
+        ctx(test)
+      );
   
-  //     whirpool::create_market<DNR>(
-  //       &whirpool_admin_cap,
-  //       &mut whirpool_storage,
-  //       &mut account_storage,
-  //       DNR_BORROW_CAP,
-  //       0, // cannot be as collateral
-  //       0, // 50% ltv
-  //       500, // allocation points
-  //       100000000, // 10% penalty fee
-  //       200000000, // 20% protocol fee
-  //       DNR_DECIMALS,
-  //       ctx(test)
-  //     );
+      whirpool::create_market<DNR>(
+        &whirpool_admin_cap,
+        &mut whirpool_storage,
+        &mut account_storage,
+        &clock_object,
+        DNR_BORROW_CAP,
+        0, // cannot be as collateral
+        0, // 50% ltv
+        500, // allocation points
+        100000000, // 10% penalty fee
+        200000000, // 20% protocol fee
+        DNR_DECIMALS,
+        ctx(test)
+      );
       
-  //     test::return_to_address(alice, whirpool_admin_cap);
-  //     test::return_shared(whirpool_storage);
-  //     test::return_shared(account_storage);
-  //   };
-  // }
+      test::return_to_address(alice, whirpool_admin_cap);
+      test::return_shared(clock_object);
+      test::return_shared(whirpool_storage);
+      test::return_shared(account_storage);
+    };
+  }
 
-  // fun test_deposit_(test: &mut Scenario) {
-  //   init_test(test);
+  fun test_deposit_(test: &mut Scenario) {
+    init_test(test);
 
-  //   let (alice, bob) = people();
+    let (alice, bob) = people();
 
-  //   next_tx(test, alice);
-  //   {
-  //     let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
-  //     let account_storage = test::take_shared<AccountStorage>(test);
-  //     let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
-  //     let ipx_storage = test::take_shared<IPXStorage>(test);
+    next_tx(test, alice);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let clock_object = test::take_shared<Clock>(test);
 
-  //     let coin_ipx = whirpool::deposit<BTC>(
-  //       &mut whirpool_storage,
-  //       &mut account_storage,
-  //       &interest_rate_model_storage,
-  //       &mut ipx_storage,
-  //       mint<BTC>(10, BTC_DECIMALS, ctx(test)),
-  //       ctx(test)
-  //     );
+      let coin_ipx = whirpool::deposit<BTC>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &clock_object,
+        mint<BTC>(10, BTC_DECIMALS, ctx(test)),
+        ctx(test)
+      );
 
-  //     let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, alice);
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, alice);
 
-  //     assert_eq(burn(coin_ipx), 0);
-  //     assert_eq(collateral, 10 * math::pow(10, BTC_DECIMALS));
-  //     assert_eq(loan, 0);
-  //     assert_eq(collateral_rewards_paid, 0);
-  //     assert_eq(loan_rewards_paid, 0);
+      assert_eq(burn(coin_ipx), 0);
+      assert_eq(collateral, 10 * math::pow(10, BTC_DECIMALS));
+      assert_eq(loan, 0);
+      assert_eq(collateral_rewards_paid, 0);
+      assert_eq(loan_rewards_paid, 0);
 
-  //     test::return_shared(ipx_storage);
-  //     test::return_shared(interest_rate_model_storage);
-  //     test::return_shared(account_storage);
-  //     test::return_shared(whirpool_storage);
-  //   };
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage);
+      test::return_shared(clock_object);
+    };
 
-  //   advance_epoch(test, alice, 10);
-  //   next_tx(test, alice);
-  //   {
-  //     let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
-  //     let account_storage = test::take_shared<AccountStorage>(test);
-  //     let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
-  //     let ipx_storage = test::take_shared<IPXStorage>(test);
+    next_tx(test, alice);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let clock_object = test::take_shared<Clock>(test);
 
-  //     let coin_ipx = whirpool::deposit<BTC>(
-  //       &mut whirpool_storage,
-  //       &mut account_storage,
-  //       &interest_rate_model_storage,
-  //       &mut ipx_storage,
-  //       mint<BTC>(5, BTC_DECIMALS, ctx(test)),
-  //       ctx(test)
-  //     );
+      clock::increment_for_testing(&mut clock_object, 12000);
 
-  //     let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, alice);
+      let coin_ipx = whirpool::deposit<BTC>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &clock_object,
+        mint<BTC>(5, BTC_DECIMALS, ctx(test)),
+        ctx(test)
+      );
 
-  //     let collateral_rewards_per_share = calculate_btc_market_rewards(10, 10 * BTC_DECIMALS_FACTOR);
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, alice);
 
-  //     assert_eq((burn(coin_ipx) as u256), collateral_rewards_per_share * (10 * BTC_DECIMALS_FACTOR as u256) / BTC_DECIMALS_FACTOR);
-  //     assert_eq(collateral, 15 * math::pow(10, BTC_DECIMALS));
-  //     assert_eq(loan, 0);
-  //     assert_eq(collateral_rewards_paid, (collateral_rewards_per_share * (15 * BTC_DECIMALS_FACTOR)) / BTC_DECIMALS_FACTOR);
-  //     assert_eq(loan_rewards_paid, 0);
+      let collateral_rewards_per_share = calculate_btc_market_rewards(12000, 10 * BTC_DECIMALS_FACTOR);
 
-  //     test::return_shared(ipx_storage);
-  //     test::return_shared(interest_rate_model_storage);
-  //     test::return_shared(account_storage);
-  //     test::return_shared(whirpool_storage);
-  //   };
+      assert_eq((burn(coin_ipx) as u256), collateral_rewards_per_share * (10 * BTC_DECIMALS_FACTOR as u256) / BTC_DECIMALS_FACTOR);
+      assert_eq(collateral, 15 * math::pow(10, BTC_DECIMALS));
+      assert_eq(loan, 0);
+      assert_eq(collateral_rewards_paid, (collateral_rewards_per_share * (15 * BTC_DECIMALS_FACTOR)) / BTC_DECIMALS_FACTOR);
+      assert_eq(loan_rewards_paid, 0);
 
-  //   advance_epoch(test, bob, 5);
-  //   next_tx(test, bob);
-  //   {
-  //     let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
-  //     let account_storage = test::take_shared<AccountStorage>(test);
-  //     let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
-  //     let ipx_storage = test::take_shared<IPXStorage>(test);
+      test::return_shared(clock_object);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage);
+    };
 
-  //     let (_, _, _, _, _, _, _, _, _, prev_collateral_rewards_per_share, _, _, _, _, _ ) = whirpool::get_market_info<BTC>(&whirpool_storage);
+    next_tx(test, bob);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let clock_object = test::take_shared<Clock>(test);
 
-  //     let coin_ipx = whirpool::deposit<BTC>(
-  //       &mut whirpool_storage,
-  //       &mut account_storage,
-  //       &interest_rate_model_storage,
-  //       &mut ipx_storage,
-  //       mint<BTC>(7, BTC_DECIMALS, ctx(test)),
-  //       ctx(test)
-  //     );
+      clock::increment_for_testing(&mut clock_object, 20000);
 
-  //     let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, bob);
+      let (_, _, _, _, _, _, _, _, _, prev_collateral_rewards_per_share, _, _, _, _, _ ) = whirpool::get_market_info<BTC>(&whirpool_storage);
 
-  //     let collateral_rewards_per_share = calculate_btc_market_rewards(5, 15 * BTC_DECIMALS_FACTOR) + prev_collateral_rewards_per_share;
+      let coin_ipx = whirpool::deposit<BTC>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &clock_object,
+        mint<BTC>(7, BTC_DECIMALS, ctx(test)),
+        ctx(test)
+      );
 
-  //     assert_eq((burn(coin_ipx) as u256), 0);
-  //     assert_eq((collateral as u256), 7 * BTC_DECIMALS_FACTOR);
-  //     assert_eq(loan, 0);
-  //     assert_eq(collateral_rewards_paid, (collateral_rewards_per_share * (7 * BTC_DECIMALS_FACTOR)) / BTC_DECIMALS_FACTOR);
-  //     assert_eq(loan_rewards_paid, 0);
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, bob);
 
-  //     test::return_shared(ipx_storage);
-  //     test::return_shared(interest_rate_model_storage);
-  //     test::return_shared(account_storage);
-  //     test::return_shared(whirpool_storage);
-  //   };    
-  // }
+      let collateral_rewards_per_share = calculate_btc_market_rewards(20000, 15 * BTC_DECIMALS_FACTOR) + prev_collateral_rewards_per_share;
 
-  // #[test]
-  // fun test_deposit() {
-  //   let scenario = scenario();
-  //   test_deposit_(&mut scenario);
-  //   test::end(scenario);
-  // }
+      assert_eq((burn(coin_ipx) as u256), 0);
+      assert_eq((collateral as u256), 7 * BTC_DECIMALS_FACTOR);
+      assert_eq(loan, 0);
+      assert_eq(collateral_rewards_paid, (collateral_rewards_per_share * (7 * BTC_DECIMALS_FACTOR)) / BTC_DECIMALS_FACTOR);
+      assert_eq(loan_rewards_paid, 0);
+
+      test::return_shared(clock_object);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage);
+    };    
+  }
+
+  #[test]
+  fun test_deposit() {
+    let scenario = scenario();
+    test_deposit_(&mut scenario);
+    test::end(scenario);
+  }
 
   // fun test_withdraw_(test: &mut Scenario) {
   //   init_test(test);
@@ -3926,18 +3949,18 @@ module interest_protocol::whirpool_test {
   //   test::end(scenario);
   // }
 
-  // // utils
+  // utils
 
-  // fun calculate_btc_market_rewards(num_of_epochs: u256, total_principal: u256): u256 {
-  //   ((num_of_epochs * (100 * IPX_DECIMALS_FACTOR) * 500) / 2600/ 2) * BTC_DECIMALS_FACTOR / total_principal  
-  // }
+  fun calculate_btc_market_rewards(timestamp_delta: u256, total_principal: u256): u256 {
+    ((timestamp_delta * INITIAL_IPX_PER_MS * 500) / 2600/ 2) * BTC_DECIMALS_FACTOR / total_principal  
+  }
 
   // fun calculate_eth_market_rewards(num_of_epochs: u256, total_principal: u256): u256 {
-  //   ((num_of_epochs * (100 * IPX_DECIMALS_FACTOR) * 700) / 2600/ 2) * ETH_DECIMALS_FACTOR / total_principal
+  //   ((num_of_epochs * INITIAL_IPX_PER_MS * 700) / 2600/ 2) * ETH_DECIMALS_FACTOR / total_principal
   // }
 
   //  fun calculate_dnr_market_rewards(num_of_epochs: u256, total_principal: u256): u256 {
-  //   ((num_of_epochs * (100 * IPX_DECIMALS_FACTOR) * 500) / 2600) * DNR_DECIMALS_FACTOR / total_principal
+  //   ((num_of_epochs * INITIAL_IPX_PER_MS * 500) / 2600) * DNR_DECIMALS_FACTOR / total_principal
   // }
 } 
 
