@@ -1,3 +1,4 @@
+#[test_only]
 module interest_protocol::usdc {
     use std::option;
 
@@ -44,6 +45,7 @@ module interest_protocol::usdc {
   }
 }
 
+#[test_only]
 module interest_protocol::usdt {
     use std::option;
 
