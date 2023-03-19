@@ -58,8 +58,8 @@ module interest_protocol::ipx {
     coin::from_balance(balance::increase_supply(&mut storage.supply, value), ctx)
   }
 
-  public(friend) fun burn(storage: &mut IPXStorage, coin_dnr: Coin<IPX>): u64 {
-    balance::decrease_supply(&mut storage.supply, coin::into_balance(coin_dnr))
+  public fun burn(storage: &mut IPXStorage, coin_ipx: Coin<IPX>): u64 {
+    balance::decrease_supply(&mut storage.supply, coin::into_balance(coin_ipx))
   }
 
   public entry fun transfer(c: coin::Coin<IPX>, recipient: address) {

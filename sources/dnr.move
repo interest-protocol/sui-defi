@@ -62,7 +62,7 @@ module interest_protocol::dnr {
     coin::from_balance(balance::increase_supply(&mut storage.supply, value), ctx)
   }
 
-  public(friend) fun burn(storage: &mut DineroStorage, coin_dnr: Coin<DNR>): u64 {
+  public fun burn(storage: &mut DineroStorage, coin_dnr: Coin<DNR>): u64 {
     balance::decrease_supply(&mut storage.supply, coin::into_balance(coin_dnr))
   }
 
