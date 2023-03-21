@@ -3,7 +3,6 @@ module interest_protocol::master_chef_tests {
 
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
   use sui::coin::{mint_for_testing as mint};
-  // use sui::tx_context;
   use sui::clock::{Self, Clock};
 
   use interest_protocol::master_chef::{Self, MasterChefStorage, AccountStorage, MasterChefAdmin};

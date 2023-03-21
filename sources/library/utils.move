@@ -1,5 +1,5 @@
 module interest_protocol::utils {
-    use std::type_name::{Self};
+    use std::type_name;
     use std::ascii::{String};
     use std::ascii;
     use std::vector;

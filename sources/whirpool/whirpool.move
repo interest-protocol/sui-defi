@@ -48,6 +48,7 @@ module interest_protocol::whirpool {
   const ERROR_ZERO_LIQUIDATION_AMOUNT: u64 = 18;
   const ERROR_LIQUIDATOR_IS_BORROWER: u64 = 19;
   const ERROR_MAX_COLLATERAL_REACHED: u64 = 20;
+  const ERROR_CAN_NOT_BE_COLLATERAL: u64 = 21;
 
   struct WhirpoolAdminCap has key {
     id: UID
@@ -61,6 +62,7 @@ module interest_protocol::whirpool {
     collateral_cap: u64,
     balance_value: u64, // cash
     is_paused: bool,
+    can_be_collateral: bool,
     ltv: u256,
     reserve_factor: u256,
     allocation_points: u256,
@@ -100,7 +102,7 @@ module interest_protocol::whirpool {
 
   struct AccountStorage has key {
      id: UID,
-     accounts_table: Table<String, ObjectTable<address, Account>>, // get_coin_info -> address -> Account
+     accounts_table: ObjectTable<String, ObjectTable<address, Account>>, // get_coin_info -> address -> Account
      markets_in_table: Table<address, vector<String>>  
   }
 
@@ -200,6 +202,10 @@ module interest_protocol::whirpool {
     sender: address
   }
 
+  struct CanBeCollateral<phantom T> has copy, drop {
+    state: bool
+  }
+
   struct GetAllRewards has copy, drop {
     rewards: u256,
     sender: address
@@ -237,7 +243,7 @@ module interest_protocol::whirpool {
     transfer::share_object(
       AccountStorage {
         id: object::new(ctx),
-        accounts_table: table::new(ctx),
+        accounts_table: object_table::new(ctx),
         markets_in_table: table::new(ctx)
       }
     );
@@ -794,9 +800,18 @@ module interest_protocol::whirpool {
 
   /**
   * @notice It allows the user to his shares in Market for Coin<T> as collateral to open loans 
+  * @param whirpool_storage The WhirpoolStorage shared object
   * @param account_storage The shared account storage object of ipx::whirpool 
   */
-  public fun enter_market<T>(account_storage: &mut AccountStorage, ctx: &mut TxContext) {
+  public fun enter_market<T>(whirpool_storage: &WhirpoolStorage, account_storage: &mut AccountStorage, ctx: &mut TxContext) {
+
+    // Save the market key in memory
+    let market_key = get_coin_info_string<T>();
+   
+    let market_data = borrow_market_data(&whirpool_storage.market_data_table, market_key);
+
+    assert!(market_data.can_be_collateral, ERROR_CAN_NOT_BE_COLLATERAL);
+
     // Save the sender address in memory
     let sender = tx_context::sender(ctx);
 
@@ -806,9 +821,6 @@ module interest_protocol::whirpool {
    // Get the user market_in account
    let user_markets_in = borrow_mut_user_markets_in(&mut account_storage.markets_in_table, sender);
 
-   // Save the market key in memory
-   let market_key = get_coin_info_string<T>();
-   
    // Add the market_key to the account if it is not present
    if (!vector::contains(user_markets_in, &market_key)) { 
       vector::push_back(user_markets_in, market_key);
@@ -1107,11 +1119,11 @@ module interest_protocol::whirpool {
   }
 
   fun borrow_account(account_storage: &AccountStorage, user: address, market_key: String): &Account {
-    object_table::borrow(table::borrow(&account_storage.accounts_table, market_key), user)
+    object_table::borrow(object_table::borrow(&account_storage.accounts_table, market_key), user)
   }
 
   fun borrow_mut_account(account_storage: &mut AccountStorage, user: address, market_key: String): &mut Account {
-    object_table::borrow_mut(table::borrow_mut(&mut account_storage.accounts_table, market_key), user)
+    object_table::borrow_mut(object_table::borrow_mut(&mut account_storage.accounts_table, market_key), user)
   }
 
   fun borrow_user_markets_in(markets_in: &Table<address, vector<String>>, user: address): &vector<String> {
@@ -1123,7 +1135,7 @@ module interest_protocol::whirpool {
   }
 
   fun account_exists(account_storage: &AccountStorage, user: address, market_key: String): bool {
-    object_table::contains(table::borrow(&account_storage.accounts_table, market_key), user)
+    object_table::contains(object_table::borrow(&account_storage.accounts_table, market_key), user)
   }
 
   /**
@@ -1134,7 +1146,7 @@ module interest_protocol::whirpool {
   fun init_account(account_storage: &mut AccountStorage, user: address, key: String, ctx: &mut TxContext) {
     if (!account_exists(account_storage, user, key)) {
           object_table::add(
-            table::borrow_mut(&mut account_storage.accounts_table, key),
+            object_table::borrow_mut(&mut account_storage.accounts_table, key),
             user,
             Account {
               id: object::new(ctx),
@@ -1291,6 +1303,7 @@ module interest_protocol::whirpool {
   * @param penalty_fee The % fee a user pays when liquidated with 9 decimals
   * @param protocol_percentage The % of the penalty fee the protocol retains with 9 decimals
   * @param decimals The decimal houses of Coin<T>
+  * @param can_be_collateral It indicates if this market can be used as collateral to borrow other coins
   */
   entry public fun create_market<T>(
     _: &WhirpoolAdminCap, 
@@ -1304,6 +1317,7 @@ module interest_protocol::whirpool {
     penalty_fee: u256,
     protocol_percentage: u256,
     decimals: u8,
+    can_be_collateral: bool,
     ctx: &mut TxContext
     ) {
     // Make sure the protocol can not seize the entire value of a position during liquidations
@@ -1329,6 +1343,7 @@ module interest_protocol::whirpool {
         collateral_cap,
         balance_value: 0,
         is_paused: false,
+        can_be_collateral,
         ltv,
         reserve_factor: INITIAL_RESERVE_FACTOR_MANTISSA,
         allocation_points,
@@ -1358,7 +1373,7 @@ module interest_protocol::whirpool {
       });  
 
     // Add bag to store address -> account
-    table::add(
+    object_table::add(
       &mut account_storage.accounts_table,
       key,
       object_table::new(ctx)
@@ -1605,6 +1620,26 @@ module interest_protocol::whirpool {
     );
 
     dnr::update_interest_rate_per_ms(dinero_storage, new_interest_rate_per_year)
+  }
+
+    /**
+  * @notice It allows the admin to decide if a market can be used as collateral
+  * @param _ The WhirpoolAdminCap
+  * @param whirpool_storage The shared storage object of ipx::whirpool 
+  * @param can_be_collateral It indicates if a market can be used as collateral
+  */
+  entry public fun update_can_be_collateral<T>(
+    _: &WhirpoolAdminCap, 
+    whirpool_storage: &mut WhirpoolStorage,
+    can_be_collateral: bool
+  ) {
+    // Get DNR key
+    let market_key = get_coin_info_string<T>();
+    let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
+
+    market_data.can_be_collateral = can_be_collateral;
+
+    emit(CanBeCollateral<T> { state: can_be_collateral });
   }
 
   /**
@@ -2484,7 +2519,8 @@ module interest_protocol::whirpool {
     u64,
     u64,
     u64,
-    u64
+    u64,
+    bool
   ) {
     let market_data = borrow_market_data(&whirpool_storage.market_data_table, get_coin_info_string<T>());
     (
@@ -2503,6 +2539,7 @@ module interest_protocol::whirpool {
       rebase::elastic(&market_data.collateral_rebase),
       rebase::base(&market_data.loan_rebase),
       rebase::elastic(&market_data.loan_rebase),
+      market_data.can_be_collateral
     )
   }
 
@@ -2763,7 +2800,7 @@ module interest_protocol::whirpool {
       vector::push_back(&mut markets_in_copy, key);
 
       // Get the user account
-      let account = object_table::borrow(table::borrow(&account_storage.accounts_table, key), user);
+      let account = object_table::borrow(object_table::borrow(&account_storage.accounts_table, key), user);
 
       // Get the market data
       let market_data = borrow_mut_market_data(market_table, key);
