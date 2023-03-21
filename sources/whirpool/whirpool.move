@@ -1,5 +1,4 @@
 module interest_protocol::whirpool {
-
   use std::ascii::{String};
   use std::vector;
 
@@ -2134,7 +2133,7 @@ module interest_protocol::whirpool {
   public fun liquidate<C, L>(
     whirpool_storage: &mut WhirpoolStorage,
     account_storage: &mut AccountStorage, 
-    interest_rate_model_storage: &mut InterestRateModelStorage,
+    interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage,
     dinero_storage: &DineroStorage,
     oracle_storage: &OracleStorage,
@@ -2250,13 +2249,18 @@ module interest_protocol::whirpool {
     // Consider his loan rewards paid.
     borrower_loan_account.loan_rewards_paid = (borrower_loan_account.principal as u256) * loan_market_data.accrued_loan_rewards_per_share / (loan_market_data.decimals_factor as u256);
 
+    let loan_decimals_factor = loan_market_data.decimals_factor;
+
     // Update the market loan info
     rebase::sub_base(&mut loan_market_data.loan_rebase, base_repay, false);
 
     let collateral_price_normalized = get_price(oracle_storage, collateral_market_key);
     let loan_price_normalized = get_price(oracle_storage, loan_market_key);
 
-    let collateral_seize_amount = d_fdiv_u256(d_fmul_u256(loan_price_normalized, (repay_max_amount as u256)), (collateral_price_normalized as u256)); 
+    let collateral_market_data = borrow_market_data(&mut whirpool_storage.market_data_table, collateral_market_key);
+
+    let collateral_seize_amount = (d_fdiv_u256(d_fmul_u256(loan_price_normalized, (repay_max_amount as u256)), (collateral_price_normalized as u256)) * (collateral_market_data.decimals_factor as u256)) / (loan_decimals_factor as u256); 
+
     let penalty_fee_amount = d_fmul_u256(collateral_seize_amount, penalty_fee);
     let collateral_seize_amount_with_fee = collateral_seize_amount + penalty_fee_amount;
 
@@ -2265,7 +2269,6 @@ module interest_protocol::whirpool {
     let liquidator_amount = collateral_seize_amount_with_fee - protocol_amount;
 
     // Get the borrower collateral account
-    let collateral_market_data = borrow_market_data(&mut whirpool_storage.market_data_table, collateral_market_key);
     let borrower_collateral_account = borrow_mut_account(account_storage, borrower, collateral_market_key);
 
     // We need to add the collateral rewards to the user.

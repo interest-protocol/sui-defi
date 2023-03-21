@@ -13,7 +13,7 @@ module interest_protocol::whirpool_tests {
   use interest_protocol::dnr::{Self, DNR, DineroStorage};
   use interest_protocol::oracle::{Self, OracleStorage, OracleAdminCap};
   use interest_protocol::interest_rate_model::{Self as model, InterestRateModelStorage};
-  use interest_protocol::math::{d_fmul, d_fmul_u256};
+  use interest_protocol::math::{d_fmul, d_fmul_u256, double_scalar};
   use interest_protocol::utils::{get_coin_info_string};
   use interest_protocol::test_utils::{people, scenario, mint};
 
@@ -4227,7 +4227,7 @@ module interest_protocol::whirpool_tests {
 
     let test = &mut scenario;
 
-     init_test(test);
+    init_test(test);
 
     let (alice, _) = people();
 
@@ -4339,6 +4339,224 @@ module interest_protocol::whirpool_tests {
       test::return_shared(whirpool_storage); 
       test::return_to_address(alice, whirpool_admin_cap);
     };
+    test::end(scenario);
+  }
+
+  #[test]
+  fun test_liquidate() {
+    let scenario = scenario();
+
+    let test = &mut scenario;
+
+    init_test(test);
+
+    let (alice, bob) = people();
+
+    // Deposit 200k USD can borrow up to 140k USD
+    next_tx(test, alice);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let clock_object = test::take_shared<Clock>(test);
+
+      burn(whirpool::deposit<BTC>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &clock_object,
+        mint<BTC>(10, BTC_DECIMALS, ctx(test)),
+        ctx(test)
+       ));
+
+      test::return_shared(clock_object);
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+    };
+
+    next_tx(test, bob);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let clock_object = test::take_shared<Clock>(test);
+
+      burn(whirpool::deposit<ETH>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &clock_object,
+        mint<ETH>(150, ETH_DECIMALS, ctx(test)),
+        ctx(test)
+       ));
+
+      test::return_shared(clock_object);
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+    };
+
+    // Borrow 127.4k USD
+    next_tx(test, alice);
+    {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let oracle_storage = test::take_shared<OracleStorage>(test);
+      let clock_object = test::take_shared<Clock>(test);
+
+      let borrow_value = (91 * ETH_DECIMALS_FACTOR as u64);
+
+      whirpool::enter_market<BTC>(&whirpool_storage, &mut account_storage, ctx(test));
+
+      let (coin_eth, coin_ipx) = whirpool::borrow<ETH>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &mut dnr_storage,
+        &oracle_storage,
+        &clock_object,
+        borrow_value,
+        ctx(test)
+       );
+
+       burn(coin_eth);
+       burn(coin_ipx);
+
+      test::return_shared(clock_object);
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+      test::return_shared(oracle_storage); 
+    };
+
+     next_tx(test, alice);
+     {
+      let oracle_admin_cap = test::take_from_address<OracleAdminCap>(test, alice);
+      let oracle_storage = test::take_shared<OracleStorage>(test);
+
+      // BTC
+      oracle::set_price<BTC>(
+        &oracle_admin_cap,
+        &mut oracle_storage,
+        180000000000, // 18k
+        7,
+        ctx(test)
+      );
+     
+     test::return_to_address(alice, oracle_admin_cap);
+     test::return_shared(oracle_storage);
+     };
+
+     next_tx(test, bob);
+     {
+      let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+      let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let dnr_storage = test::take_shared<DineroStorage>(test);
+      let oracle_storage = test::take_shared<OracleStorage>(test);
+      let clock_object = test::take_shared<Clock>(test);
+
+      let timestame_increase = 38452;
+
+      clock::increment_for_testing(&mut clock_object, timestame_increase);
+
+      let interest_rate_per_ms = whirpool::get_borrow_rate_per_ms<ETH>(
+        &whirpool_storage,
+        &interest_rate_model_storage,
+        &dnr_storage
+      );
+
+      let (_, _, _, _, _, _, _, _, _, _, _, _, _, _, total_borrows, _) = whirpool::get_market_info<ETH>(&whirpool_storage);
+
+      let accumulated_interest_rate = interest_rate_per_ms * timestame_increase;
+      let new_total_borrows = total_borrows + (d_fmul(total_borrows, accumulated_interest_rate) as u64);
+
+      whirpool::liquidate<BTC, ETH>(
+        &mut whirpool_storage,
+        &mut account_storage,
+        &interest_rate_model_storage,
+        &mut ipx_storage,
+        &dnr_storage,
+        &oracle_storage,
+        &clock_object,
+        mint<ETH>(new_total_borrows, 0, ctx(test)),
+        alice,
+        ctx(test)
+      );
+
+      let (_, accrued_timestamp, _, _, _, _, _, _, _, btc_accrued_collateral_rewards_per_share, _, _, _, _, _, _) = whirpool::get_market_info<BTC>(&whirpool_storage);
+      assert_eq(accrued_timestamp, timestame_increase);
+
+      let (_, accrued_timestamp, _, _, balance_value, _, _, _, _, _, _, _, _, total_principal, total_borrows, _) = whirpool::get_market_info<ETH>(&whirpool_storage);
+      assert_eq(accrued_timestamp, timestame_increase);
+      assert_eq(total_borrows, 0);
+      assert_eq(total_principal, 0);
+      assert_eq(balance_value, ((59 * ETH_DECIMALS_FACTOR) as u64) + new_total_borrows);
+
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<ETH>(&account_storage, alice);
+      assert_eq(collateral, 0);
+      assert_eq(loan, 0);
+      assert_eq(collateral_rewards_paid, 0);
+      assert_eq(loan_rewards_paid, 0);
+
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, alice);
+
+      let scalar = double_scalar();
+
+      let loan_in_usd = ((new_total_borrows as u256) * 1400000000000000000000) / scalar; // ETH decimals
+
+      let loan_in_btc = (((loan_in_usd * scalar) / 18000000000000000000000) * BTC_DECIMALS_FACTOR) / ETH_DECIMALS_FACTOR;
+
+      // 0.07%
+      let loan_penalty = (loan_in_btc * 50000000000000000) / scalar;
+
+      let loan_in_btc = loan_in_btc + loan_penalty;
+
+
+      assert_eq((collateral as u256), 10 * BTC_DECIMALS_FACTOR - loan_in_btc);
+      assert_eq(loan, 0);
+      assert_eq(collateral_rewards_paid, ((collateral as u256) * btc_accrued_collateral_rewards_per_share) / BTC_DECIMALS_FACTOR);
+      assert_eq(loan_rewards_paid, 0);
+
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<BTC>(&account_storage, bob);
+      assert_eq(loan, 0);
+      assert_eq(loan_rewards_paid, 0);
+      assert_eq((collateral as u256), loan_in_btc - (loan_penalty * 200000000000000000) / scalar);
+      assert_eq(collateral_rewards_paid, ((collateral as u256) * btc_accrued_collateral_rewards_per_share) / BTC_DECIMALS_FACTOR);
+
+      let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirpool::get_account_info<ETH>(&account_storage, bob);
+      assert_eq(loan, 0);
+      assert_eq(loan_rewards_paid, 0);
+      assert_eq(collateral, ((150 * ETH_DECIMALS_FACTOR) as u64));
+      assert_eq(collateral_rewards_paid, 0);
+
+      test::return_shared(clock_object);
+      test::return_shared(dnr_storage);
+      test::return_shared(ipx_storage);
+      test::return_shared(interest_rate_model_storage);
+      test::return_shared(account_storage);
+      test::return_shared(whirpool_storage); 
+      test::return_shared(oracle_storage); 
+     };
+
     test::end(scenario);
   }
 
