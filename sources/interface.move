@@ -4,7 +4,7 @@ module interest_protocol::interface {
   use sui::coin::{Coin, CoinMetadata};
   use sui::tx_context::{Self, TxContext};
   use sui::transfer;
-  use sui::clock::{Clock};
+  use sui::clock::{Self, Clock};
   use sui::object::{ID};
 
   use interest_protocol::dex_volatile::{Self as volatile, Storage as VStorage, VLPCoin};
@@ -13,6 +13,8 @@ module interest_protocol::interface {
   use interest_protocol::ipx::{Self, IPXStorage, IPX};
   use interest_protocol::utils::{destroy_zero_or_transfer, handle_coin_vector, are_coins_sorted};
   use interest_protocol::router;
+
+  const ERROR_TX_DEADLINE_REACHED: u64 = 1;
 
   /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
@@ -121,22 +123,27 @@ module interest_protocol::interface {
   * It performs a swap and finds the most profitable pool. X -> Y or Y -> X on Pool<X, Y>
   * @param v_storage The storage object of the ipx::dex_volatile 
   * @param s_storage The storage object of the ipx::dex_stable 
+  * @param clock_object The shared Clock object
   * @param vector_x A vector of several Coin<X> 
   * @param vector_y A vector of several Coin<Y> 
   * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
   * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
   * @param coin_out_min_value The minimum value the caller expects to receive to protect agaisnt slippage
+  * @param deadline Timestamp indicating the deadline for this TX to be submitted
   */
   entry public fun swap<X, Y>(
     v_storage: &mut VStorage,
     s_storage: &mut SStorage,
+    clock_object: &Clock,
     vector_x: vector<Coin<X>>,
     vector_y: vector<Coin<Y>>,
     coin_x_amount: u64,
     coin_y_amount: u64,
     coin_out_min_value: u64,
+    deadline: u64,
     ctx: &mut TxContext
   ) {
+    assert!(clock::timestamp_ms(clock_object) >= deadline, ERROR_TX_DEADLINE_REACHED);
     // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
     // vector total value - coin desired value
     let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
@@ -174,23 +181,27 @@ module interest_protocol::interface {
   * It performs an one hop swap and finds the most profitable pool. X -> Z -> Y or Y -> Z -> X on Pool<X, Z> -> Pool<Z, Y>
   * @param v_storage The storage object of the ipx::dex_volatile 
   * @param s_storage The storage object of the ipx::dex_stable 
+  * @param clock_object The shared Clock object
   * @param vector_x A vector of several Coin<X> 
   * @param vector_y A vector of several Coin<Y> 
   * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
   * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
   * @param coin_out_min_value The minimum value the caller expects to receive to protect agaisnt slippage
+  * @param deadline Timestamp indicating the deadline for this TX to be submitted
   */
   entry public fun one_hop_swap<X, Y, Z>(
     v_storage: &mut VStorage,
     s_storage: &mut SStorage,
+    clock_object: &Clock,
     vector_x: vector<Coin<X>>,
     vector_y: vector<Coin<Y>>,
     coin_x_amount: u64,
     coin_y_amount: u64,
     coin_out_min_value: u64,
+    deadline: u64,
     ctx: &mut TxContext
   ) {
-
+    assert!(clock::timestamp_ms(clock_object) >= deadline, ERROR_TX_DEADLINE_REACHED);
     // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
     // vector total value - coin desired value
     let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
@@ -214,23 +225,27 @@ module interest_protocol::interface {
   * It performs a three hop swap and finds the most profitable pool. X -> B1 -> B2 -> Y or Y -> B1 -> B2 -> X on Pool<X, Z> -> Pool<B1, B2> -> Pool<B2, Y>
   * @param v_storage The storage object of the ipx::dex_volatile 
   * @param s_storage The storage object of the ipx::dex_stable 
+  * @param clock_object The shared Clock object
   * @param vector_x A vector of several Coin<X> 
   * @param vector_y A vector of several Coin<Y> 
   * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
   * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
   * @param coin_out_min_value The minimum value the caller expects to receive to protect agaisnt slippage
+  * @param deadline Timestamp indicating the deadline for this TX to be submitted
   */
   entry public fun two_hop_swap<X, Y, B1, B2>(
     v_storage: &mut VStorage,
     s_storage: &mut SStorage,
+    clock_object: &Clock,
     vector_x: vector<Coin<X>>,
     vector_y: vector<Coin<Y>>,
     coin_x_amount: u64,
     coin_y_amount: u64,
     coin_out_min_value: u64,
+    deadline: u64,
     ctx: &mut TxContext
   ) {
-
+    assert!(clock::timestamp_ms(clock_object) >= deadline, ERROR_TX_DEADLINE_REACHED);
     // Create a coin from the vector. It keeps sends any extra coins to the caller
     // vector total value - coin desired value
     let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
