@@ -143,7 +143,7 @@ module interest_protocol::interface {
     deadline: u64,
     ctx: &mut TxContext
   ) {
-    assert!(clock::timestamp_ms(clock_object) >= deadline, ERROR_TX_DEADLINE_REACHED);
+    assert!(deadline >= clock::timestamp_ms(clock_object), ERROR_TX_DEADLINE_REACHED);
     // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
     // vector total value - coin desired value
     let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
@@ -201,7 +201,7 @@ module interest_protocol::interface {
     deadline: u64,
     ctx: &mut TxContext
   ) {
-    assert!(clock::timestamp_ms(clock_object) >= deadline, ERROR_TX_DEADLINE_REACHED);
+    assert!(deadline >= clock::timestamp_ms(clock_object), ERROR_TX_DEADLINE_REACHED);
     // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
     // vector total value - coin desired value
     let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
@@ -245,7 +245,7 @@ module interest_protocol::interface {
     deadline: u64,
     ctx: &mut TxContext
   ) {
-    assert!(clock::timestamp_ms(clock_object) >= deadline, ERROR_TX_DEADLINE_REACHED);
+    assert!(deadline >= clock::timestamp_ms(clock_object), ERROR_TX_DEADLINE_REACHED);
     // Create a coin from the vector. It keeps sends any extra coins to the caller
     // vector total value - coin desired value
     let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
