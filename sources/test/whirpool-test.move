@@ -4,7 +4,7 @@ module interest_protocol::whirpool_tests {
 
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
   use sui::test_utils::{assert_eq};
-  use sui::coin::{destroy_for_testing as burn};
+  use sui::coin::{destroy_for_testing as burn, CoinMetadata};
   use sui::math;
   use sui::clock::{Self, Clock};
 
@@ -16,6 +16,9 @@ module interest_protocol::whirpool_tests {
   use interest_protocol::math::{d_fmul, d_fmul_u256, double_scalar};
   use interest_protocol::utils::{get_coin_info_string};
   use interest_protocol::test_utils::{people, scenario, mint};
+  use interest_protocol::ada::{Self, ADA};
+  use interest_protocol::eth::{Self, ETH};
+  use interest_protocol::btc::{Self, BTC};
 
   const ONE_PERCENT: u256 = 10000000000000000;
   const TWO_PERCENT: u256 = 20000000000000000;
@@ -42,10 +45,6 @@ module interest_protocol::whirpool_tests {
   // ATTENTION This needs to be updated when the module constant is updated.
   const INITIAL_IPX_PER_MS: u256 = 1268391; // 40M IPX per year
 
-  struct BTC {}
-  struct ETH {}
-  struct ADA {}
-
   fun init_test(test: &mut Scenario) {
     let (alice, _) = people();
 
@@ -58,6 +57,9 @@ module interest_protocol::whirpool_tests {
       model::init_for_testing(ctx(test));
       oracle::init_for_testing(ctx(test));
       clock::create_for_testing(ctx(test));
+      ada::init_for_testing(ctx(test));
+      btc::init_for_testing(ctx(test));
+      eth::init_for_testing(ctx(test));
     };
 
     // BTC/ETH/ADA Interest Rate
@@ -141,19 +143,23 @@ module interest_protocol::whirpool_tests {
       let whirpool_storage = test::take_shared<WhirpoolStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
       let clock_object = test::take_shared<Clock>(test);
+      let btc_coin_metadata = test::take_shared<CoinMetadata<BTC>>(test);
+      let eth_coin_metadata = test::take_shared<CoinMetadata<ETH>>(test);
+      let ada_coin_metadata = test::take_shared<CoinMetadata<ADA>>(test);
+      let dnr_coin_metadata = test::take_immutable<CoinMetadata<DNR>>(test);
 
       whirpool::create_market<BTC>(
         &whirpool_admin_cap,
         &mut whirpool_storage,
         &mut account_storage,
         &clock_object,
+        &btc_coin_metadata,
         BTC_BORROW_CAP,
         BTC_BORROW_CAP * 2,
         700000000000000000, // 70% ltv
         500, // allocation points
         50000000000000000, // 5% penalty fee
         200000000000000000, // 20% protocol fee
-        BTC_DECIMALS,
         true,
         ctx(test)
       );
@@ -163,13 +169,13 @@ module interest_protocol::whirpool_tests {
         &mut whirpool_storage,
         &mut account_storage,
         &clock_object,
+        &eth_coin_metadata,
         ETH_BORROW_CAP,
         ETH_BORROW_CAP * 2,
         650000000000000000, // 65% ltv
         700, // allocation points
         70000000000000000, // 7% penalty fee
         100000000000000000, // 10% protocol fee
-        ETH_DECIMALS,
         true,
         ctx(test)
       );
@@ -180,13 +186,13 @@ module interest_protocol::whirpool_tests {
         &mut whirpool_storage,
         &mut account_storage,
         &clock_object,
+        &ada_coin_metadata,
         ADA_BORROW_CAP,
         ADA_BORROW_CAP * 2,
         500000000000000000, // 50% ltv
         900, // allocation points
         100000000000000000, // 10% penalty fee
         200000000000000000, // 20% protocol fee
-        ADA_DECIMALS,
         true,
         ctx(test)
       );
@@ -196,18 +202,22 @@ module interest_protocol::whirpool_tests {
         &mut whirpool_storage,
         &mut account_storage,
         &clock_object,
+        &dnr_coin_metadata,
         DNR_BORROW_CAP,
         0, // cannot be as collateral
         0, // 50% ltv
         500, // allocation points
         100000000000000000, // 10% penalty fee
         200000000000000000, // 20% protocol fee
-        DNR_DECIMALS,
         false,
         ctx(test)
       );
       
       test::return_to_address(alice, whirpool_admin_cap);
+      test::return_shared(btc_coin_metadata);
+      test::return_shared(eth_coin_metadata);
+      test::return_shared(ada_coin_metadata);
+      test::return_immutable(dnr_coin_metadata);
       test::return_shared(clock_object);
       test::return_shared(whirpool_storage);
       test::return_shared(account_storage);

@@ -9,7 +9,7 @@ module interest_protocol::whirpool {
   use sui::table::{Self, Table};
   use sui::object_table::{Self, ObjectTable};
   use sui::balance::{Self, Balance};
-  use sui::coin::{Self, Coin};
+  use sui::coin::{Self, Coin, CoinMetadata};
   use sui::pay;
   use sui::math;
   use sui::event::{emit};
@@ -1309,13 +1309,13 @@ module interest_protocol::whirpool {
     whirpool_storage: &mut WhirpoolStorage, 
     account_storage: &mut AccountStorage, 
     clock_object: &Clock,
+    coin_metadata: &CoinMetadata<T>,
     borrow_cap: u64,
     collateral_cap: u64,
     ltv: u256,
     allocation_points: u256,
     penalty_fee: u256,
     protocol_percentage: u256,
-    decimals: u8,
     can_be_collateral: bool,
     ctx: &mut TxContext
     ) {
@@ -1328,7 +1328,7 @@ module interest_protocol::whirpool {
     // We need this to loop through all the markets
     vector::push_back(&mut whirpool_storage.all_markets_keys, key);
 
-    let decimals_factor = math::pow(10, decimals);
+    let decimals_factor = math::pow(10, coin::get_decimals(coin_metadata));
 
     // Register the MarketData
     object_table::add(
