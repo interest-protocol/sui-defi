@@ -2324,7 +2324,7 @@ module interest_protocol::whirpool {
   public fun liquidate_dnr<C>(
    whirpool_storage: &mut WhirpoolStorage,
     account_storage: &mut AccountStorage, 
-    interest_rate_model_storage: &mut InterestRateModelStorage,
+    interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage,
     dinero_storage: &mut DineroStorage,
     oracle_storage: &OracleStorage,
