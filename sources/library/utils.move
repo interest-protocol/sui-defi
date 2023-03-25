@@ -52,6 +52,10 @@ module interest_protocol::utils {
         }
     }
 
+ public fun are_types_equal<X, Y>(): bool {
+  compare_struct<X, Y>() == EQUAL
+ }   
+
  public fun are_coins_sorted<X,Y>(): bool {
         let compare_x_y: u8 = compare_struct<X, Y>();
         assert!(compare_x_y != get_equal_enum(), ERROR_SAME_COIN);

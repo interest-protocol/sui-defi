@@ -7,8 +7,7 @@ module interest_protocol::interface {
   use sui::clock::{Self, Clock};
   use sui::object::{ID};
 
-  use interest_protocol::dex_volatile::{Self as volatile, Storage as VStorage, VLPCoin};
-  use interest_protocol::dex_stable::{Self as stable, Storage as SStorage, SLPCoin};
+  use interest_protocol::dex::{Self, Storage as Storage, LPCoin};
   use interest_protocol::master_chef::{Self, MasterChefStorage, AccountStorage};
   use interest_protocol::ipx::{Self, IPXStorage, IPX};
   use interest_protocol::utils::{destroy_zero_or_transfer, handle_coin_vector, are_coins_sorted};
@@ -26,7 +25,7 @@ module interest_protocol::interface {
   * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
   */
   entry public fun create_v_pool<X, Y>(
-      storage: &mut VStorage,
+      storage: &mut Storage,
       vector_x: vector<Coin<X>>,
       vector_y: vector<Coin<Y>>,
       coin_x_amount: u64,
@@ -42,7 +41,7 @@ module interest_protocol::interface {
     // Sorts for the caller - to make it easier for the frontend
     if (are_coins_sorted<X, Y>()) {
       transfer::transfer(
-        volatile::create_pool(
+        dex::create_v_pool(
           storage,
           coin_x,
           coin_y,
@@ -52,7 +51,7 @@ module interest_protocol::interface {
       )
     } else {
       transfer::transfer(
-        volatile::create_pool(
+        dex::create_v_pool(
           storage,
           coin_y,
           coin_x,
@@ -75,7 +74,7 @@ module interest_protocol::interface {
   * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
   */
   entry public fun create_s_pool<X, Y>(
-      storage: &mut SStorage,
+      storage: &mut Storage,
       vector_x: vector<Coin<X>>,
       vector_y: vector<Coin<Y>>,
       coin_x_metadata: &CoinMetadata<X>,
@@ -93,7 +92,7 @@ module interest_protocol::interface {
     // Sorts for the caller - to make it easier for the frontend
     if (are_coins_sorted<X, Y>()) {
       transfer::transfer(
-        stable::create_pool(
+        dex::create_s_pool(
           storage,
           coin_x,
           coin_y,
@@ -105,7 +104,7 @@ module interest_protocol::interface {
       )
     } else {
       transfer::transfer(
-        stable::create_pool(
+        dex::create_s_pool(
           storage,
           coin_y,
           coin_x,
@@ -132,8 +131,7 @@ module interest_protocol::interface {
   * @param deadline Timestamp indicating the deadline for this TX to be submitted
   */
   entry public fun swap<X, Y>(
-    v_storage: &mut VStorage,
-    s_storage: &mut SStorage,
+    storage: &mut Storage,
     clock_object: &Clock,
     vector_x: vector<Coin<X>>,
     vector_y: vector<Coin<Y>>,
@@ -151,8 +149,7 @@ module interest_protocol::interface {
 
   if (are_coins_sorted<X, Y>()) {
    let (coin_x, coin_y) = router::swap<X, Y>(
-      v_storage,
-      s_storage,
+      storage,
       coin_x,
       coin_y,
       coin_out_min_value,
@@ -163,8 +160,7 @@ module interest_protocol::interface {
     destroy_zero_or_transfer(coin_y, ctx);
     } else {
     let (coin_y, coin_x) = router::swap<Y, X>(
-      v_storage,
-      s_storage,
+      storage,
       coin_y,
       coin_x,
       coin_out_min_value,
@@ -190,8 +186,7 @@ module interest_protocol::interface {
   * @param deadline Timestamp indicating the deadline for this TX to be submitted
   */
   entry public fun one_hop_swap<X, Y, Z>(
-    v_storage: &mut VStorage,
-    s_storage: &mut SStorage,
+    storage: &mut Storage,
     clock_object: &Clock,
     vector_x: vector<Coin<X>>,
     vector_y: vector<Coin<Y>>,
@@ -208,8 +203,7 @@ module interest_protocol::interface {
     let coin_y = handle_coin_vector<Y>(vector_y, coin_y_amount, ctx);
 
     let (coin_x, coin_y) = router::one_hop_swap<X, Y, Z>(
-      v_storage,
-      s_storage,
+      storage,
       coin_x,
       coin_y,
       coin_out_min_value,
@@ -234,8 +228,7 @@ module interest_protocol::interface {
   * @param deadline Timestamp indicating the deadline for this TX to be submitted
   */
   entry public fun two_hop_swap<X, Y, B1, B2>(
-    v_storage: &mut VStorage,
-    s_storage: &mut SStorage,
+    storage: &mut Storage,
     clock_object: &Clock,
     vector_x: vector<Coin<X>>,
     vector_y: vector<Coin<Y>>,
@@ -252,8 +245,7 @@ module interest_protocol::interface {
     let coin_y = handle_coin_vector<Y>(vector_y, coin_y_amount, ctx);
 
     let (coin_x, coin_y) = router::two_hop_swap<X, Y, B1, B2>(
-      v_storage,
-      s_storage,
+      storage,
       coin_x,
       coin_y,
       coin_out_min_value,
@@ -273,17 +265,14 @@ module interest_protocol::interface {
   * @param vector_y A vector of several Coin<Y> 
   * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
   * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
-  * @param is_volatile It indicates if it should add liquidity a stable or volatile pool
   * @param coin_out_min_value The minimum value the caller expects to receive to protect agaisnt slippage
   */
-  entry public fun add_liquidity<X, Y>(
-    v_storage: &mut VStorage,
-    s_storage: &mut SStorage,
+  entry public fun add_liquidity<C, X, Y>(
+    storage: &mut Storage,
     vector_x: vector<Coin<X>>,
     vector_y: vector<Coin<Y>>,
     coin_x_amount: u64,
     coin_y_amount: u64,
-    is_volatile: bool,
     coin_min_amount: u64,
     ctx: &mut TxContext
   ) {
@@ -293,11 +282,10 @@ module interest_protocol::interface {
     let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
     let coin_y = handle_coin_vector<Y>(vector_y, coin_y_amount, ctx);
 
-    if (is_volatile) {
       if (are_coins_sorted<X, Y>()) {
         transfer::transfer(
-          router::add_v_liquidity(
-          v_storage,
+          router::add_liquidity<C, X, Y>(
+          storage,
           coin_x,
           coin_y,
           coin_min_amount,
@@ -307,8 +295,8 @@ module interest_protocol::interface {
       )  
       } else {
         transfer::transfer(
-          router::add_v_liquidity(
-          v_storage,
+          router::add_liquidity<C, Y, X>(
+          storage,
           coin_y,
           coin_x,
           coin_min_amount,
@@ -317,32 +305,7 @@ module interest_protocol::interface {
         tx_context::sender(ctx)
       )  
       }
-      } else {
-        if (are_coins_sorted<X, Y>()) {
-          transfer::transfer(
-            router::add_s_liquidity(
-            s_storage,
-            coin_x,
-            coin_y,
-            coin_min_amount,
-            ctx
-            ),
-          tx_context::sender(ctx)
-        )  
-        } else {
-          transfer::transfer(
-            router::add_s_liquidity(
-            s_storage,
-            coin_x,
-            coin_y,
-            coin_min_amount,
-            ctx
-            ),
-          tx_context::sender(ctx)
-        )  
-      }
     }
-  }
 
   /**
   * @dev This function REQUIRES the coins to be sorted. It will send back any unused value. 
@@ -353,9 +316,9 @@ module interest_protocol::interface {
   * @param coin_x_min_amount The minimum amount of Coin<X> the user wishes to receive
   * @param coin_y_min_amount The minimum amount of Coin<Y> the user wishes to receive
   */
-  entry public fun remove_v_liquidity<X, Y>(
-    storage: &mut VStorage,
-    vector_lp_coin: vector<Coin<VLPCoin<X, Y>>>,
+  entry public fun remove_liquidity<C, X, Y>(
+    storage: &mut Storage,
+    vector_lp_coin: vector<Coin<LPCoin<C, X, Y>>>,
     coin_amount_in: u64,
     coin_x_min_amount: u64,
     coin_y_min_amount: u64,
@@ -366,41 +329,7 @@ module interest_protocol::interface {
     let coin = handle_coin_vector(vector_lp_coin, coin_amount_in, ctx);
     let sender = tx_context::sender(ctx);
 
-    let (coin_x, coin_y) = volatile::remove_liquidity(
-      storage,
-      coin, 
-      coin_x_min_amount,
-      coin_y_min_amount,
-      ctx
-    );
-
-    transfer::transfer(coin_x, sender);
-    transfer::transfer(coin_y, sender);
-  }
-
-  /**
-  * @dev This function REQUIRES the coins to be sorted. It will send back any unused value. 
-  * It removes liquidity from a stable pool based on the shares
-  * @param storage The storage object of the ipx::dex_volatile 
-  * @param vector_lp_coin A vector of several SLPCoins
-  * @param coin_amount_in The value the caller wishes to deposit for VLPCoins 
-  * @param coin_x_min_amount The minimum amount of Coin<X> the user wishes to receive
-  * @param coin_y_min_amount The minimum amount of Coin<Y> the user wishes to receive
-  */
-  entry public fun remove_s_liquidity<X, Y>(
-    storage: &mut SStorage,
-    vector_lp_coin: vector<Coin<SLPCoin<X, Y>>>,
-    coin_amount_in: u64,
-    coin_x_min_amount: u64,
-    coin_y_min_amount: u64,
-    ctx: &mut TxContext
-  ){
-    // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
-    // vector total value - coin desired value
-    let coin = handle_coin_vector(vector_lp_coin, coin_amount_in, ctx);
-    let sender = tx_context::sender(ctx);
-
-    let (coin_x, coin_y) = stable::remove_liquidity(
+    let (coin_x, coin_y) = dex::remove_liquidity(
       storage,
       coin, 
       coin_x_min_amount,
@@ -530,19 +459,11 @@ module interest_protocol::interface {
     ipx::burn(storage, handle_coin_vector(coin_vector, coin_value, ctx));
   }
 
-  public fun get_v_pool_id<X, Y>(storage: &VStorage): ID {
+  public fun get_pool_id<C, X, Y>(storage: &Storage): ID {
     if (are_coins_sorted<X, Y>()) {
-      volatile::get_pool_id<X, Y>(storage)
+      dex::get_pool_id<C, X, Y>(storage)
     } else {
-      volatile::get_pool_id<Y, X>(storage)
-    }
-  }
-
-  public fun get_s_pool_id<X, Y>(storage: &SStorage): ID {
-    if (are_coins_sorted<X, Y>()) {
-      stable::get_pool_id<X, Y>(storage)
-    } else {
-      stable::get_pool_id<Y, X>(storage)
+      dex::get_pool_id<C, Y, X>(storage)
     }
   }
 
@@ -617,9 +538,9 @@ module interest_protocol::interface {
     farm_vector
   }
 
-  fun get_v_pool<X, Y>(storage: &VStorage, pool_vector: &mut vector<vector<u64>>) {
+  fun get_pool<C, X, Y>(storage: &Storage, pool_vector: &mut vector<vector<u64>>) {
       let inner_vector = vector::empty<u64>();
-    let (balance_x, balance_y, supply) = volatile::get_pool_info<X, Y>(storage);
+    let (balance_x, balance_y, supply) = dex::get_pool_info<C, X, Y>(storage);
 
     vector::push_back(&mut inner_vector, balance_x);
     vector::push_back(&mut inner_vector, balance_y);
@@ -627,46 +548,47 @@ module interest_protocol::interface {
     vector::push_back(pool_vector, inner_vector);
   }
 
-  public fun get_v_pools<A1, A2, B1, B2, C1, C2, D1, D2, E1, E2, F1, F2, G1, G2, H1, H2, I1, I2, J1, J2>(storage: &VStorage, num_of_pools: u64): vector<vector<u64>> {
+  public fun get_pools<
+    Curve1 ,A1, A2, Curve2, B1, B2, Curve3, C1, C2, Curve4, D1, D2, Curve5, E1, E2, Curve6, F1, F2, Curve7, G1, G2, Curve8, H1, H2, Curve9, I1, I2, Curve10, J1, J2>(storage: &Storage, num_of_pools: u64): vector<vector<u64>> {
     let pool_vector = vector::empty<vector<u64>>(); 
 
-    get_v_pool<A1, A2>(storage, &mut pool_vector);
+    get_pool<Curve1, A1, A2>(storage, &mut pool_vector);
 
     if (num_of_pools == 1) return pool_vector;
 
-    get_v_pool<B1, B2>(storage, &mut pool_vector);
+    get_pool<Curve2, B1, B2>(storage, &mut pool_vector);
 
     if (num_of_pools == 2) return pool_vector;
 
-    get_v_pool<C1, C2>(storage, &mut pool_vector);
+    get_pool<Curve3, C1, C2>(storage, &mut pool_vector);
 
     if (num_of_pools == 3) return pool_vector;
 
-    get_v_pool<D1, D2>(storage, &mut pool_vector);
+    get_pool<Curve4, D1, D2>(storage, &mut pool_vector);
 
     if (num_of_pools == 4) return pool_vector;
 
-    get_v_pool<E1, E2>(storage, &mut pool_vector);
+    get_pool<Curve5, E1, E2>(storage, &mut pool_vector);
 
     if (num_of_pools == 5) return pool_vector;
 
-    get_v_pool<F1, F2>(storage, &mut pool_vector);
+    get_pool<Curve6, F1, F2>(storage, &mut pool_vector);
 
     if (num_of_pools == 6) return pool_vector;
 
-    get_v_pool<G1, G2>(storage, &mut pool_vector);
+    get_pool<Curve7, G1, G2>(storage, &mut pool_vector);
 
     if (num_of_pools == 7) return pool_vector;
 
-    get_v_pool<H1, H2>(storage, &mut pool_vector);
+    get_pool<Curve8, H1, H2>(storage, &mut pool_vector);
 
     if (num_of_pools == 8) return pool_vector;
 
-    get_v_pool<I1, I2>(storage, &mut pool_vector);
+    get_pool<Curve9, I1, I2>(storage, &mut pool_vector);
 
     if (num_of_pools == 9) return pool_vector;
 
-    get_v_pool<J1, J2>(storage, &mut pool_vector);
+    get_pool<Curve10, J1, J2>(storage, &mut pool_vector);
 
     pool_vector
   }

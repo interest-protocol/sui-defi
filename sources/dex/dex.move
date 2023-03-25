@@ -1,8 +1,8 @@
-module interest_protocol::dex_volatile {
+module interest_protocol::dex {
   use std::ascii::{String}; 
 
   use sui::tx_context::{Self, TxContext};
-  use sui::coin::{Self, Coin};
+  use sui::coin::{Self, Coin, CoinMetadata};
   use sui::balance::{Self, Supply, Balance};
   use sui::object::{Self,UID, ID};
   use sui::transfer;
@@ -10,8 +10,9 @@ module interest_protocol::dex_volatile {
   use sui::object_bag::{Self, ObjectBag};
   use sui::event;
 
+  use interest_protocol::curve::{is_curve, is_volatile, Stable, Volatile};
   use interest_protocol::utils;
-  use interest_protocol::math::{mul_div, sqrt_u256};
+  use interest_protocol::math::{mul_div, sqrt_u256, scalar};
 
   const MINIMUM_LIQUIDITY: u64 = 10;
   const PRECISION: u256 = 1000000000000000000; //1e18;
@@ -31,8 +32,9 @@ module interest_protocol::dex_volatile {
   const ERROR_WRONG_POOL: u64 = 11;
   const ERROR_WRONG_REPAY_AMOUNT_X: u64 = 12;
   const ERROR_WRONG_REPAY_AMOUNT_Y: u64 = 13;
+  const ERROR_WRONG_CURVE: u64 = 14;
 
-    struct VolatileDEXAdminCap has key {
+    struct DEXAdminCap has key {
       id: UID,
     }
 
@@ -42,14 +44,17 @@ module interest_protocol::dex_volatile {
       fee_to: address
     }
 
-    struct VLPCoin<phantom X, phantom Y> has drop {}
+    struct LPCoin<phantom C, phantom X, phantom Y> has drop {}
 
-    struct VPool<phantom X, phantom Y> has key, store {
+    struct Pool<phantom C, phantom X, phantom Y> has key, store {
         id: UID,
         k_last: u256,
-        lp_coin_supply: Supply<VLPCoin<X, Y>>,
+        lp_coin_supply: Supply<LPCoin<C, X, Y>>,
         balance_x: Balance<X>,
-        balance_y: Balance<Y>
+        balance_y: Balance<Y>,
+        decimals_x: u64,
+        decimals_y: u64,
+        is_stable: bool
     }
 
     // Important this struct cannot have any type abilities
@@ -68,14 +73,14 @@ module interest_protocol::dex_volatile {
       sender: address
     }
 
-    struct SwapTokenX<phantom X, phantom Y> has copy, drop {
+    struct SwapTokenX<phantom C, phantom X, phantom Y> has copy, drop {
       id: ID,
       sender: address,
       coin_x_in: u64,
       coin_y_out: u64
     }
 
-    struct SwapTokenY<phantom X, phantom Y> has copy, drop {
+    struct SwapTokenY<phantom C, phantom X, phantom Y> has copy, drop {
       id: ID,
       sender: address,
       coin_y_in: u64,
@@ -106,7 +111,7 @@ module interest_protocol::dex_volatile {
       // Give administrator capabilities to the deployer
       // He has the ability to update the fee_to key on the Storage
       transfer::transfer(
-        VolatileDEXAdminCap { 
+        DEXAdminCap { 
           id: object::new(ctx)
         }, 
         tx_context::sender(ctx)
@@ -136,12 +141,12 @@ module interest_protocol::dex_volatile {
     * - The pool has a maximum capacity to prevent overflows.
     * - There can only be one pool per each token pair, regardless of their order.
     */
-    public fun create_pool<X, Y>(
+    public fun create_v_pool<X, Y>(
       storage: &mut Storage,
       coin_x: Coin<X>,
       coin_y: Coin<Y>,
       ctx: &mut TxContext
-    ): Coin<VLPCoin<X, Y>> {
+    ): Coin<LPCoin<Volatile, X, Y>> {
       // Store the value of the coins locally
       let coin_x_value = coin::value(&coin_x);
       let coin_y_value = coin::value(&coin_y);
@@ -152,18 +157,18 @@ module interest_protocol::dex_volatile {
 
       // Construct the name of the VLPCoin, which will be used as a key to store the pool data.
       // This fn will throw if X and Y are not sorted.
-      let type = utils::get_coin_info_string<VLPCoin<X, Y>>();
+      let type = utils::get_coin_info_string<LPCoin<Volatile, X, Y>>();
 
       // Checks that the pool does not exist.
       assert!(!object_bag::contains(&storage.pools, type), ERROR_POOL_EXISTS);
 
       // Calculate the constant product k = x * y
-      let _k = k(coin_x_value, coin_y_value) - (MINIMUM_LIQUIDITY as u256);
+      let _k = k<Volatile>(coin_x_value, coin_y_value, 0, 0) - (MINIMUM_LIQUIDITY as u256);
       let shares = (sqrt_u256(_k) as u64);
 
       // Create the VLP coin for the Pool<X, Y>. 
       // This coin has 0 decimals and no metadata 
-      let supply = balance::create_supply(VLPCoin<X, Y> {});
+      let supply = balance::create_supply(LPCoin<Volatile, X, Y> {});
       // The number of shares the zero address will receive to prevent 0 divisions in the future.
       let min_liquidity_balance = balance::increase_supply(&mut supply, MINIMUM_LIQUIDITY);
       // The number of shares (VLPCoins<X, Y>) the caller will receive.
@@ -176,7 +181,7 @@ module interest_protocol::dex_volatile {
       let pool_id = object::new(ctx);
 
       event::emit(
-          PoolCreated<VPool<X, Y>> {
+          PoolCreated<Pool<Volatile, X, Y>> {
             id: object::uid_to_inner(&pool_id),
             shares: shares,
             value_x: coin_x_value,
@@ -189,14 +194,108 @@ module interest_protocol::dex_volatile {
       object_bag::add(
         &mut storage.pools,
         type,
-        VPool {
+        Pool {
           id: pool_id,
           k_last: _k,
           lp_coin_supply: supply,
           balance_x: coin::into_balance<X>(coin_x),
-          balance_y: coin::into_balance<Y>(coin_y)
+          balance_y: coin::into_balance<Y>(coin_y),
+          decimals_x: 0,
+          decimals_y: 0,
+          is_stable: false
           }
       );
+
+      // Return the caller shares
+      coin::from_balance(sender_balance, ctx)
+    }
+
+        /**
+    * @notice Only the admin can create stable pools because we need the decimals to be correct
+    * @notice Please make sure that the tokens X and Y are sorted before calling this fn.
+    * @dev It creates a new Pool with X and Y coins. The pool accepts swaps using the x^3y+y^3x >= k invariant.
+    * @param _ The StableDEXAdminCap
+    * @param storage the object that stores the pools object_bag
+    * @oaram coin_x the first token of the pool
+    * @param coin_y the scond token of the pool
+    * @param coin_x_metadata The CoinMetadata object of Coin<X>
+    * @param coin_y_metadata The CoinMetadata object of Coin<Y>
+    * @return The number of shares as VLPCoins that can be used later on to redeem his coins + commissions.
+    * Requirements: 
+    * - It will throw if the X and Y are not sorted.
+    * - Both coins must have a value greater than 0. 
+    * - The pool has a maximum capacity to prevent overflows.
+    * - There can only be one pool per each token pair, regardless of their order.
+    */
+    public fun create_s_pool<X, Y>(
+      storage: &mut Storage,
+      coin_x: Coin<X>,
+      coin_y: Coin<Y>,
+      coin_x_metadata: &CoinMetadata<X>,
+      coin_y_metadata: &CoinMetadata<Y>,        
+      ctx: &mut TxContext
+    ): Coin<LPCoin<Stable, X, Y>> {
+      // Store the value of the coins locally
+      let coin_x_value = coin::value(&coin_x);
+      let coin_y_value = coin::value(&coin_y);
+
+      // Ensure that the both coins have a value greater than 0.
+      assert!(coin_x_value != 0 && coin_y_value != 0, ERROR_CREATE_PAIR_ZERO_VALUE);    
+      assert!(utils::are_coins_sorted<X, Y>(), ERROR_UNSORTED_COINS);
+
+      // Construct the name of the VLPCoin, which will be used as a key to store the pool data.
+      // This fn will throw if X and Y are not sorted.
+      let type = utils::get_coin_info_string<LPCoin<Stable, X, Y>>();
+
+      // Checks that the pool does not exist.
+      assert!(!object_bag::contains(&storage.pools, type), ERROR_POOL_EXISTS);
+
+      // Calculate the scalar of the decimals.
+      let decimals_x = math::pow(10, coin::get_decimals(coin_x_metadata));
+      let decimals_y = math::pow(10, coin::get_decimals(coin_y_metadata));
+
+      // Calculate k = x^3y + y^3x
+      let k = k<Stable>(coin_x_value, coin_y_value, decimals_x, decimals_y);
+      // Calculate the number of shares
+      let shares = ((sqrt_u256(k) / scalar()) as u64) - MINIMUM_LIQUIDITY;
+
+      // Create the SLP coin for the Pool<X, Y>. 
+      // This coin has 0 decimals and no metadata 
+      let supply = balance::create_supply(LPCoin<Stable, X, Y> {});
+      let min_liquidity_balance = balance::increase_supply(&mut supply, MINIMUM_LIQUIDITY);
+      let sender_balance = balance::increase_supply(&mut supply, shares);
+
+      // Transfer the zero address shares
+      transfer::transfer(coin::from_balance(min_liquidity_balance, ctx), @0x0);
+
+      // Calculate an id for the pool and the event
+      let id = object::new(ctx);
+
+      event::emit(
+          PoolCreated<Pool<Stable, X, Y>> {
+            id: object::uid_to_inner(&id),
+            shares,
+            value_x: coin_x_value,
+            value_y: coin_y_value,
+            sender: tx_context::sender(ctx)
+          }
+        );
+
+      // Store the new pool in Storage.pools
+      object_bag::add(
+        &mut storage.pools,
+        type,
+        Pool {
+          id,
+          k_last: k,
+          lp_coin_supply: supply,
+          balance_x: coin::into_balance<X>(coin_x),
+          balance_y: coin::into_balance<Y>(coin_y),
+          decimals_x,
+          decimals_y,
+          is_stable: true
+          }
+        );
 
       // Return the caller shares
       coin::from_balance(sender_balance, ctx)
@@ -214,13 +313,15 @@ module interest_protocol::dex_volatile {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-    public fun add_liquidity<X, Y>(   
+    public fun add_liquidity<C, X, Y>(   
       storage: &mut Storage,
       coin_x: Coin<X>,
       coin_y: Coin<Y>,
       vlp_coin_min_amount: u64,
       ctx: &mut TxContext
-      ): Coin<VLPCoin<X, Y>> {
+      ): Coin<LPCoin<C, X, Y>> {
+        assert!(is_curve<C>(), ERROR_WRONG_CURVE);
+
         // Save the value of the coins locally.
         let coin_x_value = coin::value(&coin_x);
         let coin_y_value = coin::value(&coin_y);
@@ -229,7 +330,7 @@ module interest_protocol::dex_volatile {
         let fee_to = storage.fee_to;
         // Borrow the Pool<X, Y>. It is mutable.
         // It will throw if X and Y are not sorted.
-        let pool = borrow_mut_pool<X, Y>(storage);
+        let pool = borrow_mut_pool<C, X, Y>(storage);
 
         // Mint the fee amount if `fee_to` is not the @0x0. 
         // The fee amount is equivalent to 1/5 of all commissions collected. 
@@ -257,7 +358,7 @@ module interest_protocol::dex_volatile {
 
         // Emit the AddLiquidity event
         event::emit(
-          AddLiquidity<VPool<X, Y>> {
+          AddLiquidity<Pool<C, X, Y>> {
           id: object:: uid_to_inner(&pool.id), 
           sender: tx_context::sender(ctx), 
           coin_x_amount: coin_x_value, 
@@ -267,7 +368,7 @@ module interest_protocol::dex_volatile {
         );
 
         // If the fee mechanism is turned on, we need to save the K for the next calculation.
-        if (is_fee_on) pool.k_last = k(new_reserve_x, new_reserve_y);
+        if (is_fee_on) pool.k_last = k<C>(new_reserve_x, new_reserve_y, pool.decimals_x, pool.decimals_y);
 
         // Return the shares(VLPCoin) to the caller.
         coin::from_balance(balance::increase_supply(&mut pool.lp_coin_supply, share_to_mint), ctx)
@@ -283,13 +384,14 @@ module interest_protocol::dex_volatile {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-    public fun remove_liquidity<X, Y>(   
+    public fun remove_liquidity<C, X, Y>(   
       storage: &mut Storage,
-      lp_coin: Coin<VLPCoin<X, Y>>,
+      lp_coin: Coin<LPCoin<C, X, Y>>,
       coin_x_min_amount: u64,
       coin_y_min_amount: u64,
       ctx: &mut TxContext
       ): (Coin<X>, Coin<Y>) {
+        assert!(is_curve<C>(), ERROR_WRONG_CURVE);
         // Store the value of the shares locally
         let lp_coin_value = coin::value(&lp_coin);
 
@@ -300,7 +402,7 @@ module interest_protocol::dex_volatile {
         let fee_to = storage.fee_to;
         // Borrow the Pool<X, Y>. It is mutable.
         // It will throw if X and Y are not sorted.
-        let pool = borrow_mut_pool<X, Y>(storage);
+        let pool = borrow_mut_pool<C, X, Y>(storage);
 
         // Mint the fee amount if `fee_to` is not the @0x0. 
         // The fee amount is equivalent to 1/5 of all commissions collected. 
@@ -324,7 +426,7 @@ module interest_protocol::dex_volatile {
 
         // Emit the RemoveLiquidity event
         event::emit(
-          RemoveLiquidity<VPool<X, Y>> {
+          RemoveLiquidity<Pool<C, X, Y>> {
           id: object:: uid_to_inner(&pool.id), 
           sender: tx_context::sender(ctx), 
           coin_x_out: coin_x_removed,
@@ -334,7 +436,7 @@ module interest_protocol::dex_volatile {
         );
 
         // Store the current K for the next fee calculation.
-        if (is_fee_on) pool.k_last = k(coin_x_reserve - coin_x_removed, coin_y_reserve - coin_y_removed);
+        if (is_fee_on) pool.k_last = k<C>(coin_x_reserve - coin_x_removed, coin_y_reserve - coin_y_removed, pool.decimals_x, pool.decimals_y);
 
         // Remove the coins from the Pool<X, Y> and return to the caller.
         (
@@ -350,8 +452,8 @@ module interest_protocol::dex_volatile {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-    public fun borrow_pool<X, Y>(storage: &Storage): &VPool<X, Y> {
-      object_bag::borrow<String, VPool<X, Y>>(&storage.pools, utils::get_coin_info_string<VLPCoin<X, Y>>())
+    public fun borrow_pool<C, X, Y>(storage: &Storage): &Pool<C, X, Y> {
+      object_bag::borrow<String, Pool<C, X, Y>>(&storage.pools, utils::get_coin_info_string<LPCoin<C, X, Y>>())
     }
 
     /**
@@ -361,8 +463,8 @@ module interest_protocol::dex_volatile {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-    public fun is_pool_deployed<X, Y>(storage: &Storage):bool {
-      object_bag::contains(&storage.pools, utils::get_coin_info_string<VLPCoin<X, Y>>())
+    public fun is_pool_deployed<C, X, Y>(storage: &Storage): bool {
+      object_bag::contains(&storage.pools, utils::get_coin_info_string<LPCoin<C, X, Y>>())
     }
 
     /**
@@ -371,8 +473,8 @@ module interest_protocol::dex_volatile {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-    public fun get_pool_id<X, Y>(storage: &Storage): ID {
-      let pool = borrow_pool<X, Y>(storage);
+    public fun get_pool_id<C, X, Y>(storage: &Storage): ID {
+      let pool = borrow_pool<C, X, Y>(storage);
       object::id(pool)
     }
 
@@ -380,7 +482,7 @@ module interest_protocol::dex_volatile {
     * @param pool an immutable Pool<X, Y>
     * @return It returns a triple of Tuple<coin_x_reserves, coin_y_reserves, lp_coin_supply>. 
     */
-    public fun get_amounts<X, Y>(pool: &VPool<X, Y>): (u64, u64, u64) {
+    public fun get_amounts<C, X, Y>(pool: &Pool<C, X, Y>): (u64, u64, u64) {
         (
             balance::value(&pool.balance_x),
             balance::value(&pool.balance_y),
@@ -395,7 +497,7 @@ module interest_protocol::dex_volatile {
     * @param balance_out The reserves of the coin being bought in a Pool<A, B>. 
     * @return the value of A in terms of B.
     */
-    public fun calculate_value_out(coin_in_amount: u64, balance_in: u64, balance_out: u64): u64 {
+    public fun calculate_v_value_out(coin_in_amount: u64, balance_in: u64, balance_out: u64): u64 {
 
         let (coin_in_amount, balance_in, balance_out) = (
           (coin_in_amount as u256),
@@ -412,7 +514,59 @@ module interest_protocol::dex_volatile {
 
         // Divide and convert the value back to u64 and return.
         ((numerator / denominator) as u64) 
+    }   
+
+        /**
+    * @dev A helper fn to calculate the value of tokenA in tokenB in a Pool<A, B>. This function remove the commission of 0.05% from the `coin_in_amount`.
+    * Algo logic taken from Andre Cronje's Solidly
+    * @param coin_amount the amount being sold
+    * @param balance_x the reserves of the Coin<X> in a Pool<A, B>. 
+    * @param balance_y The reserves of the Coin<Y> in a Pool<A, B>. 
+    * @param is_x it indicates if the `coin_amount` is Coin<X> or Coin<Y>.
+    * @return the value of A in terms of B.
+    */
+  public fun calculate_s_value_out<C, X, Y>(
+      pool: &Pool<C, X, Y>,
+      coin_amount: u64,
+      balance_x: u64,
+      balance_y:u64,
+      is_x: bool
+    ): u64 {
+        let _k = k<C>(balance_x, balance_y, pool.decimals_x, pool.decimals_y);  
+
+        // Precision is used to scale the number for more precise calculations. 
+        // We convert them to u256 for more precise calculations and to avoid overflows.
+        let (coin_amount, balance_x, balance_y) =
+         (
+          (coin_amount as u256),
+          (balance_x as u256),
+          (balance_y as u256)
+         );
+
+        // We calculate the amount being sold after the fee. 
+     // We calculate the amount being sold after the fee. 
+        let token_in_amount_minus_fees_adjusted = coin_amount - ((coin_amount * FEE_PERCENT) / PRECISION);
+
+        let decimals_x = (pool.decimals_x as u256);
+        let decimals_y = (pool.decimals_y as u256);
+
+        // Calculate the stable curve invariant k = x3y+y3x 
+        // We need to consider stable coins with different decimal values
+        let reserve_x = (balance_x * PRECISION) / decimals_x;
+        let reserve_y = (balance_y * PRECISION) / decimals_y;
+
+        let amount_in = token_in_amount_minus_fees_adjusted * PRECISION 
+          / if (is_x) { decimals_x } else {decimals_y };
+
+
+        let y = if (is_x) 
+          { reserve_y - y(amount_in + reserve_x, _k, reserve_y) } 
+          else 
+          { reserve_x - y(amount_in + reserve_y, _k, reserve_x) };
+
+        ((y * if (is_x) { decimals_y } else { decimals_x }) / PRECISION as u64)   
     }             
+          
 
    /**
    * @dev It sells the Coin<X> in a Pool<X, Y> for Coin<Y>. 
@@ -423,17 +577,18 @@ module interest_protocol::dex_volatile {
    * Requirements: 
    * - Coins X and Y must be sorted.
    */ 
-   public fun swap_token_x<X, Y>(
+   public fun swap_token_x<C, X, Y>(
       storage: &mut Storage, 
       coin_x: Coin<X>,
       coin_y_min_value: u64,
       ctx: &mut TxContext
       ): Coin<Y> {
+        assert!(is_curve<C>(), ERROR_WRONG_CURVE);
         // Ensure we are selling something
         assert!(coin::value(&coin_x) != 0, ERROR_ZERO_VALUE_SWAP);
 
         // Borrow a mutable Pool<X, Y>.
-        let pool = borrow_mut_pool<X, Y>(storage);
+        let pool = borrow_mut_pool<C, X, Y>(storage);
 
         // Conver the coin being sold in balance.
         let coin_x_balance = coin::into_balance(coin_x);
@@ -445,14 +600,18 @@ module interest_protocol::dex_volatile {
         let coin_x_value = balance::value(&coin_x_balance);
         
         // Calculte how much value of Coin<Y> the caller will receive.
-        let coin_y_value = calculate_value_out(coin_x_value, coin_x_reserve, coin_y_reserve);
+        let coin_y_value = if (is_volatile<C>()) {
+          calculate_v_value_out(coin_x_value, coin_x_reserve, coin_y_reserve)
+        } else {
+          calculate_s_value_out(pool, coin_x_value, coin_x_reserve, coin_y_reserve, true)
+        };
 
         // Make sure the caller receives more than the minimum amount. 
         assert!(coin_y_value >=  coin_y_min_value, ERROR_SLIPPAGE);
 
         // Emit the SwapTokenX event
         event::emit(
-          SwapTokenX<X, Y> {
+          SwapTokenX<C, X, Y> {
             id: object:: uid_to_inner(&pool.id), 
             sender: tx_context::sender(ctx),
             coin_x_in: coin_x_value, 
@@ -475,17 +634,18 @@ module interest_protocol::dex_volatile {
    * Requirements: 
    * - Coins X and Y must be sorted.
    */ 
-    public fun swap_token_y<X, Y>(
+    public fun swap_token_y<C, X, Y>(
       storage: &mut Storage, 
       coin_y: Coin<Y>,
       coin_x_min_value: u64,
       ctx: &mut TxContext
       ): Coin<X> {
+        assert!(is_curve<C>(), ERROR_WRONG_CURVE);
         // Ensure we are selling something
         assert!(coin::value(&coin_y) != 0, ERROR_ZERO_VALUE_SWAP);
 
         // Borrow a mutable Pool<X, Y>.
-        let pool = borrow_mut_pool<X, Y>(storage);
+        let pool = borrow_mut_pool<C, X, Y>(storage);
 
         // Convert the coin being sold in balance.
         let coin_y_balance = coin::into_balance(coin_y);
@@ -497,13 +657,17 @@ module interest_protocol::dex_volatile {
         let coin_y_value = balance::value(&coin_y_balance);
 
         // Calculte how much value of Coin<X> the caller will receive.
-        let coin_x_value = calculate_value_out(coin_y_value, coin_y_reserve, coin_x_reserve);
+        let coin_x_value = if (is_volatile<C>()) {
+          calculate_v_value_out(coin_y_value, coin_y_reserve, coin_x_reserve)
+        } else {
+          calculate_s_value_out(pool, coin_y_value, coin_x_reserve, coin_y_reserve, false)
+        };
 
         assert!(coin_x_value >=  coin_x_min_value, ERROR_SLIPPAGE);
 
         // Emit the SwapTokenY event
         event::emit(
-          SwapTokenY<X, Y> {
+          SwapTokenY<C, X, Y> {
             id: object:: uid_to_inner(&pool.id), 
             sender: tx_context::sender(ctx),
             coin_y_in: coin_y_value, 
@@ -526,14 +690,15 @@ module interest_protocol::dex_volatile {
    * Requirements: 
    * - The caller must call the fn repay_flash_loan before the execution ends
    */ 
-    public fun flash_loan<X, Y>(
+    public fun flash_loan<C, X, Y>(
       storage: &mut Storage,
       amount_x: u64,
       amount_y: u64,
       ctx: &mut TxContext
       ): (Receipt<X, Y>, Coin<X>, Coin<Y>) {
+        assert!(is_curve<C>(), ERROR_WRONG_CURVE);
         // Borrow a mutable Pool<X, Y>.
-        let pool = borrow_mut_pool<X, Y>(storage);
+        let pool = borrow_mut_pool<C, X, Y>(storage);
 
         // The pool must have enough liquidity to lend
         assert!(balance::value(&pool.balance_x) >= amount_x && balance::value(&pool.balance_y) >= amount_y, ERROR_NOT_ENOUGH_LIQUIDITY_TO_LEND);
@@ -562,14 +727,15 @@ module interest_protocol::dex_volatile {
    * Requirements: 
    * - The value of Coin<X> and Coin<Y> must be equal or higher than the receipt repay amount_x and amount_y
    */ 
-    public fun repay_flash_loan<X, Y>(
+    public fun repay_flash_loan<C, X, Y>(
       storage: &mut Storage,
       receipt: Receipt<X, Y>,
       coin_x: Coin<X>,
       coin_y: Coin<Y>
     ) {
+      assert!(is_curve<C>(), ERROR_WRONG_CURVE);
       // Borrow a mutable Pool<X, Y>.
-      let pool = borrow_mut_pool<X, Y>(storage);  
+      let pool = borrow_mut_pool<C, X, Y>(storage);  
       // Take the data from Receipt
       let Receipt { pool_id, repay_amount_x, repay_amount_y } = receipt;
 
@@ -599,9 +765,66 @@ module interest_protocol::dex_volatile {
       (receipt.pool_id, receipt.repay_amount_x, receipt.repay_amount_y)
     }  
 
-    fun k(x: u64, y: u64): u256 {
-      (x as u256) * (y as u256)
+    fun k<C>(
+      x: u64, 
+      y: u64,
+      decimals_x: u64,
+      decimals_y: u64
+    ): u256 {
+      if (is_volatile<C>()) {
+        (x as u256) * (y as u256)
+      } else {
+        let (x, y, decimals_x, decimals_y) =
+        (
+          (x as u256),
+          (y as u256),
+          (decimals_x as u256),
+          (decimals_y as u256)
+        );  
+
+      let _x = (x * PRECISION) / decimals_x;
+      let _y = (y * PRECISION) / decimals_y;
+      let _a = (_x * _y) / PRECISION;
+      let _b = ((_x * _x) / PRECISION + (_y * _y) / PRECISION);
+      (_a * _b) / PRECISION // k = x^3y + y^3x
+      }
     }  
+
+    fun y(x0: u256, xy: u256, y: u256): u256 {
+      let i = 0;
+
+      while (i < 255) {
+        i = i + 1;
+        let y_prev = y;
+        let k = f(x0, y);
+        
+        if (k < xy) {
+            y = y + ((xy - k) * PRECISION) / d(x0, y);
+          } else {
+            y = y - ((k - xy) * PRECISION) / d(x0, y);
+          };
+          
+        if (y > y_prev) {
+            if (y - y_prev <= 1) break
+          } else {
+            if (y_prev - y <= 1) break
+          };
+      };
+      y
+    }
+
+    fun f(x0: u256, y: u256): u256 {
+        (x0 * ((((y * y) / PRECISION) * y) / PRECISION)) /
+            PRECISION +
+            (((((x0 * x0) / PRECISION) * x0) / PRECISION) * y) /
+            PRECISION
+    }
+
+    fun d(x0: u256, y: u256): u256 {
+      (3 * x0 * ((y * y) / PRECISION)) /
+            PRECISION +
+            ((((x0 * x0) / PRECISION) * x0) / PRECISION)
+    }
 
     /**
     * @dev It returns a mutable Pool<X, Y>. 
@@ -610,8 +833,8 @@ module interest_protocol::dex_volatile {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-    fun borrow_mut_pool<X, Y>(storage: &mut Storage): &mut VPool<X, Y> {
-        object_bag::borrow_mut<String, VPool<X, Y>>(&mut storage.pools, utils::get_coin_info_string<VLPCoin<X, Y>>())
+    fun borrow_mut_pool<X, Y, C>(storage: &mut Storage): &mut Pool<X, Y, C> {
+        object_bag::borrow_mut<String, Pool<X, Y, C>>(&mut storage.pools, utils::get_coin_info_string<LPCoin<X, Y, C>>())
       }   
 
     /**
@@ -623,7 +846,7 @@ module interest_protocol::dex_volatile {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-      fun mint_fee<X, Y>(pool: &mut VPool<X, Y>, fee_to: address, ctx: &mut TxContext): bool {
+      fun mint_fee<X, Y, C>(pool: &mut Pool<X, Y, C>, fee_to: address, ctx: &mut TxContext): bool {
           // If the `fee_to` is the zero address @0x0, we do not collect any protocol fees.
           let is_fee_on = fee_to != @0x0;
 
@@ -631,7 +854,7 @@ module interest_protocol::dex_volatile {
             // We need to know the last K to calculate how many fees were collected
             if (pool.k_last != 0) {
               // Find the sqrt of the current K
-              let root_k = sqrt_u256(k(balance::value(&pool.balance_x), balance::value(&pool.balance_y)));
+              let root_k = sqrt_u256(k<C>(balance::value(&pool.balance_x), balance::value(&pool.balance_y), pool.decimals_x, pool.decimals_y));
               // Find the sqrt of the previous K
               let root_k_last = sqrt_u256(pool.k_last);
 
@@ -660,12 +883,12 @@ module interest_protocol::dex_volatile {
 
     /**
     * @dev Admin only fn to update the fee_to. 
-    * @param _ the VolatileDEXAdminCap 
+    * @param _ the DEXAdminCap 
     * @param storage the object that stores the pools object_bag 
     * @param new_fee_to the new `fee_to`.
     */
     entry public fun update_fee_to(
-      _:&VolatileDEXAdminCap, 
+      _:&DEXAdminCap, 
       storage: &mut Storage,
       new_fee_to: address
        ) {
@@ -674,18 +897,19 @@ module interest_protocol::dex_volatile {
 
     /**
     * @dev Admin only fn to transfer the ownership. 
-    * @param admin_cap the VolatileDEXAdminCap 
+    * @param admin_cap the DEXAdminCap 
     * @param new_admin the new admin.
     */
     entry public fun transfer_admin_cap(
-      admin_cap: VolatileDEXAdminCap,
+      admin_cap: DEXAdminCap,
       new_admin: address
     ) {
       transfer::transfer(admin_cap, new_admin);
     }
 
-    public fun get_pool_info<X, Y>(storage: &Storage): (u64, u64, u64){
-      let pool = borrow_pool<X, Y>(storage);
+    public fun get_pool_info<X, Y, C>(storage: &Storage): (u64, u64, u64){
+      assert!(is_curve<C>(), ERROR_WRONG_CURVE);
+      let pool = borrow_pool<X, Y, C>(storage);
       (balance::value(&pool.balance_x), balance::value(&pool.balance_y), balance::supply_value(&pool.lp_coin_supply))
     }
 
@@ -700,8 +924,9 @@ module interest_protocol::dex_volatile {
     }
 
     #[test_only]
-    public fun get_k_last<X, Y>(storage: &mut Storage): u256 {
-      let pool = borrow_mut_pool<X, Y>(storage);
+    public fun get_k_last<X, Y, C>(storage: &mut Storage): u256 {
+      assert!(is_curve<C>(), ERROR_WRONG_CURVE);
+      let pool = borrow_mut_pool<X, Y, C>(storage);
       pool.k_last
     }
 }

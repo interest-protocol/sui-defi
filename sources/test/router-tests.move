@@ -7,8 +7,7 @@ module interest_protocol::router_tests {
   use interest_protocol::usdt::{Self, USDT};
 
   use interest_protocol::router;
-  use interest_protocol::dex_stable::{Self as stable, Storage as SStorage};
-  use interest_protocol::dex_volatile::{Self as volatile, Storage as VStorage};
+  use interest_protocol::dex::{Self, Storage};
   use interest_protocol::test_utils::{people, scenario, burn};
 
   struct BTC {}
@@ -24,9 +23,9 @@ module interest_protocol::router_tests {
 
     next_tx(test, alice);
     {
-     let storage = test::take_shared<VStorage>(test);
+     let storage = test::take_shared<Storage>(test);
 
-        let lp_coin = volatile::create_pool(
+        let lp_coin = dex::create_v_pool(
           &mut storage,
           mint<BTC>(btc_amount, ctx(test)),
           mint<USDC>(usdc_amount, ctx(test)),
@@ -39,19 +38,16 @@ module interest_protocol::router_tests {
 
      next_tx(test, alice);
      {
-      let v_storage = test::take_shared<VStorage>(test);
-      let s_storage =test::take_shared<SStorage>(test);
+     let storage = test::take_shared<Storage>(test);
 
       let pred = router::is_volatile_better<BTC, USDC>(
-        &v_storage,
-        &s_storage,
+        &storage,
         2,
         0
       );
 
       assert!(pred, 0);
-      test::return_shared(v_storage);
-      test::return_shared(s_storage);
+      test::return_shared(storage);
      }
   }
 
@@ -72,11 +68,11 @@ module interest_protocol::router_tests {
     
     next_tx(test, alice);
     {
-     let storage = test::take_shared<SStorage>(test);
+     let storage = test::take_shared<Storage>(test);
      let usdc_coin_metadata = test::take_immutable<CoinMetadata<USDC>>(test);
      let usdt_coin_metadata = test::take_immutable<CoinMetadata<USDT>>(test);
 
-      let lp_coin = stable::create_pool(
+      let lp_coin = dex::create_s_pool(
           &mut storage,
           mint<USDC>(usdc_amount, ctx(test)),
           mint<USDT>(usdt_amount, ctx(test)),
@@ -93,19 +89,16 @@ module interest_protocol::router_tests {
 
      next_tx(test, alice);
      {
-      let v_storage = test::take_shared<VStorage>(test);
-      let s_storage =test::take_shared<SStorage>(test);
+      let storage = test::take_shared<Storage>(test);
 
       let pred = router::is_volatile_better<USDC, USDT>(
-        &v_storage,
-        &s_storage,
+        &storage,
         2,
         0
       );
 
       assert!(!pred, 0);
-      test::return_shared(v_storage);
-      test::return_shared(s_storage);
+      test::return_shared(storage);
      }
   }
 
@@ -130,11 +123,11 @@ module interest_protocol::router_tests {
 
     next_tx(test, alice);
     {
-     let storage = test::take_shared<SStorage>(test);
+     let storage = test::take_shared<Storage>(test);
      let usdc_coin_metadata = test::take_immutable<CoinMetadata<USDC>>(test);
      let usdt_coin_metadata = test::take_immutable<CoinMetadata<USDT>>(test);
 
-      let lp_coin = stable::create_pool(
+      let lp_coin = dex::create_s_pool(
           &mut storage,
           mint<USDC>(s_usdc_amount, ctx(test)),
           mint<USDT>(s_usdt_amount, ctx(test)),
@@ -151,9 +144,9 @@ module interest_protocol::router_tests {
 
     next_tx(test, alice);
     {
-     let storage = test::take_shared<VStorage>(test);
+     let storage = test::take_shared<Storage>(test);
 
-      let lp_coin = volatile::create_pool(
+      let lp_coin = dex::create_v_pool(
           &mut storage,
           mint<USDC>(v_usdc_amount, ctx(test)),
           mint<USDT>(v_usdt_amount, ctx(test)),
@@ -166,16 +159,14 @@ module interest_protocol::router_tests {
 
     next_tx(test, alice);
     {
-      let v_storage = test::take_shared<VStorage>(test);
-      let s_storage = test::take_shared<SStorage>(test);
-      let volatile_is_better = router::is_volatile_better<USDC, USDT>(&v_storage, &s_storage, v_usdc_amount / 10, 0);
-      let volatile_is_not_better = router::is_volatile_better<USDC, USDT>(&v_storage, &s_storage, 0, v_usdt_amount/ 10);
+      let storage = test::take_shared<Storage>(test);
+      let volatile_is_better = router::is_volatile_better<USDC, USDT>(&storage, v_usdc_amount / 10, 0);
+      let volatile_is_not_better = router::is_volatile_better<USDC, USDT>(&storage, 0, v_usdt_amount/ 10);
 
       assert!(volatile_is_better, 0);
       assert!(!volatile_is_not_better, 0);
 
-    test::return_shared(v_storage);
-    test::return_shared(s_storage);
+    test::return_shared(storage);
     }
   }
 
@@ -197,9 +188,9 @@ module interest_protocol::router_tests {
 
     next_tx(test, alice);
     {
-      let storage = test::take_shared<VStorage>(test);
+      let storage = test::take_shared<Storage>(test);
 
-      let lp_coins = volatile::create_pool(
+      let lp_coins = dex::create_v_pool(
           &mut storage,
           mint<BTC>(btc_amount, ctx(test)),
           mint<USDC>(usdc_amount, ctx(test)),
@@ -212,12 +203,10 @@ module interest_protocol::router_tests {
 
     next_tx(test, alice);
     {
-      let v_storage = test::take_shared<VStorage>(test);
-      let s_storage = test::take_shared<SStorage>(test);
+      let storage = test::take_shared<Storage>(test);
 
       let (coin_x, coin_y) = router::swap<BTC, USDC>(
-        &mut v_storage,
-        &mut s_storage,
+        &mut storage,
         mint<BTC>(btc_amount / 10 , ctx(test)),
         coin::zero<USDC>(ctx(test)),
         0,
@@ -227,18 +216,15 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) == 0, 0);
       assert!(burn(coin_y) > 0, 0);
 
-      test::return_shared(v_storage);
-      test::return_shared(s_storage);
+      test::return_shared(storage);
     };
 
     next_tx(test, alice);
     {
-      let v_storage = test::take_shared<VStorage>(test);
-      let s_storage = test::take_shared<SStorage>(test);
+      let storage = test::take_shared<Storage>(test);
 
       let (coin_x, coin_y) = router::swap<BTC, USDC>(
-        &mut v_storage,
-        &mut s_storage,
+        &mut storage,
         coin::zero<BTC>(ctx(test)),
         mint<USDC>(usdc_amount / 10 , ctx(test)),
         0,
@@ -248,8 +234,7 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) > 0, 0);
       assert!(burn(coin_y) == 0, 0);
 
-      test::return_shared(v_storage);
-      test::return_shared(s_storage);
+      test::return_shared(storage);
     }
   }
 
@@ -275,16 +260,16 @@ module interest_protocol::router_tests {
 
     next_tx(test, alice);
     {
-      let storage = test::take_shared<VStorage>(test);
+      let storage = test::take_shared<Storage>(test);
 
-      burn(volatile::create_pool(
+      burn(dex::create_v_pool(
           &mut storage,
           mint<BTC>(btc_amount, ctx(test)),
           mint<USDC>(usdc_amount, ctx(test)),
           ctx(test)
       ));
 
-      burn(volatile::create_pool(
+      burn(dex::create_v_pool(
           &mut storage,
           mint<USDC>(usdc_amount, ctx(test)),
           mint<USDT>(usdt_amount, ctx(test)),
@@ -296,13 +281,11 @@ module interest_protocol::router_tests {
 
     next_tx(test, alice);
     {
-      let v_storage = test::take_shared<VStorage>(test);
-      let s_storage = test::take_shared<SStorage>(test);
+      let storage = test::take_shared<Storage>(test);
 
       // BTC -> USDC -> USDT
       let (coin_x, coin_y) = router::one_hop_swap<BTC, USDT, USDC>(
-        &mut v_storage,
-        &mut s_storage,
+        &mut storage,
         mint<BTC>(btc_amount / 10 , ctx(test)),
         coin::zero<USDT>(ctx(test)),
         0,
@@ -312,19 +295,16 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) == 0, 0);
       assert!(burn(coin_y) > 0, 0);
 
-      test::return_shared(v_storage);
-      test::return_shared(s_storage);      
+      test::return_shared(storage);     
     };
 
     next_tx(test, alice);
     {
-      let v_storage = test::take_shared<VStorage>(test);
-      let s_storage = test::take_shared<SStorage>(test);
+      let storage = test::take_shared<Storage>(test);
 
       // USDT -> USDC -> BTC
       let (coin_x, coin_y) = router::one_hop_swap<BTC, USDT, USDC>(
-        &mut v_storage,
-        &mut s_storage,
+        &mut storage,
         coin::zero<BTC>(ctx(test)),
         mint<USDT>(usdt_amount / 10 , ctx(test)),
         0,
@@ -334,8 +314,7 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) > 0, 0);
       assert!(burn(coin_y) == 0, 0);
 
-      test::return_shared(v_storage);
-      test::return_shared(s_storage);      
+      test::return_shared(storage);   
     }
   }
 
@@ -363,10 +342,10 @@ module interest_protocol::router_tests {
 
     next_tx(test, alice);
     {
-      let storage = test::take_shared<VStorage>(test);
+      let storage = test::take_shared<Storage>(test);
 
       // Pool<BTC/USDC>
-      burn(volatile::create_pool(
+      burn(dex::create_v_pool(
           &mut storage,
           mint<BTC>(btc_amount, ctx(test)),
           mint<USDC>(usdc_amount, ctx(test)),
@@ -374,7 +353,7 @@ module interest_protocol::router_tests {
       ));
 
       // Pool<USDC/USDT>
-      burn(volatile::create_pool(
+      burn(dex::create_v_pool(
           &mut storage,
           mint<USDC>(usdc_amount, ctx(test)),
           mint<USDT>(usdt_amount, ctx(test)),
@@ -382,7 +361,7 @@ module interest_protocol::router_tests {
       ));
 
       // Pool<Ether/USDT>
-      burn(volatile::create_pool(
+      burn(dex::create_v_pool(
           &mut storage,
           mint<Ether>(ether_amount, ctx(test)),
           mint<USDT>(usdt_amount / 3, ctx(test)),
@@ -394,13 +373,11 @@ module interest_protocol::router_tests {
 
     next_tx(test, alice);
     {
-      let v_storage = test::take_shared<VStorage>(test);
-      let s_storage = test::take_shared<SStorage>(test);
+      let storage = test::take_shared<Storage>(test);
 
       // BTC -> USDC -> USDT -> Ether
       let (coin_x, coin_y) = router::two_hop_swap<BTC, Ether, USDT, USDC>(
-        &mut v_storage,
-        &mut s_storage,
+        &mut storage,
         coin::zero<BTC>(ctx(test)),
         mint<Ether>(ether_amount / 10, ctx(test)),
         0,
@@ -410,19 +387,16 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) > 0, 0);
       assert!(burn(coin_y) == 0, 0);
 
-      test::return_shared(v_storage);
-      test::return_shared(s_storage);         
+      test::return_shared(storage);        
     };
 
     next_tx(test, alice);
     {
-      let v_storage = test::take_shared<VStorage>(test);
-      let s_storage = test::take_shared<SStorage>(test);
+      let storage = test::take_shared<Storage>(test);
 
       // BTC -> USDC -> USDT -> Ether
       let (coin_x, coin_y) = router::two_hop_swap<BTC, Ether, USDC, USDT>(
-        &mut v_storage,
-        &mut s_storage,
+        &mut storage,
         mint<BTC>(btc_amount / 10 , ctx(test)),
         coin::zero<Ether>(ctx(test)),
         0,
@@ -432,8 +406,7 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) == 0, 0);
       assert!(burn(coin_y) > 0, 0);
 
-      test::return_shared(v_storage);
-      test::return_shared(s_storage);         
+      test::return_shared(storage);         
     }        
   }
 
@@ -448,8 +421,7 @@ module interest_protocol::router_tests {
     let (alice, _) = people();
     next_tx(test, alice);
     {
-      volatile::init_for_testing(ctx(test));
-      stable::init_for_testing(ctx(test));
+      dex::init_for_testing(ctx(test));
       usdc::init_for_testing(ctx(test));
       usdt::init_for_testing(ctx(test));
     };
