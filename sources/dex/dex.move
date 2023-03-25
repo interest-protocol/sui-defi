@@ -532,7 +532,8 @@ module interest_protocol::dex {
       balance_y:u64,
       is_x: bool
     ): u64 {
-        let _k = k<C>(balance_x, balance_y, pool.decimals_x, pool.decimals_y);  
+      assert!(!is_volatile<C>(), ERROR_WRONG_CURVE);
+        let _k = k<Stable>(balance_x, balance_y, pool.decimals_x, pool.decimals_y);  
 
         // Precision is used to scale the number for more precise calculations. 
         // We convert them to u256 for more precise calculations and to avoid overflows.
@@ -833,8 +834,8 @@ module interest_protocol::dex {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-    fun borrow_mut_pool<X, Y, C>(storage: &mut Storage): &mut Pool<X, Y, C> {
-        object_bag::borrow_mut<String, Pool<X, Y, C>>(&mut storage.pools, utils::get_coin_info_string<LPCoin<X, Y, C>>())
+    fun borrow_mut_pool<C, X, Y>(storage: &mut Storage): &mut Pool<C, X, Y> {
+        object_bag::borrow_mut<String, Pool<C, X, Y>>(&mut storage.pools, utils::get_coin_info_string<LPCoin<C, X, Y>>())
       }   
 
     /**
@@ -846,7 +847,7 @@ module interest_protocol::dex {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-      fun mint_fee<X, Y, C>(pool: &mut Pool<X, Y, C>, fee_to: address, ctx: &mut TxContext): bool {
+      fun mint_fee<C, X, Y>(pool: &mut Pool<C, X, Y>, fee_to: address, ctx: &mut TxContext): bool {
           // If the `fee_to` is the zero address @0x0, we do not collect any protocol fees.
           let is_fee_on = fee_to != @0x0;
 
@@ -907,9 +908,9 @@ module interest_protocol::dex {
       transfer::transfer(admin_cap, new_admin);
     }
 
-    public fun get_pool_info<X, Y, C>(storage: &Storage): (u64, u64, u64){
+    public fun get_pool_info<C, X, Y>(storage: &Storage): (u64, u64, u64){
       assert!(is_curve<C>(), ERROR_WRONG_CURVE);
-      let pool = borrow_pool<X, Y, C>(storage);
+      let pool = borrow_pool<C, X, Y>(storage);
       (balance::value(&pool.balance_x), balance::value(&pool.balance_y), balance::supply_value(&pool.lp_coin_supply))
     }
 
@@ -924,9 +925,9 @@ module interest_protocol::dex {
     }
 
     #[test_only]
-    public fun get_k_last<X, Y, C>(storage: &mut Storage): u256 {
+    public fun get_k_last<C, X, Y>(storage: &mut Storage): u256 {
       assert!(is_curve<C>(), ERROR_WRONG_CURVE);
-      let pool = borrow_mut_pool<X, Y, C>(storage);
+      let pool = borrow_mut_pool<C, X, Y>(storage);
       pool.k_last
     }
 }
