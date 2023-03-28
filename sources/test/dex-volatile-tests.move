@@ -1,14 +1,14 @@
 #[test_only]
 module interest_protocol::dex_volatile_tests {
 
-    use sui::coin::{Self, mint_for_testing as mint};
+    use sui::coin::{Self, mint_for_testing as mint, burn_for_testing as burn};
     use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
     use sui::math;
     use sui::object;
 
     use interest_protocol::dex::{Self, Storage, DEXAdminCap, LPCoin};
     use interest_protocol::curve::{Volatile};
-    use interest_protocol::test_utils::{people, scenario, burn};
+    use interest_protocol::test_utils::{people, scenario};
     use interest_protocol::math::{sqrt_u256};
     use interest_protocol::eth::{ETH};
     use interest_protocol::usdc::{USDC};

@@ -28,7 +28,7 @@ module interest_protocol::usdc {
             ctx
         );
         
-        transfer::freeze_object(metadata);
+        transfer::public_freeze_object(metadata);
         transfer::share_object(Storage {
             id: object::new(ctx),
             supply: coin::treasury_into_supply(treasury)
@@ -75,7 +75,7 @@ module interest_protocol::usdt {
             ctx
         );
         
-        transfer::freeze_object(metadata);
+        transfer::public_freeze_object(metadata);
         transfer::share_object(Storage {
             id: object::new(ctx),
             supply: coin::treasury_into_supply(treasury)
@@ -122,7 +122,7 @@ module interest_protocol::btc {
             ctx
         );
         
-        transfer::share_object(metadata);
+        transfer::public_share_object(metadata);
         transfer::share_object(Storage {
             id: object::new(ctx),
             supply: coin::treasury_into_supply(treasury)
@@ -169,7 +169,7 @@ module interest_protocol::eth {
             ctx
         );
         
-        transfer::share_object(metadata);
+        transfer::public_share_object(metadata);
         transfer::share_object(Storage {
             id: object::new(ctx),
             supply: coin::treasury_into_supply(treasury)
@@ -216,7 +216,7 @@ module interest_protocol::ada {
             ctx
         );
         
-        transfer::share_object(metadata);
+        transfer::public_share_object(metadata);
         transfer::share_object(Storage {
             id: object::new(ctx),
             supply: coin::treasury_into_supply(treasury)

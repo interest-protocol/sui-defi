@@ -2,12 +2,12 @@
 module interest_protocol::master_chef_tests {
 
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
-  use sui::coin::{mint_for_testing as mint};
+  use sui::coin::{mint_for_testing as mint,  burn_for_testing as burn};
   use sui::clock::{Self, Clock};
 
   use interest_protocol::master_chef::{Self, MasterChefStorage, AccountStorage, MasterChefAdmin};
   use interest_protocol::ipx::{Self, IPXStorage, IPX};
-  use interest_protocol::test_utils::{people, scenario, burn};
+  use interest_protocol::test_utils::{people, scenario};
   
   const START_TIMESTAMP: u64 = 0;
   const LPCOIN_ALLOCATION_POINTS: u64 = 500;

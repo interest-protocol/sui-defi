@@ -89,7 +89,7 @@ module interest_protocol::utils {
         if (coin::value(&coin) == 0) {
           coin::destroy_zero(coin);
         } else {
-          transfer::transfer(coin, tx_context::sender(ctx));
+          transfer::public_transfer(coin, tx_context::sender(ctx));
         };
     }
 

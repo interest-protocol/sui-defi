@@ -36,7 +36,7 @@ module interest_protocol::ipx {
       let supply = coin::treasury_into_supply(treasury);
 
       // Pre-mint 60% of the supply to distribute
-      transfer::transfer(
+      transfer::public_transfer(
         coin::from_balance(
           balance::increase_supply(&mut supply, IPX_PRE_MINT_AMOUNT), ctx
         ),
@@ -51,7 +51,7 @@ module interest_protocol::ipx {
       );
 
       // Freeze the metadata object
-      transfer::freeze_object(metadata);
+      transfer::public_freeze_object(metadata);
   }
 
   public(friend) fun mint(storage: &mut IPXStorage, value: u64, ctx: &mut TxContext): Coin<IPX> {
@@ -63,7 +63,7 @@ module interest_protocol::ipx {
   }
 
   public entry fun transfer(c: coin::Coin<IPX>, recipient: address) {
-    transfer::transfer(c, recipient);
+    transfer::public_transfer(c, recipient);
   }
 
   #[test_only]

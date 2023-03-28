@@ -176,7 +176,7 @@ module interest_protocol::dex {
       let sender_balance = balance::increase_supply(&mut supply, shares);
 
       // Transfer the zero address shares
-      transfer::transfer(coin::from_balance(min_liquidity_balance, ctx), @0x0);
+      transfer::public_transfer(coin::from_balance(min_liquidity_balance, ctx), @0x0);
 
       // Calculate an id for the pool and the event
       let pool_id = object::new(ctx);
@@ -267,7 +267,7 @@ module interest_protocol::dex {
       let sender_balance = balance::increase_supply(&mut supply, shares);
 
       // Transfer the zero address shares
-      transfer::transfer(coin::from_balance(min_liquidity_balance, ctx), @0x0);
+      transfer::public_transfer(coin::from_balance(min_liquidity_balance, ctx), @0x0);
 
       // Calculate an id for the pool and the event
       let id = object::new(ctx);
@@ -871,7 +871,7 @@ module interest_protocol::dex {
                   // Increase the shares supply and transfer to the `fee_to` address.
                   let new_balance = balance::increase_supply(&mut pool.lp_coin_supply, (liquidity as u64));
                   let new_coins = coin::from_balance(new_balance, ctx);
-                  transfer::transfer(new_coins, fee_to);
+                  transfer::public_transfer(new_coins, fee_to);
                 }
               }
             };

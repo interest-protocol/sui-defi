@@ -1,14 +1,14 @@
 #[test_only]
 module interest_protocol::dex_stable_tests {
 
-    use sui::coin::{Self, mint_for_testing as mint, CoinMetadata};
+    use sui::coin::{Self, mint_for_testing as mint, burn_for_testing as burn, CoinMetadata};
     use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
     use sui::object;
     use sui::test_utils::{assert_eq};
 
     use interest_protocol::dex::{Self, Storage, DEXAdminCap, LPCoin};
     use interest_protocol::curve::{Stable};
-    use interest_protocol::test_utils::{people, scenario, burn};
+    use interest_protocol::test_utils::{people, scenario};
     use interest_protocol::math::{sqrt_u256};
     use interest_protocol::usdc::{Self, USDC};
     use interest_protocol::usdt::{Self, USDT};

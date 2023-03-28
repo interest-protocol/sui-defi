@@ -55,7 +55,7 @@ module interest_protocol::dnr {
       );
 
       // Freeze the metadata object
-      transfer::freeze_object(metadata);
+      transfer::public_freeze_object(metadata);
   }
 
   public(friend) fun mint(storage: &mut DineroStorage, value: u64, ctx: &mut TxContext): Coin<DNR> {
@@ -84,7 +84,7 @@ module interest_protocol::dnr {
   }
 
   public entry fun transfer(c: coin::Coin<DNR>, recipient: address) {
-    transfer::transfer(c, recipient);
+    transfer::public_transfer(c, recipient);
   }
 
   public fun get_supply(storage: &DineroStorage): u64 {

@@ -1526,13 +1526,13 @@ module interest_protocol::whirpool {
     market_data.total_reserves = market_data.total_reserves - withdraw_value;
 
     if (is_dnr) {
-       transfer::transfer(
+       transfer::public_transfer(
         dnr::mint(dinero_storage, withdraw_value, ctx),
         tx_context::sender(ctx)
       );
     } else {
       // Send tokens to the admin
-      transfer::transfer(
+      transfer::public_transfer(
         coin::take<T>(&mut borrow_mut_market_balance<T>(&mut whirpool_storage.market_balance_bag, market_key).balance,  withdraw_value, ctx),
         tx_context::sender(ctx)
       );
@@ -2297,7 +2297,7 @@ module interest_protocol::whirpool {
     collateral_market_data.total_reserves = collateral_market_data.total_reserves + (protocol_amount as u64);
 
     // Send the rewards to the borrower
-    transfer::transfer(mint_ipx(ipx_storage, pending_rewards, ctx), borrower);
+    transfer::public_transfer(mint_ipx(ipx_storage, pending_rewards, ctx), borrower);
 
     emit(Liquidate<C, L> {
         principal_repaid,
@@ -2480,7 +2480,7 @@ module interest_protocol::whirpool {
     collateral_market_data.total_reserves = collateral_market_data.total_reserves + (protocol_amount as u64);
 
     // Send the rewards to the borrower
-    transfer::transfer(mint_ipx(ipx_storage, pending_rewards, ctx), borrower);
+    transfer::public_transfer(mint_ipx(ipx_storage, pending_rewards, ctx), borrower);
 
     emit(Liquidate<C, DNR> {
         principal_repaid,

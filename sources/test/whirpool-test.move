@@ -4,7 +4,7 @@ module interest_protocol::whirpool_tests {
 
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
   use sui::test_utils::{assert_eq};
-  use sui::coin::{Self, destroy_for_testing as burn, CoinMetadata};
+  use sui::coin::{Self, burn_for_testing as burn, CoinMetadata};
   use sui::math;
   use sui::clock::{Self, Clock};
 

@@ -40,7 +40,7 @@ module interest_protocol::interface {
 
     // Sorts for the caller - to make it easier for the frontend
     if (are_coins_sorted<X, Y>()) {
-      transfer::transfer(
+      transfer::public_transfer(
         dex::create_v_pool(
           storage,
           coin_x,
@@ -50,7 +50,7 @@ module interest_protocol::interface {
         tx_context::sender(ctx)
       )
     } else {
-      transfer::transfer(
+      transfer::public_transfer(
         dex::create_v_pool(
           storage,
           coin_y,
@@ -91,7 +91,7 @@ module interest_protocol::interface {
 
     // Sorts for the caller - to make it easier for the frontend
     if (are_coins_sorted<X, Y>()) {
-      transfer::transfer(
+      transfer::public_transfer(
         dex::create_s_pool(
           storage,
           coin_x,
@@ -103,7 +103,7 @@ module interest_protocol::interface {
         tx_context::sender(ctx)
       )
     } else {
-      transfer::transfer(
+      transfer::public_transfer(
         dex::create_s_pool(
           storage,
           coin_y,
@@ -283,7 +283,7 @@ module interest_protocol::interface {
     let coin_y = handle_coin_vector<Y>(vector_y, coin_y_amount, ctx);
 
       if (are_coins_sorted<X, Y>()) {
-        transfer::transfer(
+        transfer::public_transfer(
           router::add_liquidity<C, X, Y>(
           storage,
           coin_x,
@@ -294,7 +294,7 @@ module interest_protocol::interface {
         tx_context::sender(ctx)
       )  
       } else {
-        transfer::transfer(
+        transfer::public_transfer(
           router::add_liquidity<C, Y, X>(
           storage,
           coin_y,
@@ -337,8 +337,8 @@ module interest_protocol::interface {
       ctx
     );
 
-    transfer::transfer(coin_x, sender);
-    transfer::transfer(coin_y, sender);
+    transfer::public_transfer(coin_x, sender);
+    transfer::public_transfer(coin_y, sender);
   }
 
 /**
@@ -364,7 +364,7 @@ module interest_protocol::interface {
     let coin = handle_coin_vector(coin_vector, coin_value, ctx);
 
     // Stake and send Coin<IPX> rewards to the caller.
-    transfer::transfer(
+    transfer::public_transfer(
       master_chef::stake(
         storage,
         accounts_storage,
@@ -403,8 +403,8 @@ module interest_protocol::interface {
         coin_value,
         ctx
     );
-    transfer::transfer(coin_ipx, sender);
-    transfer::transfer(coin, sender);
+    transfer::public_transfer(coin_ipx, sender);
+    transfer::public_transfer(coin, sender);
   }
 
 /**
@@ -421,7 +421,7 @@ module interest_protocol::interface {
     clock_object: &Clock,
     ctx: &mut TxContext   
   ) {
-    transfer::transfer(master_chef::get_rewards<T>(storage, accounts_storage, ipx_storage, clock_object, ctx) ,tx_context::sender(ctx));
+    transfer::public_transfer(master_chef::get_rewards<T>(storage, accounts_storage, ipx_storage, clock_object, ctx) ,tx_context::sender(ctx));
   }
 
 /**

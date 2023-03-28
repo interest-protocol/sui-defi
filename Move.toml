@@ -3,9 +3,9 @@ name = "interest_protocol"
 version = "0.0.1"
 
 [dependencies]
-Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework", rev = "amnn/devnet+clock-test" }
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "devnet" }
 
 [addresses]
 interest_protocol =  "0x0"
-sui =  "0000000000000000000000000000000000000002"
-dev= "0xa09888cbd5b3329f86cf945bb3872a31ae835c47"
+sui =  "0x2"
+dev =  "0x6b05da8b0af57a7ef9c0223d126e2ce0efb09dfbebddacec7c812da5395e1735"

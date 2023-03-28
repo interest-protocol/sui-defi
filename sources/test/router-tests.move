@@ -2,13 +2,13 @@
 module interest_protocol::router_tests {
   
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
-  use sui::coin::{Self, mint_for_testing as mint, CoinMetadata};
+  use sui::coin::{Self, mint_for_testing as mint, burn_for_testing as burn, CoinMetadata};
   use interest_protocol::usdc::{Self, USDC};
   use interest_protocol::usdt::{Self, USDT};
 
   use interest_protocol::router;
   use interest_protocol::dex::{Self, Storage};
-  use interest_protocol::test_utils::{people, scenario, burn};
+  use interest_protocol::test_utils::{people, scenario};
 
   struct BTC {}
   struct Ether {}
