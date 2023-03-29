@@ -1,5 +1,6 @@
 module interest_protocol::dex {
   use std::ascii::{String}; 
+  use std::vector;
 
   use sui::tx_context::{Self, TxContext};
   use sui::coin::{Self, Coin, CoinMetadata};
@@ -9,6 +10,7 @@ module interest_protocol::dex {
   use sui::math;
   use sui::object_bag::{Self, ObjectBag};
   use sui::event;
+  use sui::clock::{Self, Clock};
 
   use interest_protocol::curve::{is_curve, is_volatile, Stable, Volatile};
   use interest_protocol::utils;
@@ -19,6 +21,9 @@ module interest_protocol::dex {
   const VOLATILE_FEE_PERCENT: u256 = 3000000000000000; //0.3%
   const STABLE_FEE_PERCENT: u256 = 500000000000000; //0.05%
   const FLASH_LOAN_FEE_PERCENT: u256 = 5000000000000000; //0.5% 
+  const WINDOW: u64 = 900000; // 15 minutes in Milliseconds
+  const PERIOD_SIZE: u64 = 180000; // 3 minutes in Milliseconds
+  const GRANULARITY: u64 = 5; // 5 updates every 15 minutes
 
   const ERROR_CREATE_PAIR_ZERO_VALUE: u64 = 1;
   const ERROR_POOL_EXISTS: u64 = 2;
@@ -34,6 +39,7 @@ module interest_protocol::dex {
   const ERROR_WRONG_REPAY_AMOUNT_X: u64 = 12;
   const ERROR_WRONG_REPAY_AMOUNT_Y: u64 = 13;
   const ERROR_WRONG_CURVE: u64 = 14;
+  const ERROR_MISSING_OBSERVATION: u64 = 15;
 
     struct DEXAdminCap has key {
       id: UID,
@@ -47,6 +53,12 @@ module interest_protocol::dex {
 
     struct LPCoin<phantom C, phantom X, phantom Y> has drop {}
 
+    struct Observation has store {
+      timestamp: u64,
+      balance_x_cumulative: u256,
+      balance_y_cumulative: u256
+    }
+
     struct Pool<phantom C, phantom X, phantom Y> has key, store {
         id: UID,
         k_last: u256,
@@ -55,7 +67,11 @@ module interest_protocol::dex {
         balance_y: Balance<Y>,
         decimals_x: u64,
         decimals_y: u64,
-        is_stable: bool
+        is_stable: bool,
+        observations: vector<Observation>,
+        timestamp_last: u64,
+        balance_x_cumulative_last: u256,
+        balance_y_cumulative_last: u256,
     }
 
     // Important this struct cannot have any type abilities
@@ -133,6 +149,7 @@ module interest_protocol::dex {
     * @notice Please make sure that the tokens X and Y are sorted before calling this fn.
     * @dev It creates a new Pool with X and Y coins. The pool accepts swaps using the k = x * y invariant.
     * @param storage the object that stores the pools object_bag
+    * @param clock_object The shared Clock object 0x6
     * @oaram coin_x the first token of the pool
     * @param coin_y the scond token of the pool
     * @return The number of shares as VLPCoins that can be used later on to redeem his coins + commissions.
@@ -144,6 +161,7 @@ module interest_protocol::dex {
     */
     public fun create_v_pool<X, Y>(
       storage: &mut Storage,
+      clock_object: &Clock,
       coin_x: Coin<X>,
       coin_y: Coin<Y>,
       ctx: &mut TxContext
@@ -191,6 +209,8 @@ module interest_protocol::dex {
           }
         );
 
+      let current_timestamp = clock::timestamp_ms(clock_object);
+
       // Store the new pool in Storage.pools
       object_bag::add(
         &mut storage.pools,
@@ -203,8 +223,12 @@ module interest_protocol::dex {
           balance_y: coin::into_balance<Y>(coin_y),
           decimals_x: 0,
           decimals_y: 0,
-          is_stable: false
-          }
+          is_stable: false,
+          observations: init_observation_vector(),
+          timestamp_last: current_timestamp,
+          balance_x_cumulative_last: utils::calculate_reserve_cumulative((coin_x_value as u256), 0, current_timestamp),
+          balance_y_cumulative_last: utils::calculate_reserve_cumulative((coin_y_value as u256), 0, current_timestamp),
+        }
       );
 
       // Return the caller shares
@@ -217,6 +241,7 @@ module interest_protocol::dex {
     * @dev It creates a new Pool with X and Y coins. The pool accepts swaps using the x^3y+y^3x >= k invariant.
     * @param _ The StableDEXAdminCap
     * @param storage the object that stores the pools object_bag
+    * @param clock_object The shared Clock object 0x6
     * @oaram coin_x the first token of the pool
     * @param coin_y the scond token of the pool
     * @param coin_x_metadata The CoinMetadata object of Coin<X>
@@ -230,6 +255,7 @@ module interest_protocol::dex {
     */
     public fun create_s_pool<X, Y>(
       storage: &mut Storage,
+      clock_object: &Clock,
       coin_x: Coin<X>,
       coin_y: Coin<Y>,
       coin_x_metadata: &CoinMetadata<X>,
@@ -282,6 +308,8 @@ module interest_protocol::dex {
           }
         );
 
+      let current_timestamp = clock::timestamp_ms(clock_object);  
+
       // Store the new pool in Storage.pools
       object_bag::add(
         &mut storage.pools,
@@ -294,7 +322,11 @@ module interest_protocol::dex {
           balance_y: coin::into_balance<Y>(coin_y),
           decimals_x,
           decimals_y,
-          is_stable: true
+          is_stable: true,
+          observations: init_observation_vector(),
+          timestamp_last: current_timestamp,
+          balance_x_cumulative_last: utils::calculate_reserve_cumulative((coin_x_value as u256), 0, current_timestamp),
+          balance_y_cumulative_last: utils::calculate_reserve_cumulative((coin_y_value as u256), 0, current_timestamp),
           }
         );
 
@@ -307,6 +339,7 @@ module interest_protocol::dex {
     * @dev This fn allows the caller to deposit coins X and Y on the Pool<X, Y>.
     * This function will not throw if one of the coins has a value of 0, but the caller will get shares (VLPCoin) with a value of 0.
     * @param storage the object that stores the pools object_bag 
+    * @param clock_object The Clock shared object at @0x6
     * @param coin_x The Coin<X> the user wishes to deposit on Pool<X, Y>
     * @param coin_y The Coin<Y> the user wishes to deposit on Pool<X, Y>
     * @param vlp_coin_min_amount the minimum amount of shares to receive. It prevents high slippage from frontrunning. 
@@ -316,6 +349,7 @@ module interest_protocol::dex {
     */
     public fun add_liquidity<C, X, Y>(   
       storage: &mut Storage,
+      clock_object: &Clock,
       coin_x: Coin<X>,
       coin_y: Coin<Y>,
       vlp_coin_min_amount: u64,
@@ -371,13 +405,19 @@ module interest_protocol::dex {
         // If the fee mechanism is turned on, we need to save the K for the next calculation.
         if (is_fee_on) pool.k_last = k<C>(new_reserve_x, new_reserve_y, pool.decimals_x, pool.decimals_y);
 
+        let coin = coin::from_balance(balance::increase_supply(&mut pool.lp_coin_supply, share_to_mint), ctx);
+
+        // Update TWAP
+        sync_obervations(pool, clock_object);
+
         // Return the shares(VLPCoin) to the caller.
-        coin::from_balance(balance::increase_supply(&mut pool.lp_coin_supply, share_to_mint), ctx)
+        coin
       }
 
     /**
     * @dev It allows the caller to redeem his underlying coins in proportions to the VLPCoins he burns. 
     * @param storage the object that stores the pools object_bag 
+    * @param clock_object The shared Clock object 0x6
     * @param lp_coin the shares to burn
     * @param coin_x_min_amount the minimum value of Coin<X> the caller wishes to receive.
     * @param coin_y_min_amount the minimum value of Coin<Y> the caller wishes to receive.
@@ -387,6 +427,7 @@ module interest_protocol::dex {
     */
     public fun remove_liquidity<C, X, Y>(   
       storage: &mut Storage,
+      clock_object: &Clock,
       lp_coin: Coin<LPCoin<C, X, Y>>,
       coin_x_min_amount: u64,
       coin_y_min_amount: u64,
@@ -439,10 +480,16 @@ module interest_protocol::dex {
         // Store the current K for the next fee calculation.
         if (is_fee_on) pool.k_last = k<C>(coin_x_reserve - coin_x_removed, coin_y_reserve - coin_y_removed, pool.decimals_x, pool.decimals_y);
 
+        let coin_x = coin::take(&mut pool.balance_x, coin_x_removed, ctx);
+        let coin_y = coin::take(&mut pool.balance_y, coin_y_removed, ctx);
+
+        // Update the TWAP
+        sync_obervations(pool, clock_object);
+
         // Remove the coins from the Pool<X, Y> and return to the caller.
         (
-          coin::take(&mut pool.balance_x, coin_x_removed, ctx),
-          coin::take(&mut pool.balance_y, coin_y_removed, ctx),
+          coin_x,
+          coin_y,
         )
       }
 
@@ -573,6 +620,7 @@ module interest_protocol::dex {
    /**
    * @dev It sells the Coin<X> in a Pool<X, Y> for Coin<Y>. 
    * @param storage the object that stores the pools object_bag 
+   * @param clock_object The shared Clock object 0x6
    * @param coin_x Coin<X> being sold. 
    * @param coin_y_min_value the minimum value of Coin<Y> the caller will accept.
    * @return Coin<Y> bought.
@@ -581,6 +629,7 @@ module interest_protocol::dex {
    */ 
    public fun swap_token_x<C, X, Y>(
       storage: &mut Storage, 
+      clock_object: &Clock,
       coin_x: Coin<X>,
       coin_y_min_value: u64,
       ctx: &mut TxContext
@@ -624,12 +673,17 @@ module interest_protocol::dex {
         // Add Balance<X> to the Pool<X, Y> 
         balance::join(&mut pool.balance_x, coin_x_balance);
         // Remove the value being bought and give to the caller in Coin<Y>.
-        coin::take(&mut pool.balance_y, coin_y_value, ctx)
+       let coin = coin::take(&mut pool.balance_y, coin_y_value, ctx);
+
+       sync_obervations(pool, clock_object);
+
+       coin
       }
 
   /**
    * @dev It sells the Coin<Y> in a Pool<X, Y> for Coin<X>. 
    * @param storage the object that stores the pools object_bag 
+   * @param clock_object The shared Clock object 0x6
    * @param coin_y Coin<Y> being sold. 
    * @param coin_x_min_value the minimum value of Coin<X> the caller will accept.
    * @return Coin<X> bought.
@@ -638,6 +692,7 @@ module interest_protocol::dex {
    */ 
     public fun swap_token_y<C, X, Y>(
       storage: &mut Storage, 
+      clock_object: &Clock,
       coin_y: Coin<Y>,
       coin_x_min_value: u64,
       ctx: &mut TxContext
@@ -680,7 +735,12 @@ module interest_protocol::dex {
         // Add Balance<Y> to the Pool<X, Y> 
         balance::join(&mut pool.balance_y, coin_y_balance);
         // Remove the value being bought and give to the caller in Coin<X>.
-        coin::take(&mut pool.balance_x, coin_x_value, ctx)
+        let coin = coin::take(&mut pool.balance_x, coin_x_value, ctx);
+
+        // Update the TWAP
+        sync_obervations(pool, clock_object);
+
+        coin
       }
 
   /**
@@ -723,6 +783,7 @@ module interest_protocol::dex {
   /**
    * @dev It allows the caller to repay his flash loan. 
    * @param storage the object that stores the pools object_bag 
+   * @param clock_object The shared Clock object 0x6
    * @param receipt The Receipt struct created by the flash loan
    * @param coin_x The Coin<X> to be repaid to VPool<X, Y>
    * @param coin_y The Coin<Y> to be repaid to VPool<X, Y>
@@ -731,6 +792,7 @@ module interest_protocol::dex {
    */ 
     public fun repay_flash_loan<C, X, Y>(
       storage: &mut Storage,
+      clock_object: &Clock,
       receipt: Receipt<C, X, Y>,
       coin_x: Coin<X>,
       coin_y: Coin<Y>
@@ -749,6 +811,9 @@ module interest_protocol::dex {
       // Deposit the coins in the pool
       coin::put(&mut pool.balance_x, coin_x);
       coin::put(&mut pool.balance_y, coin_y);
+
+      // Update TWAP
+      sync_obervations(pool, clock_object);
     }
 
     /**
@@ -881,6 +946,172 @@ module interest_protocol::dex {
           };
 
        is_fee_on
+    }
+
+    /**
+     * @dev It finds the current index of a timestamp in the observations vector. 
+     * @param timestamp Any u64 timestamp
+     * @return firstObservation the first observation of the current epoch considering the TWAP is up to date.
+     */
+    fun observation_index_of(timestamp: u64): u64 {
+      (timestamp / PERIOD_SIZE) % GRANULARITY
+    }
+
+    /**
+    * @dev It finds the first observation in the observations vector based on the window and period size
+    * @param observations The observations vector of the pool
+    * @param current_timestamp The current timestamp in the shared Clock object 
+    * @return The first observation in the window
+    */
+    fun get_first_observation_in_window(observations: &vector<Observation>, current_timestamp: u64): &Observation {
+      let index = observation_index_of(current_timestamp);
+
+      let first_index = (index + 1) % GRANULARITY;
+
+      vector::borrow(observations, first_index)
+    }
+
+    /**
+    * @dev It updates the observations based on the latest balance changes
+    * @param pool The pool that we will be updating the observations
+    * @param clock_object The shared object with id @0x6
+    */
+    fun sync_obervations<C, X, Y>(pool: &mut Pool<C, X, Y>, clock_object: &Clock) {
+      let current_timestamp = clock::timestamp_ms(clock_object);
+
+      let time_elapsed = current_timestamp - pool.timestamp_last;
+
+      if (time_elapsed == 0) return;
+
+      pool.timestamp_last = current_timestamp;
+
+      let balance_x = balance::value(&pool.balance_x);
+      let balance_y = balance::value(&pool.balance_y);
+
+      let balance_x_cumulative = utils::calculate_reserve_cumulative((balance_x as u256), pool.balance_x_cumulative_last, current_timestamp);
+      let balance_y_cumulative = utils::calculate_reserve_cumulative((balance_y as u256), pool.balance_y_cumulative_last, current_timestamp);
+
+      pool.balance_x_cumulative_last = balance_x_cumulative;
+      pool.balance_y_cumulative_last = balance_y_cumulative;
+
+      let index = observation_index_of(current_timestamp);
+
+      let observation = vector::borrow_mut(&mut pool.observations, index);
+
+      let time_elapsed = current_timestamp - observation.timestamp;
+
+      if (time_elapsed > PERIOD_SIZE) {
+         observation.timestamp = current_timestamp;
+         observation.balance_x_cumulative = balance_x_cumulative;
+         observation.balance_y_cumulative = balance_y_cumulative;
+      }
+    }
+
+    /**
+    * @dev It returns the price of a Coin based on a Pool's TWAP Oracle
+    * @param storage The shared Storage object of this module
+    * @param clock_object The shared Clock object with id @0x6 
+    * @param coin_x_value The price will be returned in terms of how much coin_x_value in Coin<X>  returns when swapping to Coin<Y>
+    * @retuen the value in Coin<Y>
+    */
+    public fun get_coin_x_price<C, X, Y>(storage: &mut Storage, clock_object: &Clock, coin_x_value: u64): u64 {
+      assert!(is_curve<C>(), ERROR_WRONG_CURVE);
+
+      let pool = borrow_mut_pool<C, X, Y>(storage);
+
+      let current_timestamp = clock::timestamp_ms(clock_object);
+
+      let first_observation = get_first_observation_in_window(&pool.observations, current_timestamp);
+
+      let time_elapsed = current_timestamp - first_observation.timestamp;
+
+      assert!(WINDOW > time_elapsed, ERROR_MISSING_OBSERVATION);
+
+      sync_obervations(pool, clock_object);
+
+      let coin_x_reserve = ((pool.balance_x_cumulative_last - first_observation.balance_x_cumulative) / (time_elapsed as u256) as u64);
+      let coin_y_reserve = ((pool.balance_y_cumulative_last - first_observation.balance_y_cumulative) / (time_elapsed as u256) as u64);
+
+      // Calculte how much value of Coin<Y> the caller will receive.
+      if (is_volatile<C>()) {
+          calculate_v_value_out(coin_x_value, coin_x_reserve, coin_y_reserve)
+        } else {
+          calculate_s_value_out(pool, coin_x_value, coin_x_reserve, coin_y_reserve, true)
+        }
+    }
+
+    /**
+    * @dev It returns the price of a Coin based on a Pool's TWAP Oracle
+    * @param storage The shared Storage object of this module
+    * @param clock_object The shared Clock object with id @0x6 
+    * @param coin_y_value The price will be returned in terms of how much coin_y_value in Coin<Y>  returns when swapping to Coin<X>
+    * @retuen the value in Coin<Y>
+    */
+    public fun get_coin_y_price<C, X, Y>(storage: &mut Storage, clock_object: &Clock, coin_y_value: u64): u64 {
+      assert!(is_curve<C>(), ERROR_WRONG_CURVE);
+
+      let pool = borrow_mut_pool<C, X, Y>(storage);
+
+      let current_timestamp = clock::timestamp_ms(clock_object);
+
+      let first_observation = get_first_observation_in_window(&pool.observations, current_timestamp);
+
+      let time_elapsed = current_timestamp - first_observation.timestamp;
+
+      assert!(WINDOW > time_elapsed, ERROR_MISSING_OBSERVATION);
+
+      sync_obervations(pool, clock_object);
+
+      let coin_x_reserve = ((pool.balance_x_cumulative_last - first_observation.balance_x_cumulative) / (time_elapsed as u256) as u64);
+      let coin_y_reserve = ((pool.balance_y_cumulative_last - first_observation.balance_y_cumulative) / (time_elapsed as u256) as u64);
+
+
+      // Calculte how much value of Coin<X> the caller will receive.
+      if (is_volatile<C>()) {
+        calculate_v_value_out(coin_y_value, coin_y_reserve, coin_x_reserve)
+      } else {
+        calculate_s_value_out(pool, coin_y_value, coin_x_reserve, coin_y_reserve, false)
+      }
+    }
+
+    /**
+    * @dev It returns a vector with 5 empty observations 
+    * @return vector<Observation>
+    */
+    fun init_observation_vector(): vector<Observation> {
+      let result = vector::empty<Observation>();
+
+      vector::push_back(&mut result, Observation {
+        timestamp: 0,
+        balance_x_cumulative: 0,
+        balance_y_cumulative: 0
+      });
+
+      vector::push_back(&mut result, Observation {
+        timestamp: 0,
+        balance_x_cumulative: 0,
+        balance_y_cumulative: 0
+      });
+
+      vector::push_back(&mut result, Observation {
+        timestamp: 0,
+        balance_x_cumulative: 0,
+        balance_y_cumulative: 0
+      });
+      
+      vector::push_back(&mut result, Observation {
+        timestamp: 0,
+        balance_x_cumulative: 0,
+        balance_y_cumulative: 0
+      });
+
+      vector::push_back(&mut result, Observation {
+        timestamp: 0,
+        balance_x_cumulative: 0,
+        balance_y_cumulative: 0
+      });
+      
+      result
     }
 
     /**

@@ -10,7 +10,7 @@ module interest_protocol::interface {
   use interest_protocol::dex::{Self, Storage as Storage, LPCoin};
   use interest_protocol::master_chef::{Self, MasterChefStorage, AccountStorage};
   use interest_protocol::ipx::{Self, IPXStorage, IPX};
-  use interest_protocol::utils::{destroy_zero_or_transfer, handle_coin_vector, are_coins_sorted};
+  use interest_protocol::utils::{destroy_zero_or_transfer, are_coins_sorted};
   use interest_protocol::router;
 
   const ERROR_TX_DEADLINE_REACHED: u64 = 1;
@@ -18,31 +18,25 @@ module interest_protocol::interface {
   /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
   * It create a volatile Pool with Coins X and Y
-  * @param storage The storage object of the ipx::dex_volatile 
-  * @param vector_x A vector of several Coin<X> 
-  * @param vector_y A vector of several Coin<Y> 
-  * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
-  * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
+  * @param storage The storage object of the interest_protocol::dex 
+  * @param clock_object The shared Clock object at id @0x6
+  * @param coin_x  Coin<X> 
+  * @param coin_y Coin<Y> 
   */
   entry public fun create_v_pool<X, Y>(
       storage: &mut Storage,
-      vector_x: vector<Coin<X>>,
-      vector_y: vector<Coin<Y>>,
-      coin_x_amount: u64,
-      coin_y_amount: u64,
+      clock_object: &Clock,
+      coin_x: Coin<X>,
+      coin_y: Coin<Y>,
       ctx: &mut TxContext
   ) {
-    
-    // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
-    // vector total value - coin desired value
-    let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
-    let coin_y = handle_coin_vector<Y>(vector_y, coin_y_amount, ctx);
 
     // Sorts for the caller - to make it easier for the frontend
     if (are_coins_sorted<X, Y>()) {
       transfer::public_transfer(
         dex::create_v_pool(
           storage,
+          clock_object,
           coin_x,
           coin_y,
           ctx
@@ -53,6 +47,7 @@ module interest_protocol::interface {
       transfer::public_transfer(
         dex::create_v_pool(
           storage,
+          clock_object,
           coin_y,
           coin_x,
           ctx
@@ -65,35 +60,29 @@ module interest_protocol::interface {
     /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
   * It create a volatile Pool with Coins X and Y
-  * @param storage The storage object of the ipx::dex_volatile 
-  * @param vector_x A vector of several Coin<X> 
-  * @param vector_y A vector of several Coin<Y> 
+  * @param storage The storage object of the interest_protocol::dex
+  * @param clock_object The shared Clock object at id @0x6
+  * @param coin_x  Coin<X> 
+  * @param coin_y A  Coin<Y> 
   * @param coin_x_metadata The CoinMetadata object of Coin<X>
   * @param coin_y_metadata The CoinMetadata object of Coin<Y>
-  * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
-  * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
   */
   entry public fun create_s_pool<X, Y>(
       storage: &mut Storage,
-      vector_x: vector<Coin<X>>,
-      vector_y: vector<Coin<Y>>,
+      clock_object: &Clock,
+      coin_x: Coin<X>,
+      coin_y: Coin<Y>,
       coin_x_metadata: &CoinMetadata<X>,
       coin_y_metadata: &CoinMetadata<Y>,
-      coin_x_amount: u64,
-      coin_y_amount: u64,
       ctx: &mut TxContext
   ) {
-    
-    // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
-    // vector total value - coin desired value
-    let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
-    let coin_y = handle_coin_vector<Y>(vector_y, coin_y_amount, ctx);
 
     // Sorts for the caller - to make it easier for the frontend
     if (are_coins_sorted<X, Y>()) {
       transfer::public_transfer(
         dex::create_s_pool(
           storage,
+          clock_object,
           coin_x,
           coin_y,
           coin_x_metadata,
@@ -106,6 +95,7 @@ module interest_protocol::interface {
       transfer::public_transfer(
         dex::create_s_pool(
           storage,
+          clock_object,
           coin_y,
           coin_x,
           coin_y_metadata,
@@ -120,36 +110,28 @@ module interest_protocol::interface {
   /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
   * It performs a swap and finds the most profitable pool. X -> Y or Y -> X on Pool<X, Y>
-  * @param v_storage The storage object of the ipx::dex_volatile 
-  * @param s_storage The storage object of the ipx::dex_stable 
+  * @param storage The storage object of the interest_protocol::dex 
   * @param clock_object The shared Clock object
-  * @param vector_x A vector of several Coin<X> 
-  * @param vector_y A vector of several Coin<Y> 
-  * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
-  * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
+  * @param vector_x Coin<X> 
+  * @param vector_y Coin<Y> 
   * @param coin_out_min_value The minimum value the caller expects to receive to protect agaisnt slippage
   * @param deadline Timestamp indicating the deadline for this TX to be submitted
   */
   entry public fun swap<X, Y>(
     storage: &mut Storage,
     clock_object: &Clock,
-    vector_x: vector<Coin<X>>,
-    vector_y: vector<Coin<Y>>,
-    coin_x_amount: u64,
-    coin_y_amount: u64,
+    coin_x: Coin<X>,
+    coin_y: Coin<Y>,
     coin_out_min_value: u64,
     deadline: u64,
     ctx: &mut TxContext
   ) {
     assert!(deadline >= clock::timestamp_ms(clock_object), ERROR_TX_DEADLINE_REACHED);
-    // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
-    // vector total value - coin desired value
-    let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
-    let coin_y = handle_coin_vector<Y>(vector_y, coin_y_amount, ctx);
 
   if (are_coins_sorted<X, Y>()) {
    let (coin_x, coin_y) = router::swap<X, Y>(
       storage,
+      clock_object,
       coin_x,
       coin_y,
       coin_out_min_value,
@@ -161,6 +143,7 @@ module interest_protocol::interface {
     } else {
     let (coin_y, coin_x) = router::swap<Y, X>(
       storage,
+      clock_object,
       coin_y,
       coin_x,
       coin_out_min_value,
@@ -175,35 +158,27 @@ module interest_protocol::interface {
   /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
   * It performs an one hop swap and finds the most profitable pool. X -> Z -> Y or Y -> Z -> X on Pool<X, Z> -> Pool<Z, Y>
-  * @param v_storage The storage object of the ipx::dex_volatile 
-  * @param s_storage The storage object of the ipx::dex_stable 
+  * @param storage The storage object of the interest_protocol::dex
   * @param clock_object The shared Clock object
-  * @param vector_x A vector of several Coin<X> 
-  * @param vector_y A vector of several Coin<Y> 
-  * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
-  * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
+  * @param coin_x  Coin<X> 
+  * @param coin_y Coin<Y> 
   * @param coin_out_min_value The minimum value the caller expects to receive to protect agaisnt slippage
   * @param deadline Timestamp indicating the deadline for this TX to be submitted
   */
   entry public fun one_hop_swap<X, Y, Z>(
     storage: &mut Storage,
     clock_object: &Clock,
-    vector_x: vector<Coin<X>>,
-    vector_y: vector<Coin<Y>>,
-    coin_x_amount: u64,
-    coin_y_amount: u64,
+    coin_x: Coin<X>,
+    coin_y: Coin<Y>,
     coin_out_min_value: u64,
     deadline: u64,
     ctx: &mut TxContext
   ) {
     assert!(deadline >= clock::timestamp_ms(clock_object), ERROR_TX_DEADLINE_REACHED);
-    // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
-    // vector total value - coin desired value
-    let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
-    let coin_y = handle_coin_vector<Y>(vector_y, coin_y_amount, ctx);
 
     let (coin_x, coin_y) = router::one_hop_swap<X, Y, Z>(
       storage,
+      clock_object,
       coin_x,
       coin_y,
       coin_out_min_value,
@@ -217,35 +192,27 @@ module interest_protocol::interface {
   /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
   * It performs a three hop swap and finds the most profitable pool. X -> B1 -> B2 -> Y or Y -> B1 -> B2 -> X on Pool<X, Z> -> Pool<B1, B2> -> Pool<B2, Y>
-  * @param v_storage The storage object of the ipx::dex_volatile 
-  * @param s_storage The storage object of the ipx::dex_stable 
+  * @param storage The storage object of the interest_protocol::dex  
   * @param clock_object The shared Clock object
-  * @param vector_x A vector of several Coin<X> 
-  * @param vector_y A vector of several Coin<Y> 
-  * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
-  * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
+  * @param coin_x Coin<X> 
+  * @param coin_y Coin<Y> 
   * @param coin_out_min_value The minimum value the caller expects to receive to protect agaisnt slippage
   * @param deadline Timestamp indicating the deadline for this TX to be submitted
   */
   entry public fun two_hop_swap<X, Y, B1, B2>(
     storage: &mut Storage,
     clock_object: &Clock,
-    vector_x: vector<Coin<X>>,
-    vector_y: vector<Coin<Y>>,
-    coin_x_amount: u64,
-    coin_y_amount: u64,
+    coin_x: Coin<X>,
+    coin_y: Coin<Y>,
     coin_out_min_value: u64,
     deadline: u64,
     ctx: &mut TxContext
   ) {
     assert!(deadline >= clock::timestamp_ms(clock_object), ERROR_TX_DEADLINE_REACHED);
-    // Create a coin from the vector. It keeps sends any extra coins to the caller
-    // vector total value - coin desired value
-    let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
-    let coin_y = handle_coin_vector<Y>(vector_y, coin_y_amount, ctx);
 
     let (coin_x, coin_y) = router::two_hop_swap<X, Y, B1, B2>(
       storage,
+      clock_object,
       coin_x,
       coin_y,
       coin_out_min_value,
@@ -259,33 +226,26 @@ module interest_protocol::interface {
   /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
   * It adds liquidity to a Pool
-  * @param v_storage The storage object of the ipx::dex_volatile 
-  * @param s_storage The storage object of the ipx::dex_stable 
-  * @param vector_x A vector of several Coin<X> 
-  * @param vector_y A vector of several Coin<Y> 
-  * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
-  * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
+  * @param storage The storage object of the interest_protocol::dex  
+  * @param clock_object The shared Clock object
+  * @param coin_x Coin<X> 
+  * @param coin_y Coin<Y> 
   * @param coin_out_min_value The minimum value the caller expects to receive to protect agaisnt slippage
   */
   entry public fun add_liquidity<C, X, Y>(
     storage: &mut Storage,
-    vector_x: vector<Coin<X>>,
-    vector_y: vector<Coin<Y>>,
-    coin_x_amount: u64,
-    coin_y_amount: u64,
+    clock_object: &Clock,
+    coin_x: Coin<X>,
+    coin_y: Coin<Y>,
     coin_min_amount: u64,
     ctx: &mut TxContext
   ) {
-
-    // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
-    // vector total value - coin desired value
-    let coin_x = handle_coin_vector<X>(vector_x, coin_x_amount, ctx);
-    let coin_y = handle_coin_vector<Y>(vector_y, coin_y_amount, ctx);
 
       if (are_coins_sorted<X, Y>()) {
         transfer::public_transfer(
           router::add_liquidity<C, X, Y>(
           storage,
+          clock_object,
           coin_x,
           coin_y,
           coin_min_amount,
@@ -297,6 +257,7 @@ module interest_protocol::interface {
         transfer::public_transfer(
           router::add_liquidity<C, Y, X>(
           storage,
+          clock_object,
           coin_y,
           coin_x,
           coin_min_amount,
@@ -310,7 +271,8 @@ module interest_protocol::interface {
   /**
   * @dev This function REQUIRES the coins to be sorted. It will send back any unused value. 
   * It removes liquidity from a volatile pool based on the shares
-  * @param storage The storage object of the ipx::dex_volatile 
+  * @param storage The storage object of the interest_protocol::dex 
+  * @param clock_object The shared Clock object
   * @param vector_lp_coin A vector of several VLPCoins
   * @param coin_amount_in The value the caller wishes to deposit for VLPCoins 
   * @param coin_x_min_amount The minimum amount of Coin<X> the user wishes to receive
@@ -318,20 +280,18 @@ module interest_protocol::interface {
   */
   entry public fun remove_liquidity<C, X, Y>(
     storage: &mut Storage,
-    vector_lp_coin: vector<Coin<LPCoin<C, X, Y>>>,
-    coin_amount_in: u64,
+    clock_object: &Clock,
+    lp_coin: Coin<LPCoin<C, X, Y>>,
     coin_x_min_amount: u64,
     coin_y_min_amount: u64,
     ctx: &mut TxContext
   ){
-    // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
-    // vector total value - coin desired value
-    let coin = handle_coin_vector(vector_lp_coin, coin_amount_in, ctx);
     let sender = tx_context::sender(ctx);
 
     let (coin_x, coin_y) = dex::remove_liquidity(
       storage,
-      coin, 
+      clock_object,
+      lp_coin, 
       coin_x_min_amount,
       coin_y_min_amount,
       ctx
@@ -347,21 +307,16 @@ module interest_protocol::interface {
 * @param accounts_storage The AccountStorage shared object
 * @param ipx_storage The shared Object of IPX
 * @param clock_object The Clock object created at genesis
-* @param coin_vector A vector of Coin<T>
-* @param coin_value The value of Coin<T> the caller wishes to deposit  
+* @param coin Coin<T>
 */
   entry public fun stake<T>(
     storage: &mut MasterChefStorage,
     accounts_storage: &mut AccountStorage,
     ipx_storage: &mut IPXStorage,
     clock_object: &Clock,
-    coin_vector: vector<Coin<T>>,
-    coin_value: u64,
+    token: Coin<T>,
     ctx: &mut TxContext
   ) {
-    // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
-    // vector total value - coin desired value
-    let coin = handle_coin_vector(coin_vector, coin_value, ctx);
 
     // Stake and send Coin<IPX> rewards to the caller.
     transfer::public_transfer(
@@ -370,7 +325,7 @@ module interest_protocol::interface {
         accounts_storage,
         ipx_storage,
         clock_object,
-        coin,
+        token,
         ctx
       ),
       tx_context::sender(ctx)
@@ -445,18 +400,15 @@ module interest_protocol::interface {
 /**
 * @notice It allows a user to burn Coin<IPX>.
 * @param storage The storage of the module ipx::ipx 
-* @param coin_vector A vector of Coin<IPX>
-* @param coin_value The value of Coin<IPX> the caller wishes to burn 
+* @param coin_ipx The Coin<IPX>
 */
   entry public fun burn_ipx(
     storage: &mut IPXStorage,
-    coin_vector: vector<Coin<IPX>>,
-    coin_value: u64,
-    ctx: &mut TxContext
+    coin_ipx: Coin<IPX>
   ) {
     // Create a coin from the vector. It keeps the desired amound and sends any extra coins to the caller
     // vector total value - coin desired value
-    ipx::burn(storage, handle_coin_vector(coin_vector, coin_value, ctx));
+    ipx::burn(storage, coin_ipx);
   }
 
   public fun get_pool_id<C, X, Y>(storage: &Storage): ID {

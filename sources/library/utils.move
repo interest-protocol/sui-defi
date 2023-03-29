@@ -2,11 +2,9 @@ module interest_protocol::utils {
     use std::type_name;
     use std::ascii::{String};
     use std::ascii;
-    use std::vector;
 
     use sui::coin::{Self, Coin};
     use sui::tx_context::{Self, TxContext};
-    use sui::pay;
     use sui::transfer;
 
     use interest_protocol::comparator;
@@ -15,6 +13,7 @@ module interest_protocol::utils {
     const EQUAL: u8 = 0;
     const SMALLER: u8 = 1;
     const GREATER: u8 = 2;
+    const MAX_U_128: u256 = 1340282366920938463463374607431768211455;
 
     const ERROR_SAME_COIN: u64 = 1;
     const ERROR_UNSORTED_COINS: u64 = 2;
@@ -62,26 +61,6 @@ module interest_protocol::utils {
         (compare_x_y == get_smaller_enum())
     }
 
-  public  fun handle_coin_vector<X>(
-      vector_x: vector<Coin<X>>,
-      coin_in_value: u64,
-      ctx: &mut TxContext
-    ): Coin<X> {
-      let coin_x = coin::zero<X>(ctx);
-
-      if (vector::is_empty(&vector_x)){
-        vector::destroy_empty(vector_x);
-        return coin_x
-      };
-
-      pay::join_vec(&mut coin_x, vector_x);
-
-      let coin_x_value = coin::value(&coin_x);
-      if (coin_x_value > coin_in_value) pay::split_and_transfer(&mut coin_x, coin_x_value - coin_in_value, tx_context::sender(ctx), ctx);
-
-      coin_x
-    }
-
    public fun destroy_zero_or_transfer<T>(
       coin: Coin<T>,
       ctx: &mut TxContext
@@ -100,4 +79,13 @@ module interest_protocol::utils {
     public fun get_ms_per_year(): u64 {
         MS_PER_YEAR
     }
+
+  public fun calculate_reserve_cumulative(balance: u256, old_reserve_cumulative: u256, timestamp: u64): u256 {
+    let result = (balance * (timestamp as u256)) + old_reserve_cumulative;
+    if (result > MAX_U_128) {
+      result - MAX_U_128
+    } else {
+      result
+    }
+  }
 }

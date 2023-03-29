@@ -2,6 +2,7 @@ module interest_protocol::router {
 
   use sui::coin::{Self, Coin};
   use sui::tx_context::{Self, TxContext};
+  use sui::clock::{Clock};
   use sui::pay;
   
   use interest_protocol::dex::{Self, Storage, LPCoin};
@@ -14,52 +15,54 @@ module interest_protocol::router {
   /**
   * @notice This fun calculates the most profitable pool and calls the fn with the same name on right module
   * It performs a swap: Coin<X> -> Coin<Y> on a Pool<X, Y>
-  * @param v_storage the storage object of the ipx::dex_volatile module
-  * @param s_storage the storage object of the ipx::dex_stable module
+  * @param storage the storage object of the ipx::dex_volatile module
+  * @param clock_object The shared Clock object with id @0x6
   * @param coin_x the Coin<X> the caller intends to sell 
   * @param coin_y_min_value the minimum amount of Coin<Y> the caller is willing to accept 
   * @return Coin<Y> the coin bought
   */
   fun swap_token_x<X, Y>(
       storage: &mut Storage,
+      clock_object: &Clock,
       coin_x: Coin<X>,
       coin_y_min_value: u64,
       ctx: &mut TxContext
       ): Coin<Y> {
       if (is_volatile_better<X, Y>(storage, coin::value(&coin_x), 0)) {
-        dex::swap_token_x<Volatile, X, Y>(storage, coin_x, coin_y_min_value, ctx)
+        dex::swap_token_x<Volatile, X, Y>(storage,  clock_object, coin_x, coin_y_min_value, ctx)
         } else {
-        dex::swap_token_x<Stable, X, Y>(storage, coin_x, coin_y_min_value, ctx)
+        dex::swap_token_x<Stable, X, Y>(storage,  clock_object, coin_x, coin_y_min_value, ctx)
         }
     }
 
   /**
   * @notice This fun calculates the most profitable pool and calls the fn with the same name on right module
   * It performs a swap: Coin<Y> -> Coin<X> on a Pool<X, Y>
-  * @param v_storage the storage object of the ipx::dex_volatile module
-  * @param s_storage the storage object of the ipx::dex_stable module
+  * @param storage the storage object of the ipx::dex_volatile module
+  * @param clock_object The shared Clock object with id @0x6
   * @param coin_y the Coin<Y> the caller intends to sell 
   * @param coin_x_min_value the minimum amount of Coin<X> the caller is willing to accept 
   * @return Coin<X> the coin bought
   */
   fun swap_token_y<X, Y>(
       storage: &mut Storage,
+      clock_object: &Clock,
       coin_y: Coin<Y>,
       coin_x_min_value: u64,
       ctx: &mut TxContext
       ): Coin<X> {
         if (is_volatile_better<X, Y>(storage, 0, coin::value(&coin_y))) {
-          dex::swap_token_y<Volatile, X, Y>(storage, coin_y, coin_x_min_value, ctx)
+          dex::swap_token_y<Volatile, X, Y>(storage, clock_object, coin_y, coin_x_min_value, ctx)
           } else {
-          dex::swap_token_y<Stable, X, Y>(storage, coin_y, coin_x_min_value, ctx)
+          dex::swap_token_y<Stable, X, Y>(storage, clock_object, coin_y, coin_x_min_value, ctx)
           }
     }
 
   /**
   * @dev This is a helper function to simplify the code. One of the coin values should be 0. 
   * If coin_x value is 0, it will swap Y -> X and vice versa.
-  * @param v_storage the storage object of the ipx::dex_volatile module
-  * @param s_storage the storage object of the ipx::dex_stable module
+  * @param storage the storage object of the ipx::dex_volatile module
+  * @param clock_object The shared Clock object with id @0x6
   * @param coin_x the Coin<X> of Pool<X, Y>
   * @param coin_x the Coin<Y> of Pool<X, Y>
   * @param coin_out_min_value the minimum amount of coin the caller is willing to accept 
@@ -67,6 +70,7 @@ module interest_protocol::router {
   */  
   public fun swap<X, Y>(
     storage: &mut Storage,
+    clock_object: &Clock,
     coin_x: Coin<X>,
     coin_y: Coin<Y>,
     coin_out_min_value: u64,
@@ -77,6 +81,7 @@ module interest_protocol::router {
       coin::destroy_zero(coin_x);
       (swap_token_y(
         storage,
+        clock_object,
         coin_y,
         coin_out_min_value,
         ctx
@@ -86,6 +91,7 @@ module interest_protocol::router {
       // If Coin<X> value is not 0 do a Y -> X swap
       (coin::zero<X>(ctx), swap_token_x(
         storage,
+        clock_object,
         coin_x,
         coin_out_min_value,
         ctx
@@ -95,8 +101,8 @@ module interest_protocol::router {
 
   /**
   * @notice It performs a swap between two Pools. E.g., ETH -> BTC -> SUI (BTC/ETH) <> (BTC/SUI)
-  * @param v_storage the storage object of the ipx::dex_volatile module
-  * @param s_storage the storage object of the ipx::dex_stable module
+  * @param storage the storage object of the ipx::dex_volatile module
+  * @param clock_object The shared Clock object with id @0x6
   * @param coin_x if Coin<X> value is zero. The fn will perform this swap Y -> Z -> X 
   * @param coin_y if Coin<Y> value is zero. The fn will perform this swap X -> Z -> Y
   * @param coin_out_min_value the minimum final value accepted by the caller 
@@ -104,6 +110,7 @@ module interest_protocol::router {
   */
   public fun one_hop_swap<X, Y, Z>(
     storage: &mut Storage,
+    clock_object: &Clock,
     coin_x: Coin<X>,
     coin_y: Coin<Y>,
     coin_out_min_value: u64,
@@ -124,7 +131,8 @@ module interest_protocol::router {
           // We sell Coin<Y> to buy Coin<Z>
           // Assuming Pool<Y, Z> we are selling the first token
           let coin_z = swap_token_x<Y, Z>(
-            storage,
+             storage,
+             clock_object,
              coin_y, 
              0, 
              ctx
@@ -136,6 +144,7 @@ module interest_protocol::router {
             // Assuming the Pool<X,Z>, we are selling the second
             let coin_x = swap_token_y(
               storage,
+              clock_object,
               coin_z, 
               coin_out_min_value, 
               ctx
@@ -149,6 +158,7 @@ module interest_protocol::router {
             // Assuming the Pool<Z, X>, we are selling the first token
             let coin_x = swap_token_x(
               storage,
+              clock_object,
               coin_z, 
               coin_out_min_value, 
               ctx
@@ -162,6 +172,7 @@ module interest_protocol::router {
             // Assuming Pool<Z, Y> we are selling the second token
             let coin_z = swap_token_y<Z, Y>(
               storage,
+              clock_object,
               coin_y, 
               0, 
               ctx
@@ -172,6 +183,7 @@ module interest_protocol::router {
             // Assuming Pool<X, Z> we are selling the second token
             let coin_x = swap_token_y(
               storage,
+              clock_object,
               coin_z, 
               coin_out_min_value, 
               ctx
@@ -184,6 +196,7 @@ module interest_protocol::router {
             // Assuming Pool<Z, X> we are selling the first token
             let coin_x = swap_token_x(
               storage,
+              clock_object,
               coin_z, 
               coin_out_min_value, 
               ctx
@@ -203,6 +216,7 @@ module interest_protocol::router {
             // In the Pool<Z, X> we are selling the first token
             let coin_z = swap_token_x<X, Z>(
               storage,
+              clock_object,
               coin_x, 
               0, 
               ctx
@@ -213,6 +227,7 @@ module interest_protocol::router {
             // In the Pool<Y, Z> we are selling the second token
             let coin_y = swap_token_y(
               storage,
+              clock_object,
               coin_z, 
               coin_out_min_value, 
               ctx
@@ -226,6 +241,7 @@ module interest_protocol::router {
             // In the Pool<Z, Y> we are selling the first token
             let coin_y = swap_token_x(
               storage,
+              clock_object,
               coin_z, 
               coin_out_min_value, 
               ctx
@@ -239,6 +255,7 @@ module interest_protocol::router {
             // In the Pool<Z, X> we are selling the second token
             let coin_z = swap_token_y<Z, X>(
               storage,
+              clock_object,
               coin_x, 
               0, 
               ctx
@@ -250,6 +267,7 @@ module interest_protocol::router {
             // In the Pool<Y, Z> we are selling the second token
             let coin_y = swap_token_y(
               storage,
+              clock_object,
               coin_z, 
               coin_out_min_value, 
               ctx
@@ -263,6 +281,7 @@ module interest_protocol::router {
             // In the Pool<Z, Y> we are selling the first token
             let coin_y = swap_token_x(
               storage,
+              clock_object,
               coin_z, 
               coin_out_min_value, 
               ctx
@@ -278,8 +297,8 @@ module interest_protocol::router {
 /**
 * @notice This performa a two hop swap. If Coin<X> has a value of 0, it will follow this path: Y -> B1 -> B2 -> X
 * if Coin<Y> has a value of 0, it will follow this path: X -> B1 -> B2 -> Y
-* @param v_storage the storage object of the ipx::dex_volatile module
-* @param s_storage the storage object of the ipx::dex_stable module 
+* @param storage the storage object of the ipx::dex_volatile module
+* @param clock_object The shared
 * @param coin_x if Coin<X> value is zero. The fn will perform this swap Y -> B1 -> B2 -> X 
 * @param coin_y if Coin<Y> value is zero. The fn will perform this swap X -> B1 -> B2 -> Y 
 * @param coin_out_min_value the minimum final value accepted by the caller 
@@ -287,6 +306,7 @@ module interest_protocol::router {
 */
 public fun two_hop_swap<X, Y, B1, B2>(
     storage: &mut Storage,
+    clock_object: &Clock,
     coin_x: Coin<X>,
     coin_y: Coin<Y>,
     coin_out_min_value: u64,
@@ -301,6 +321,7 @@ public fun two_hop_swap<X, Y, B1, B2>(
       // Sell Y -> B1
       let (coin_y, coin_b1) = swap(
         storage,
+        clock_object,
         coin_y,
         coin::zero<B1>(ctx),
         0,
@@ -310,6 +331,7 @@ public fun two_hop_swap<X, Y, B1, B2>(
      // Sell B1 -> B2 -> X
      let (coin_b1, coin_x) = one_hop_swap<B1, X, B2>(
         storage,
+        clock_object,
         coin_b1,
         coin_x,
         coin_out_min_value,
@@ -322,6 +344,7 @@ public fun two_hop_swap<X, Y, B1, B2>(
       // Sell Y -> B1
       let (coin_b1, coin_y) = swap(
         storage,
+        clock_object,
         coin::zero<B1>(ctx),
         coin_y,
         0,
@@ -331,6 +354,7 @@ public fun two_hop_swap<X, Y, B1, B2>(
       // Sell B1 -> B2 -> X
       let (coin_b1, coin_x) = one_hop_swap<B1, X, B2>(
         storage,
+        clock_object,
         coin_b1,
         coin_x,
         coin_out_min_value,
@@ -348,6 +372,7 @@ public fun two_hop_swap<X, Y, B1, B2>(
         // Sell X -> B1
         let (coin_x, coin_b1) = swap(
           storage,
+          clock_object,
           coin_x,
           coin::zero<B1>(ctx),
           0,
@@ -357,6 +382,7 @@ public fun two_hop_swap<X, Y, B1, B2>(
        // Sell B1 -> B2 -> Y
        let (coin_b1, coin_y) = one_hop_swap<B1, Y, B2>(
         storage,
+        clock_object,
         coin_b1,
         coin_y,
         coin_out_min_value,
@@ -369,6 +395,7 @@ public fun two_hop_swap<X, Y, B1, B2>(
         // Sell X -> B1
         let (coin_b1, coin_x) = swap(
           storage,
+          clock_object,
           coin::zero<B1>(ctx),
           coin_x,
           0,
@@ -378,6 +405,7 @@ public fun two_hop_swap<X, Y, B1, B2>(
       // Sell B1 -> B2 -> Y
       let (coin_b1, coin_y) = one_hop_swap<B1, Y, B2>(
         storage,
+        clock_object,
         coin_b1,
         coin_y,
         coin_out_min_value,
@@ -393,7 +421,8 @@ public fun two_hop_swap<X, Y, B1, B2>(
   /**
   * @notice This function calculates the right ratio to add liquidity to prevent loss to the caller and adds liquidity to volatile Pool<X, Y>
   * It will return any extra coin_x sent
-  * @param v_storage The storage object of the module ipx::dex_volatile 
+  * @param storage The storage object of the module ipx::dex_volatile 
+  * @param clock_object The shared Clock object with id @0x6
   * @param coin_x The Coin<X> of Pool<X, Y>
   * @param coin_y The Coin<Y> of Pool<X, Y>
   * @param vlp_coin_min_amiunt the minimum amount of shares the caller is willing to receive
@@ -401,6 +430,7 @@ public fun two_hop_swap<X, Y, B1, B2>(
   */
   public fun add_liquidity<C, X, Y>(
     storage: &mut Storage,
+    clock_object: &Clock,
     coin_x: Coin<X>,
     coin_y: Coin<Y>,
     vlp_coin_min_amount: u64,
@@ -427,6 +457,7 @@ public fun two_hop_swap<X, Y, B1, B2>(
     // Add liquidity
     dex::add_liquidity(
         storage,
+        clock_object,
         coin_x,
         coin_y,
         vlp_coin_min_amount,
