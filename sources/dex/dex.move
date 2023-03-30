@@ -226,8 +226,8 @@ module interest_protocol::dex {
           is_stable: false,
           observations: init_observation_vector(),
           timestamp_last: current_timestamp,
-          balance_x_cumulative_last: utils::calculate_reserve_cumulative((coin_x_value as u256), 0, current_timestamp),
-          balance_y_cumulative_last: utils::calculate_reserve_cumulative((coin_y_value as u256), 0, current_timestamp),
+          balance_x_cumulative_last: utils::calculate_cumulative_balance((coin_x_value as u256), current_timestamp, 0),
+          balance_y_cumulative_last: utils::calculate_cumulative_balance((coin_y_value as u256), current_timestamp, 0),
         }
       );
 
@@ -325,8 +325,8 @@ module interest_protocol::dex {
           is_stable: true,
           observations: init_observation_vector(),
           timestamp_last: current_timestamp,
-          balance_x_cumulative_last: utils::calculate_reserve_cumulative((coin_x_value as u256), 0, current_timestamp),
-          balance_y_cumulative_last: utils::calculate_reserve_cumulative((coin_y_value as u256), 0, current_timestamp),
+          balance_x_cumulative_last: utils::calculate_cumulative_balance((coin_x_value as u256), current_timestamp, 0),
+          balance_y_cumulative_last: utils::calculate_cumulative_balance((coin_y_value as u256), current_timestamp, 0),
           }
         );
 
@@ -961,7 +961,7 @@ module interest_protocol::dex {
     * @dev It finds the first observation in the observations vector based on the window and period size
     * @param observations The observations vector of the pool
     * @param current_timestamp The current timestamp in the shared Clock object 
-    * @return The first observation in the window
+    * @return The index of the first observation in the observations vector
     */
     fun get_first_observation_index(current_timestamp: u64): u64 {
       let index = observation_index_of(current_timestamp);
@@ -986,8 +986,8 @@ module interest_protocol::dex {
       let balance_x = balance::value(&pool.balance_x);
       let balance_y = balance::value(&pool.balance_y);
 
-      let balance_x_cumulative = utils::calculate_reserve_cumulative((balance_x as u256), pool.balance_x_cumulative_last, current_timestamp);
-      let balance_y_cumulative = utils::calculate_reserve_cumulative((balance_y as u256), pool.balance_y_cumulative_last, current_timestamp);
+      let balance_x_cumulative = utils::calculate_cumulative_balance((balance_x as u256), current_timestamp, pool.balance_x_cumulative_last);
+      let balance_y_cumulative = utils::calculate_cumulative_balance((balance_y as u256), current_timestamp, pool.balance_y_cumulative_last);
 
       pool.balance_x_cumulative_last = balance_x_cumulative;
       pool.balance_y_cumulative_last = balance_y_cumulative;

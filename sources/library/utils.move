@@ -80,12 +80,13 @@ module interest_protocol::utils {
         MS_PER_YEAR
     }
 
-  public fun calculate_reserve_cumulative(balance: u256, old_reserve_cumulative: u256, timestamp: u64): u256 {
+  public fun calculate_cumulative_balance(balance: u256, timestamp: u64, old_reserve_cumulative: u256): u256 {
     let result = (balance * (timestamp as u256)) + old_reserve_cumulative;
-    if (result > MAX_U_128) {
-      result - MAX_U_128
-    } else {
-      result
-    }
+
+    while (result > MAX_U_128) {
+      result = result - MAX_U_128;
+    };
+
+    result
   }
 }
