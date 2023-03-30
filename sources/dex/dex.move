@@ -963,12 +963,10 @@ module interest_protocol::dex {
     * @param current_timestamp The current timestamp in the shared Clock object 
     * @return The first observation in the window
     */
-    fun get_first_observation_in_window(observations: &vector<Observation>, current_timestamp: u64): &Observation {
+    fun get_first_observation_index(current_timestamp: u64): u64 {
       let index = observation_index_of(current_timestamp);
 
-      let first_index = (index + 1) % GRANULARITY;
-
-      vector::borrow(observations, first_index)
+      (index + 1) % GRANULARITY
     }
 
     /**
@@ -1021,16 +1019,21 @@ module interest_protocol::dex {
 
       let current_timestamp = clock::timestamp_ms(clock_object);
 
-      let first_observation = get_first_observation_in_window(&pool.observations, current_timestamp);
+      let first_observation_index = get_first_observation_index(current_timestamp);
+
+      let first_observation = vector::borrow(&pool.observations, first_observation_index);
 
       let time_elapsed = current_timestamp - first_observation.timestamp;
+
+      let first_observation_balance_x_cumulative = first_observation.balance_x_cumulative;
+      let first_observation_balance_y_cumulative = first_observation.balance_y_cumulative;
 
       assert!(WINDOW > time_elapsed, ERROR_MISSING_OBSERVATION);
 
       sync_obervations(pool, clock_object);
 
-      let coin_x_reserve = ((pool.balance_x_cumulative_last - first_observation.balance_x_cumulative) / (time_elapsed as u256) as u64);
-      let coin_y_reserve = ((pool.balance_y_cumulative_last - first_observation.balance_y_cumulative) / (time_elapsed as u256) as u64);
+      let coin_x_reserve = ((pool.balance_x_cumulative_last - first_observation_balance_x_cumulative) / (time_elapsed as u256) as u64);
+      let coin_y_reserve = ((pool.balance_y_cumulative_last - first_observation_balance_y_cumulative) / (time_elapsed as u256) as u64);
 
       // Calculte how much value of Coin<Y> the caller will receive.
       if (is_volatile<C>()) {
@@ -1054,16 +1057,21 @@ module interest_protocol::dex {
 
       let current_timestamp = clock::timestamp_ms(clock_object);
 
-      let first_observation = get_first_observation_in_window(&pool.observations, current_timestamp);
+      let first_observation_index = get_first_observation_index(current_timestamp);
+
+      let first_observation = vector::borrow(&pool.observations, first_observation_index);
 
       let time_elapsed = current_timestamp - first_observation.timestamp;
+
+      let first_observation_balance_x_cumulative = first_observation.balance_x_cumulative;
+      let first_observation_balance_y_cumulative = first_observation.balance_y_cumulative;
 
       assert!(WINDOW > time_elapsed, ERROR_MISSING_OBSERVATION);
 
       sync_obervations(pool, clock_object);
 
-      let coin_x_reserve = ((pool.balance_x_cumulative_last - first_observation.balance_x_cumulative) / (time_elapsed as u256) as u64);
-      let coin_y_reserve = ((pool.balance_y_cumulative_last - first_observation.balance_y_cumulative) / (time_elapsed as u256) as u64);
+      let coin_x_reserve = ((pool.balance_x_cumulative_last - first_observation_balance_x_cumulative) / (time_elapsed as u256) as u64);
+      let coin_y_reserve = ((pool.balance_y_cumulative_last - first_observation_balance_y_cumulative) / (time_elapsed as u256) as u64);
 
 
       // Calculte how much value of Coin<X> the caller will receive.

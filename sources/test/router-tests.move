@@ -3,9 +3,10 @@ module interest_protocol::router_tests {
   
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
   use sui::coin::{Self, mint_for_testing as mint, burn_for_testing as burn, CoinMetadata};
+  use sui::clock::{Self, Clock};
+
   use interest_protocol::usdc::{Self, USDC};
   use interest_protocol::usdt::{Self, USDT};
-
   use interest_protocol::router;
   use interest_protocol::dex::{Self, Storage};
   use interest_protocol::test_utils::{people, scenario};
@@ -23,16 +24,19 @@ module interest_protocol::router_tests {
 
     next_tx(test, alice);
     {
-     let storage = test::take_shared<Storage>(test);
+        let storage = test::take_shared<Storage>(test);
+        let clock_object = test::take_shared<Clock>(test);
 
         let lp_coin = dex::create_v_pool(
           &mut storage,
+          &clock_object,
           mint<BTC>(btc_amount, ctx(test)),
           mint<USDC>(usdc_amount, ctx(test)),
           ctx(test)
         );
 
         burn(lp_coin);
+        test::return_shared(clock_object);
         test::return_shared(storage);
     };
 
@@ -69,11 +73,13 @@ module interest_protocol::router_tests {
     next_tx(test, alice);
     {
      let storage = test::take_shared<Storage>(test);
+     let clock_object = test::take_shared<Clock>(test);
      let usdc_coin_metadata = test::take_immutable<CoinMetadata<USDC>>(test);
      let usdt_coin_metadata = test::take_immutable<CoinMetadata<USDT>>(test);
 
       let lp_coin = dex::create_s_pool(
           &mut storage,
+          &clock_object,
           mint<USDC>(usdc_amount, ctx(test)),
           mint<USDT>(usdt_amount, ctx(test)),
           &usdc_coin_metadata,
@@ -82,6 +88,8 @@ module interest_protocol::router_tests {
         );
 
         burn(lp_coin);
+
+        test::return_shared(clock_object);        
         test::return_immutable(usdc_coin_metadata);
         test::return_immutable(usdt_coin_metadata);
         test::return_shared(storage);
@@ -124,11 +132,13 @@ module interest_protocol::router_tests {
     next_tx(test, alice);
     {
      let storage = test::take_shared<Storage>(test);
+     let clock_object = test::take_shared<Clock>(test);     
      let usdc_coin_metadata = test::take_immutable<CoinMetadata<USDC>>(test);
      let usdt_coin_metadata = test::take_immutable<CoinMetadata<USDT>>(test);
 
       let lp_coin = dex::create_s_pool(
           &mut storage,
+          &clock_object,
           mint<USDC>(s_usdc_amount, ctx(test)),
           mint<USDT>(s_usdt_amount, ctx(test)),
           &usdc_coin_metadata,
@@ -137,6 +147,7 @@ module interest_protocol::router_tests {
         );
 
         burn(lp_coin);
+        test::return_shared(clock_object);           
         test::return_shared(storage);
         test::return_immutable(usdc_coin_metadata);
         test::return_immutable(usdt_coin_metadata);
@@ -145,15 +156,18 @@ module interest_protocol::router_tests {
     next_tx(test, alice);
     {
      let storage = test::take_shared<Storage>(test);
+     let clock_object = test::take_shared<Clock>(test);   
 
       let lp_coin = dex::create_v_pool(
           &mut storage,
+          &clock_object,
           mint<USDC>(v_usdc_amount, ctx(test)),
           mint<USDT>(v_usdt_amount, ctx(test)),
           ctx(test)
         );
 
         burn(lp_coin);
+        test::return_shared(clock_object);
         test::return_shared(storage);
     };
 
@@ -189,24 +203,29 @@ module interest_protocol::router_tests {
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
+      let clock_object = test::take_shared<Clock>(test);   
 
       let lp_coins = dex::create_v_pool(
           &mut storage,
+          &clock_object,
           mint<BTC>(btc_amount, ctx(test)),
           mint<USDC>(usdc_amount, ctx(test)),
           ctx(test)
       );
 
       burn(lp_coins);
+      test::return_shared(clock_object);
       test::return_shared(storage);
     };
 
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
+      let clock_object = test::take_shared<Clock>(test);  
 
       let (coin_x, coin_y) = router::swap<BTC, USDC>(
         &mut storage,
+        &clock_object,
         mint<BTC>(btc_amount / 10 , ctx(test)),
         coin::zero<USDC>(ctx(test)),
         0,
@@ -216,15 +235,18 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) == 0, 0);
       assert!(burn(coin_y) > 0, 0);
 
+      test::return_shared(clock_object);
       test::return_shared(storage);
     };
 
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
+      let clock_object = test::take_shared<Clock>(test);
 
       let (coin_x, coin_y) = router::swap<BTC, USDC>(
         &mut storage,
+        &clock_object,
         coin::zero<BTC>(ctx(test)),
         mint<USDC>(usdc_amount / 10 , ctx(test)),
         0,
@@ -234,6 +256,7 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) > 0, 0);
       assert!(burn(coin_y) == 0, 0);
 
+      test::return_shared(clock_object);
       test::return_shared(storage);
     }
   }
@@ -261,9 +284,11 @@ module interest_protocol::router_tests {
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
+      let clock_object = test::take_shared<Clock>(test);
 
       burn(dex::create_v_pool(
           &mut storage,
+          &clock_object,
           mint<BTC>(btc_amount, ctx(test)),
           mint<USDC>(usdc_amount, ctx(test)),
           ctx(test)
@@ -271,21 +296,25 @@ module interest_protocol::router_tests {
 
       burn(dex::create_v_pool(
           &mut storage,
+          &clock_object,
           mint<USDC>(usdc_amount, ctx(test)),
           mint<USDT>(usdt_amount, ctx(test)),
           ctx(test)
       ));
 
+      test::return_shared(clock_object);
       test::return_shared(storage);
     };
 
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
+      let clock_object = test::take_shared<Clock>(test);
 
       // BTC -> USDC -> USDT
       let (coin_x, coin_y) = router::one_hop_swap<BTC, USDT, USDC>(
         &mut storage,
+        &clock_object,
         mint<BTC>(btc_amount / 10 , ctx(test)),
         coin::zero<USDT>(ctx(test)),
         0,
@@ -295,16 +324,19 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) == 0, 0);
       assert!(burn(coin_y) > 0, 0);
 
+      test::return_shared(clock_object);
       test::return_shared(storage);     
     };
 
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
+      let clock_object = test::take_shared<Clock>(test);
 
       // USDT -> USDC -> BTC
       let (coin_x, coin_y) = router::one_hop_swap<BTC, USDT, USDC>(
         &mut storage,
+        &clock_object,
         coin::zero<BTC>(ctx(test)),
         mint<USDT>(usdt_amount / 10 , ctx(test)),
         0,
@@ -314,6 +346,7 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) > 0, 0);
       assert!(burn(coin_y) == 0, 0);
 
+      test::return_shared(clock_object);
       test::return_shared(storage);   
     }
   }
@@ -343,10 +376,12 @@ module interest_protocol::router_tests {
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
+      let clock_object = test::take_shared<Clock>(test);
 
       // Pool<BTC/USDC>
       burn(dex::create_v_pool(
           &mut storage,
+          &clock_object,
           mint<BTC>(btc_amount, ctx(test)),
           mint<USDC>(usdc_amount, ctx(test)),
           ctx(test)
@@ -355,6 +390,7 @@ module interest_protocol::router_tests {
       // Pool<USDC/USDT>
       burn(dex::create_v_pool(
           &mut storage,
+          &clock_object,
           mint<USDC>(usdc_amount, ctx(test)),
           mint<USDT>(usdt_amount, ctx(test)),
           ctx(test)
@@ -363,21 +399,25 @@ module interest_protocol::router_tests {
       // Pool<Ether/USDT>
       burn(dex::create_v_pool(
           &mut storage,
+          &clock_object,
           mint<Ether>(ether_amount, ctx(test)),
           mint<USDT>(usdt_amount / 3, ctx(test)),
           ctx(test)
       ));
 
+      test::return_shared(clock_object);
       test::return_shared(storage);
     };
 
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
+      let clock_object = test::take_shared<Clock>(test);
 
       // BTC -> USDC -> USDT -> Ether
       let (coin_x, coin_y) = router::two_hop_swap<BTC, Ether, USDT, USDC>(
         &mut storage,
+        &clock_object,
         coin::zero<BTC>(ctx(test)),
         mint<Ether>(ether_amount / 10, ctx(test)),
         0,
@@ -387,16 +427,19 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) > 0, 0);
       assert!(burn(coin_y) == 0, 0);
 
+      test::return_shared(clock_object);
       test::return_shared(storage);        
     };
 
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
+      let clock_object = test::take_shared<Clock>(test);
 
       // BTC -> USDC -> USDT -> Ether
       let (coin_x, coin_y) = router::two_hop_swap<BTC, Ether, USDC, USDT>(
         &mut storage,
+        &clock_object,
         mint<BTC>(btc_amount / 10 , ctx(test)),
         coin::zero<Ether>(ctx(test)),
         0,
@@ -406,6 +449,7 @@ module interest_protocol::router_tests {
       assert!(burn(coin_x) == 0, 0);
       assert!(burn(coin_y) > 0, 0);
 
+      test::return_shared(clock_object);
       test::return_shared(storage);         
     }        
   }
@@ -424,6 +468,7 @@ module interest_protocol::router_tests {
       dex::init_for_testing(ctx(test));
       usdc::init_for_testing(ctx(test));
       usdt::init_for_testing(ctx(test));
+      clock::create_for_testing(ctx(test));
     };
   }
 }
