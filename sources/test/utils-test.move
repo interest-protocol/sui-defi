@@ -25,6 +25,7 @@ module interest_protocol::utils_tests {
       let z = 89273619;
       assert_eq(calculate_cumulative_balance(x, y, z), ( x * (y as u256) + z));
 
+      // properly clocks around MAX_U_128
       assert_eq(calculate_cumulative_balance(MAX_U_128 / 2, 2, 2), 1);
 
       assert_eq(calculate_cumulative_balance(MAX_U_128 / 2, 2716, 2), 1340282366920938463463374607431768210099);

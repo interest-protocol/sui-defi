@@ -89,4 +89,8 @@ module interest_protocol::utils {
 
     result
   }
+
+  public fun max_u_128(): u256 {
+    MAX_U_128
+  }
 }

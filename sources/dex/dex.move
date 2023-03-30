@@ -1032,8 +1032,22 @@ module interest_protocol::dex {
 
       sync_obervations(pool, clock_object);
 
-      let coin_x_reserve = ((pool.balance_x_cumulative_last - first_observation_balance_x_cumulative) / (time_elapsed as u256) as u64);
-      let coin_y_reserve = ((pool.balance_y_cumulative_last - first_observation_balance_y_cumulative) / (time_elapsed as u256) as u64);
+      let cumulative_x = if (first_observation_balance_x_cumulative > pool.balance_x_cumulative_last) {
+        let rem = utils::max_u_128() - first_observation_balance_x_cumulative;
+        pool.balance_x_cumulative_last + rem
+      } else {
+        pool.balance_x_cumulative_last - first_observation_balance_x_cumulative
+      };
+
+      let cumulative_y = if (first_observation_balance_y_cumulative > pool.balance_y_cumulative_last) {
+        let rem = utils::max_u_128() - first_observation_balance_y_cumulative;
+        pool.balance_y_cumulative_last + rem
+      } else {
+        pool.balance_y_cumulative_last - first_observation_balance_y_cumulative
+      };
+
+      let coin_x_reserve = (cumulative_x / (time_elapsed as u256) as u64);
+      let coin_y_reserve = (cumulative_y / (time_elapsed as u256) as u64);
 
       // Calculte how much value of Coin<Y> the caller will receive.
       if (is_volatile<C>()) {
@@ -1070,9 +1084,22 @@ module interest_protocol::dex {
 
       sync_obervations(pool, clock_object);
 
-      let coin_x_reserve = ((pool.balance_x_cumulative_last - first_observation_balance_x_cumulative) / (time_elapsed as u256) as u64);
-      let coin_y_reserve = ((pool.balance_y_cumulative_last - first_observation_balance_y_cumulative) / (time_elapsed as u256) as u64);
+      let cumulative_x = if (first_observation_balance_x_cumulative > pool.balance_x_cumulative_last) {
+        let rem = utils::max_u_128() - first_observation_balance_x_cumulative;
+        pool.balance_x_cumulative_last + rem
+      } else {
+        pool.balance_x_cumulative_last - first_observation_balance_x_cumulative
+      };
 
+      let cumulative_y = if (first_observation_balance_y_cumulative > pool.balance_y_cumulative_last) {
+        let rem = utils::max_u_128() - first_observation_balance_y_cumulative;
+        pool.balance_y_cumulative_last + rem
+      } else {
+        pool.balance_y_cumulative_last - first_observation_balance_y_cumulative
+      };
+
+      let coin_x_reserve = (cumulative_x / (time_elapsed as u256) as u64);
+      let coin_y_reserve = (cumulative_y / (time_elapsed as u256) as u64);
 
       // Calculte how much value of Coin<X> the caller will receive.
       if (is_volatile<C>()) {
