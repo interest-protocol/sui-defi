@@ -1,11 +1,11 @@
 module interest_protocol::utils {
     use std::type_name;
-    use std::ascii::{String};
-    use std::ascii;
+    use std::ascii::{Self, String};
+    use std::vector;
 
     use sui::coin::{Self, Coin};
     use sui::tx_context::{Self, TxContext};
-    use sui::transfer;
+    use sui::pay;
 
     use interest_protocol::comparator;
 
@@ -61,18 +61,7 @@ module interest_protocol::utils {
         (compare_x_y == get_smaller_enum())
     }
 
-   public fun destroy_zero_or_transfer<T>(
-      coin: Coin<T>,
-      ctx: &mut TxContext
-      ) {
-        if (coin::value(&coin) == 0) {
-          coin::destroy_zero(coin);
-        } else {
-          transfer::public_transfer(coin, tx_context::sender(ctx));
-        };
-    }
-
-    public fun quote_liquidity(amount_a: u64, reserves_a: u64, reserves_b: u64): u64 {
+  public fun quote_liquidity(amount_a: u64, reserves_a: u64, reserves_b: u64): u64 {
       amount_a * reserves_b / reserves_a
     }
 
@@ -93,4 +82,24 @@ module interest_protocol::utils {
   public fun max_u_128(): u256 {
     MAX_U_128
   }
+
+    public  fun handle_coin_vector<X>(
+      vector_x: vector<Coin<X>>,
+      coin_in_value: u64,
+      ctx: &mut TxContext
+    ): Coin<X> {
+      let coin_x = coin::zero<X>(ctx);
+
+      if (vector::is_empty(&vector_x)){
+        vector::destroy_empty(vector_x);
+        return coin_x
+      };
+
+      pay::join_vec(&mut coin_x, vector_x);
+
+      let coin_x_value = coin::value(&coin_x);
+      if (coin_x_value > coin_in_value) pay::split_and_transfer(&mut coin_x, coin_x_value - coin_in_value, tx_context::sender(ctx), ctx);
+
+      coin_x
+    }
 }

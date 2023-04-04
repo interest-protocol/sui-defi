@@ -21,7 +21,7 @@ module interest_protocol::router {
   * @param coin_y_min_value the minimum amount of Coin<Y> the caller is willing to accept 
   * @return Coin<Y> the coin bought
   */
-  fun swap_token_x<X, Y>(
+  public fun swap_token_x<X, Y>(
       storage: &mut Storage,
       clock_object: &Clock,
       coin_x: Coin<X>,
@@ -44,7 +44,7 @@ module interest_protocol::router {
   * @param coin_x_min_value the minimum amount of Coin<X> the caller is willing to accept 
   * @return Coin<X> the coin bought
   */
-  fun swap_token_y<X, Y>(
+  public fun swap_token_y<X, Y>(
       storage: &mut Storage,
       clock_object: &Clock,
       coin_y: Coin<Y>,
@@ -59,201 +59,62 @@ module interest_protocol::router {
     }
 
   /**
-  * @dev This is a helper function to simplify the code. One of the coin values should be 0. 
-  * If coin_x value is 0, it will swap Y -> X and vice versa.
-  * @param storage the storage object of the ipx::dex_volatile module
-  * @param clock_object The shared Clock object with id @0x6
-  * @param coin_x the Coin<X> of Pool<X, Y>
-  * @param coin_x the Coin<Y> of Pool<X, Y>
-  * @param coin_out_min_value the minimum amount of coin the caller is willing to accept 
-  * @return (Coin<X>, Coin<Y>) One of the coins will have a value of 0. The one with the same type that was sold.
-  */  
-  public fun swap<X, Y>(
-    storage: &mut Storage,
-    clock_object: &Clock,
-    coin_x: Coin<X>,
-    coin_y: Coin<Y>,
-    coin_out_min_value: u64,
-    ctx: &mut TxContext
-  ): (Coin<X>, Coin<Y>) {
-    // If Coin<X> has a value of 0 do a Y -> X swap
-    if (coin::value(&coin_x) == 0) {
-      coin::destroy_zero(coin_x);
-      (swap_token_y(
-        storage,
-        clock_object,
-        coin_y,
-        coin_out_min_value,
-        ctx
-      ), coin::zero<Y>(ctx)) 
-    } else {
-      coin::destroy_zero(coin_y);
-      // If Coin<X> value is not 0 do a Y -> X swap
-      (coin::zero<X>(ctx), swap_token_x(
-        storage,
-        clock_object,
-        coin_x,
-        coin_out_min_value,
-        ctx
-      ))
-    }
-  }  
-
-  /**
   * @notice It performs a swap between two Pools. E.g., ETH -> BTC -> SUI (BTC/ETH) <> (BTC/SUI)
   * @param storage the storage object of the ipx::dex_volatile module
   * @param clock_object The shared Clock object with id @0x6
-  * @param coin_x if Coin<X> value is zero. The fn will perform this swap Y -> Z -> X 
-  * @param coin_y if Coin<Y> value is zero. The fn will perform this swap X -> Z -> Y
+  * @param coin_x if Coin<X> value is zero. The fn will perform this swap X -> B -> Y
   * @param coin_out_min_value the minimum final value accepted by the caller 
   * @return (Coin<X>, Coin<Y>) the type of the coin sold will have a value of 0
   */
-  public fun one_hop_swap<X, Y, Z>(
+   // X -> B -> Y
+  public fun one_hop_swap<X, B, Y>(
     storage: &mut Storage,
     clock_object: &Clock,
     coin_x: Coin<X>,
-    coin_y: Coin<Y>,
     coin_out_min_value: u64,
     ctx: &mut TxContext
-  ): (Coin<X>, Coin<Y>) {
-      // If Coin<X> value is zero this is a Y -> Z -> X swap; otherwise, it is a X -> Z -> Y swap
-      let is_coin_x_value_zero = coin::value(&coin_x) == 0;
+  ): Coin<Y> {
 
-      // One of the coins must have a value greater than zero or we are wasting gas
-      assert!(!is_coin_x_value_zero || coin::value(&coin_y) != 0, ERROR_ZERO_VALUE_SWAP);
+    // One of the coins must have a value greater than zero or we are wasting gas
+    assert!(coin::value(&coin_x) != 0, ERROR_ZERO_VALUE_SWAP);
 
-      // Y -> Z -> X
-      if (is_coin_x_value_zero) {
-        coin::destroy_zero(coin_x);
+    if (utils::are_coins_sorted<X, B>()) {
+        let coin_b = swap_token_x<X, B>(
+            storage,
+            clock_object,
+            coin_x, 
+            0, 
+            ctx
+          );
 
-        // We need to sort Y/Z to find the pool
-        if (utils::are_coins_sorted<Y, Z>()) {
-          // We sell Coin<Y> to buy Coin<Z>
-          // Assuming Pool<Y, Z> we are selling the first token
-          let coin_z = swap_token_x<Y, Z>(
-             storage,
-             clock_object,
-             coin_y, 
-             0, 
-             ctx
-            );
-
-          // We need to sort X/Z to find the pool
-          if (utils::are_coins_sorted<X, Z>()) {
-            // We sell Coin<X> to buy Coin<X>
-            // Assuming the Pool<X,Z>, we are selling the second
-            let coin_x = swap_token_y(
+        if (utils::are_coins_sorted<B, Y>()) {
+            let coin_y = swap_token_x(
               storage,
               clock_object,
-              coin_z, 
-              coin_out_min_value, 
-              ctx
-            );
-
-            // Swap finished return
-            (coin_x, coin::zero<Y>(ctx))
-            
-            } else {
-            // We sell Coin<X> to buy Coin<X>
-            // Assuming the Pool<Z, X>, we are selling the first token
-            let coin_x = swap_token_x(
-              storage,
-              clock_object,
-              coin_z, 
-              coin_out_min_value, 
-              ctx
-            );
-            
-              // Swap finished return
-             (coin_x, coin::zero<Y>(ctx))
-            }
-           } else {
-            // We sell Coin<Y> to buy Coin<Z>
-            // Assuming Pool<Z, Y> we are selling the second token
-            let coin_z = swap_token_y<Z, Y>(
-              storage,
-              clock_object,
-              coin_y, 
-              0, 
-              ctx
-            );
-
-          if (utils::are_coins_sorted<X, Z>()) {
-            // We sell Coin<Z> to buy Coin<X>
-            // Assuming Pool<X, Z> we are selling the second token
-            let coin_x = swap_token_y(
-              storage,
-              clock_object,
-              coin_z, 
-              coin_out_min_value, 
-              ctx
-            );
-            // Swap finished return
-            (coin_x, coin::zero<Y>(ctx))
-            
-            } else {
-              // We sell Coin<Z> to buy Coin<X>
-            // Assuming Pool<Z, X> we are selling the first token
-            let coin_x = swap_token_x(
-              storage,
-              clock_object,
-              coin_z, 
-              coin_out_min_value, 
-              ctx
-            );
-
-            // Swap finished return
-            (coin_x, coin::zero<Y>(ctx))
-            }
-           }
-
-        // X -> Z -> Y
-        } else {
-            coin::destroy_zero(coin_y);
-
-           if (utils::are_coins_sorted<X, Z>()) {
-            // We sell Coin<X> -> Coin<Z>
-            // In the Pool<Z, X> we are selling the first token
-            let coin_z = swap_token_x<X, Z>(
-              storage,
-              clock_object,
-              coin_x, 
-              0, 
-              ctx
-            );
-
-          if (utils::are_coins_sorted<Y, Z>()) {
-            // We sell Coin<Z> -> Coin<Y>
-            // In the Pool<Y, Z> we are selling the second token
-            let coin_y = swap_token_y(
-              storage,
-              clock_object,
-              coin_z, 
+              coin_b, 
               coin_out_min_value, 
               ctx
             );
 
             // Swap ended
-            (coin::zero<X>(ctx), coin_y)
+            coin_y
             
             } else {
             // We sell Coin<Z> -> Coin<Y>
             // In the Pool<Z, Y> we are selling the first token
-            let coin_y = swap_token_x(
+            let coin_y = swap_token_y(
               storage,
               clock_object,
-              coin_z, 
+              coin_b, 
               coin_out_min_value, 
               ctx
             );
 
              // Swap ended 
-             (coin::zero<X>(ctx), coin_y)
+             coin_y
             }
            } else {
-            // We sell Coin<X> -> Coin<Z>
-            // In the Pool<Z, X> we are selling the second token
-            let coin_z = swap_token_y<Z, X>(
+            let coin_b = swap_token_y<B, X>(
               storage,
               clock_object,
               coin_x, 
@@ -261,161 +122,91 @@ module interest_protocol::router {
               ctx
             );
 
-          if (utils::are_coins_sorted<Y, Z>()) {
+          if (utils::are_coins_sorted<B, Y>()) {
 
             // We sell Coin<Z> -> Coin<Y>
             // In the Pool<Y, Z> we are selling the second token
-            let coin_y = swap_token_y(
+            let coin_y = swap_token_x(
               storage,
               clock_object,
-              coin_z, 
+              coin_b, 
               coin_out_min_value, 
               ctx
             );
 
             // Swap ended 
-            (coin::zero<X>(ctx), coin_y)
+            coin_y
             } else {
 
             // We sell Coin<Z> -> Coin<Y>
             // In the Pool<Z, Y> we are selling the first token
-            let coin_y = swap_token_x(
+            let coin_y = swap_token_y(
               storage,
               clock_object,
-              coin_z, 
+              coin_b, 
               coin_out_min_value, 
               ctx
             );
 
             // Swap ended 
-            (coin::zero<X>(ctx), coin_y)
+            coin_y
             }
            }
-        }
     }
 
-/**
-* @notice This performa a two hop swap. If Coin<X> has a value of 0, it will follow this path: Y -> B1 -> B2 -> X
-* if Coin<Y> has a value of 0, it will follow this path: X -> B1 -> B2 -> Y
-* @param storage the storage object of the ipx::dex_volatile module
-* @param clock_object The shared
-* @param coin_x if Coin<X> value is zero. The fn will perform this swap Y -> B1 -> B2 -> X 
-* @param coin_y if Coin<Y> value is zero. The fn will perform this swap X -> B1 -> B2 -> Y 
-* @param coin_out_min_value the minimum final value accepted by the caller 
-* @return (Coin<X>, Coin<Y>) the type of the coin sold will have a value of 0
-*/
-public fun two_hop_swap<X, Y, B1, B2>(
+
+  /**
+  * @notice It performs a swap between three Pools. E.g., ETH -> BTC -> SUI -> DAI
+  * @param storage the storage object of the ipx::dex_volatile module
+  * @param clock_object The shared Clock object with id @0x6
+  * @param coin_x if Coin<X> value is zero. The fn will perform this swap X -> B1 -> B2 -> Y
+  * @param coin_out_min_value the minimum final value accepted by the caller 
+  * @return (Coin<X>, Coin<Y>) the type of the coin sold will have a value of 0
+  */
+  // X -> B1 -> B2 -> Y
+public fun two_hop_swap<X, B1, B2, Y>(
     storage: &mut Storage,
     clock_object: &Clock,
     coin_x: Coin<X>,
-    coin_y: Coin<Y>,
     coin_out_min_value: u64,
     ctx: &mut TxContext
-  ):(Coin<X>, Coin<Y>) {
-    // If Coin<X> has a value of 0
-    // We will perform a Y -> B1 -> B2 -> X
-    if (coin::value(&coin_x) == 0) {
-    
-    // Swap function requires the tokens to be sorted
-    if (utils::are_coins_sorted<Y, B1>()) {
-      // Sell Y -> B1
-      let (coin_y, coin_b1) = swap(
-        storage,
-        clock_object,
-        coin_y,
-        coin::zero<B1>(ctx),
-        0,
-        ctx
-      );
-    
-     // Sell B1 -> B2 -> X
-     let (coin_b1, coin_x) = one_hop_swap<B1, X, B2>(
-        storage,
-        clock_object,
-        coin_b1,
-        coin_x,
-        coin_out_min_value,
-        ctx
-      );
-
-      coin::destroy_zero(coin_b1);
-      (coin_x, coin_y)
-    } else {
-      // Sell Y -> B1
-      let (coin_b1, coin_y) = swap(
-        storage,
-        clock_object,
-        coin::zero<B1>(ctx),
-        coin_y,
-        0,
-        ctx
-      );
-
-      // Sell B1 -> B2 -> X
-      let (coin_b1, coin_x) = one_hop_swap<B1, X, B2>(
-        storage,
-        clock_object,
-        coin_b1,
-        coin_x,
-        coin_out_min_value,
-        ctx
-      );
-
-      coin::destroy_zero(coin_b1);
-      (coin_x, coin_y)
-    }  
-
+  ): Coin<Y> {
     // X -> B1 -> B2 -> Y
-    } else {
       // Swap function requires the tokens to be sorted
       if (utils::are_coins_sorted<X, B1>()) {
         // Sell X -> B1
-        let (coin_x, coin_b1) = swap(
+        let coin_b1 = swap_token_x<X, B1>(
           storage,
           clock_object,
           coin_x,
-          coin::zero<B1>(ctx),
           0,
           ctx
         );  
 
-       // Sell B1 -> B2 -> Y
-       let (coin_b1, coin_y) = one_hop_swap<B1, Y, B2>(
-        storage,
-        clock_object,
-        coin_b1,
-        coin_y,
-        coin_out_min_value,
-        ctx
-      );
-
-      coin::destroy_zero(coin_b1);
-      (coin_x, coin_y)
+        one_hop_swap<B1, B2, Y>(
+              storage,
+              clock_object,
+              coin_b1,
+              coin_out_min_value, ctx
+          )
       } else {
         // Sell X -> B1
-        let (coin_b1, coin_x) = swap(
+        let coin_b1 = swap_token_y<B1, X>(
           storage,
           clock_object,
-          coin::zero<B1>(ctx),
           coin_x,
           0,
           ctx
         );
 
-      // Sell B1 -> B2 -> Y
-      let (coin_b1, coin_y) = one_hop_swap<B1, Y, B2>(
+        one_hop_swap<B1, B2, Y>(
         storage,
         clock_object,
         coin_b1,
-        coin_y,
         coin_out_min_value,
         ctx
-      );
-
-      coin::destroy_zero(coin_b1);
-      (coin_x, coin_y)
+      )
       }
-    }
   }
 
   /**

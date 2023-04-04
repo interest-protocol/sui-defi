@@ -1,11 +1,15 @@
 #[test_only]
 module interest_protocol::utils_tests {
+  use std::vector;
 
-  use sui::test_scenario::{Self as test, next_tx};
+  use sui::test_scenario::{Self as test, next_tx, ctx, Scenario};
   use sui::test_utils::{assert_eq};
+  use sui::coin::{Coin, mint_for_testing as mint, burn_for_testing as burn};
 
-  use interest_protocol::utils::{calculate_cumulative_balance};
+  use interest_protocol::utils::{calculate_cumulative_balance, handle_coin_vector};
   use interest_protocol::test_utils::{people, scenario};
+
+  struct Ether {}
 
   const MAX_U_128: u256 = 1340282366920938463463374607431768211455;
 
@@ -36,5 +40,31 @@ module interest_protocol::utils_tests {
     test::end(scenario);  
   }
 
+  fun test_handle_coin_vector_(test: &mut Scenario) {
+      let (alice, _) = people();
 
+      let desired_amount = 1000000000;
+      next_tx(test, alice);
+      {
+        let coin_vector = vector::empty<Coin<Ether>>();
+
+        vector::push_back(&mut coin_vector, mint<Ether>(desired_amount, ctx(test)));
+        vector::push_back(&mut coin_vector, mint<Ether>(desired_amount, ctx(test)));
+
+        let coin = handle_coin_vector<Ether>(
+          coin_vector,
+          desired_amount,
+          ctx(test)
+          );
+
+        assert!(burn(coin) == desired_amount, 0);  
+      }
+  }
+
+  #[test] 
+  fun test_handle_coin_vector() {
+    let scenario = scenario();
+    test_handle_coin_vector_(&mut scenario);
+    test::end(scenario);
+  }
 }
