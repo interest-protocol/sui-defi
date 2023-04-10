@@ -23,7 +23,7 @@ module interest_protocol::ipx {
   struct IPXStorage has key {
     id: UID,
     supply: Supply<IPX>,
-    minters: VecSet<ID> // List of publishers that are allowed to mint DNR
+    minters: VecSet<ID> // List of publishers that are allowed to mint IPX
   }
 
   struct IPXAdminCap has key {
@@ -129,7 +129,7 @@ module interest_protocol::ipx {
   * It emits the MinterAdded event with the {ID} of the {Publisher}
   *
   */
-  entry fun add_minter(_: &IPXAdminCap, storage: &mut IPXStorage, id: ID) {
+  entry public fun add_minter(_: &IPXAdminCap, storage: &mut IPXStorage, id: ID) {
     vec_set::insert(&mut storage.minters, id);
     emit(
       MinterAdded {
@@ -147,7 +147,7 @@ module interest_protocol::ipx {
   * It emits the  MinterRemoved event with the {ID} of the {Publisher}
   *
   */
-  entry fun remove_minter(_: &IPXAdminCap, storage: &mut IPXStorage, id: ID) {
+  entry public fun remove_minter(_: &IPXAdminCap, storage: &mut IPXStorage, id: ID) {
     vec_set::remove(&mut storage.minters, &id);
     emit(
       MinterRemoved {

@@ -6,7 +6,7 @@ module interest_protocol::master_chef_tests {
   use sui::clock::{Self, Clock};
 
   use interest_protocol::master_chef::{Self, MasterChefStorage, AccountStorage, MasterChefAdmin};
-  use interest_protocol::ipx::{Self, IPXStorage, IPX};
+  use interest_protocol::ipx::{Self, IPXStorage, IPX, IPXAdminCap};
   use interest_protocol::test_utils::{people, scenario};
   
   const START_TIMESTAMP: u64 = 0;
@@ -675,6 +675,25 @@ module interest_protocol::master_chef_tests {
       test::return_shared(master_chef_storage);
       test::return_to_sender(test, admin_cap);
       test::return_shared(account_storage);
+    };
+
+    next_tx(test, owner);
+    {
+      let admin_cap = test::take_from_sender<IPXAdminCap>(test);   
+      let ipx_storage = test::take_shared<IPXStorage>(test);  
+      let master_chef_storage = test::take_shared<MasterChefStorage>(test); 
+
+      let id = master_chef::get_publisher_id(&master_chef_storage);
+
+      ipx::add_minter(
+        &admin_cap,
+        &mut ipx_storage,
+        id
+      );
+
+      test::return_to_sender(test, admin_cap);
+      test::return_shared(ipx_storage);
+      test::return_shared(master_chef_storage);
     };
   }
 }

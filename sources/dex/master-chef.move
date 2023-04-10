@@ -1,7 +1,7 @@
 module interest_protocol::master_chef {
   use std::ascii::{String};
 
-  use sui::object::{Self, UID};
+  use sui::object::{Self, UID, ID};
   use sui::tx_context::{Self, TxContext};
   use sui::clock::{Self, Clock};
   use sui::balance::{Self, Balance};
@@ -815,4 +815,10 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
   public fun init_for_testing(ctx: &mut TxContext) {
     init(MASTER_CHEF {} ,ctx);
   }
+
+  #[test_only]
+  public fun get_publisher_id(storage: &MasterChefStorage): ID {
+    object::id(&storage.publisher)
+  }
+
 }

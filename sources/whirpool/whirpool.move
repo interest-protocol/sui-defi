@@ -5,7 +5,7 @@ module interest_protocol::whirpool {
 
   use sui::tx_context::{Self, TxContext};
   use sui::transfer;
-  use sui::object::{Self, UID};
+  use sui::object::{Self, UID, ID};
   use sui::bag::{Self, Bag};
   use sui::table::{Self, Table};
   use sui::object_table::{Self, ObjectTable};
@@ -2851,6 +2851,16 @@ module interest_protocol::whirpool {
   }
 
   // Test functions 
+
+  #[test_only]
+  public fun get_interest_rate_per_ms(storage: &WhirpoolStorage): u64 {
+    storage.dnr_interest_rate_per_ms
+  }
+
+  #[test_only]
+  public fun get_publisher_id(storage: &WhirpoolStorage): ID {
+    object::id(&storage.publisher)
+  }
 
   #[test_only]
   public fun init_for_testing(ctx: &mut TxContext) {
