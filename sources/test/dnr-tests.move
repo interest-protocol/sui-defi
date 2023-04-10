@@ -16,7 +16,7 @@ module interest_protocol::dnr_tests {
       let (alice, _) = people();
       let test = &mut scenario;
 
-      start_ipx(test);
+      start_dnr(test);
 
       next_tx(test, alice);
       {
@@ -42,7 +42,7 @@ module interest_protocol::dnr_tests {
       let (alice, _) = people();
       let test = &mut scenario;
 
-      start_ipx(test);
+      start_dnr(test);
 
       next_tx(test, alice);
       {
@@ -72,7 +72,7 @@ module interest_protocol::dnr_tests {
       let (alice, _) = people();
       let test = &mut scenario;
 
-      start_ipx(test);
+      start_dnr(test);
 
       next_tx(test, alice);
       {
@@ -105,7 +105,7 @@ module interest_protocol::dnr_tests {
       let (alice, _) = people();
       let test = &mut scenario;
 
-      start_ipx(test);
+      start_dnr(test);
 
       next_tx(test, alice);
       {
@@ -130,7 +130,7 @@ module interest_protocol::dnr_tests {
       test::end(scenario);
   }
 
-  fun start_ipx(test: &mut Scenario) {
+  fun start_dnr(test: &mut Scenario) {
        let (alice, _) = people();
        next_tx(test, alice);
        {

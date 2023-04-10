@@ -1194,9 +1194,36 @@ module interest_protocol::dex {
       (balance::value(&pool.balance_x), balance::value(&pool.balance_y), balance::supply_value(&pool.lp_coin_supply))
     }
 
+    /**
+    * @dev A utility function to read the (pool.balance_x_cumulative_last, pool.balance_y_cumulative_last) from Pool<C, X, Y>
+    * @param storage The DEXStorage shared object
+    * return (u256, u256) (pool.balance_x_cumulative_last, pool.balance_y_cumulative_last)   
+    */
+    public fun get_pool_cumulative_balances_last<C, X, Y>(storage: &DEXStorage): (u256, u256) {
+      assert!(is_curve<C>(), ERROR_WRONG_CURVE);
+      let pool = borrow_pool<C, X, Y>(storage);
+      (pool.balance_x_cumulative_last, pool.balance_y_cumulative_last)
+    }
+
     #[test_only]
     public fun init_for_testing(ctx: &mut TxContext) {
         init(ctx);
+    }
+    
+    #[test_only]
+    public fun get_observations<C, X, Y>(storage: &DEXStorage): &vector<Observation> {
+      let pool = borrow_pool<C, X, Y>(storage);
+      &pool.observations
+    }
+
+    #[test_only]
+    public fun get_period_size(): u64 {
+      PERIOD_SIZE
+    }
+
+    #[test_only]
+    public fun get_granularity(): u64 {
+      GRANULARITY
     }
 
     #[test_only]
