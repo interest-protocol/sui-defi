@@ -87,7 +87,7 @@ module interest_protocol::ipx {
   * @return Coin<IPX> New created IPX coin
   */
   public fun mint(storage: &mut IPXStorage, publisher: &Publisher, value: u64, ctx: &mut TxContext): Coin<IPX> {
-    assert!(is_minter(storage, publisher), ERROR_NOT_ALLOWED_TO_MINT);
+    assert!(is_minter(storage, object::id(publisher)), ERROR_NOT_ALLOWED_TO_MINT);
 
     coin::from_balance(balance::increase_supply(&mut storage.supply, value), ctx)
   }
@@ -162,8 +162,8 @@ module interest_protocol::ipx {
   * @param publisher of the package 
   * @return bool true if it can mint IPX
   */
-  public fun is_minter(storage: &IPXStorage, publisher: &Publisher): bool {
-    vec_set::contains(&storage.minters, object::borrow_id(publisher))
+  public fun is_minter(storage: &IPXStorage, id: ID): bool {
+    vec_set::contains(&storage.minters, &id)
   }
 
 

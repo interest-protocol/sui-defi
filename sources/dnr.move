@@ -83,7 +83,7 @@ module interest_protocol::dnr {
   * @return Coin<DNR> New created DNR coin
   */
   public fun mint(storage: &mut DineroStorage, publisher: &Publisher, value: u64, ctx: &mut TxContext): Coin<DNR> {
-    assert!(is_minter(storage, publisher), ERROR_NOT_ALLOWED_TO_MINT);
+    assert!(is_minter(storage, object::id(publisher)), ERROR_NOT_ALLOWED_TO_MINT);
 
     coin::from_balance(balance::increase_supply(&mut storage.supply, value), ctx)
   }
@@ -157,8 +157,8 @@ module interest_protocol::dnr {
   * @param publisher of the package 
   * @return bool true if it can mint Dinero
   */
-  public fun is_minter(storage: &DineroStorage, publisher: &Publisher): bool {
-    vec_set::contains(&storage.minters, object::borrow_id(publisher))
+  public fun is_minter(storage: &DineroStorage, id: ID): bool {
+    vec_set::contains(&storage.minters, &id)
   }
 
   // Test only functions
