@@ -239,8 +239,7 @@ module interest_protocol::whirpool_tests_2 {
 
       let interest_rate_per_ms = whirpool::get_borrow_rate_per_ms<DNR>(
         &whirpool_storage,
-        &interest_rate_model_storage,
-        &dnr_storage
+        &interest_rate_model_storage
       );
 
       let timestame_increase = 83763618;
@@ -303,8 +302,7 @@ module interest_protocol::whirpool_tests_2 {
 
       let interest_rate_per_ms = whirpool::get_borrow_rate_per_ms<DNR>(
         &whirpool_storage,
-        &interest_rate_model_storage,
-        &dnr_storage
+        &interest_rate_model_storage
       );
 
       let timestame_increase = 82761673839;
@@ -722,7 +720,6 @@ module interest_protocol::whirpool_tests_2 {
         &mut account_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
-        &mut dnr_storage,
         &oracle_storage,
         &clock_object,
         borrow_value,
@@ -775,8 +772,7 @@ module interest_protocol::whirpool_tests_2 {
 
       let interest_rate_per_ms = whirpool::get_borrow_rate_per_ms<ETH>(
         &whirpool_storage,
-        &interest_rate_model_storage,
-        &dnr_storage
+        &interest_rate_model_storage
       );
 
       let (_, _, _, _, _, _, _, _, _, _, _, _, _, _, total_borrows, _) = whirpool::get_market_info<ETH>(&whirpool_storage);
@@ -789,7 +785,6 @@ module interest_protocol::whirpool_tests_2 {
         &mut account_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
-        &dnr_storage,
         &oracle_storage,
         &clock_object,
         mint<ETH>(new_total_borrows, 0, ctx(test)),
@@ -939,7 +934,6 @@ module interest_protocol::whirpool_tests_2 {
         &mut account_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
-        &mut dnr_storage,
         &oracle_storage,
         &clock_object,
         borrow_value,
@@ -977,7 +971,6 @@ module interest_protocol::whirpool_tests_2 {
         &mut account_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
-        &mut dnr_storage,
         &oracle_storage,
         &clock_object,
         borrow_value,
@@ -1030,14 +1023,12 @@ module interest_protocol::whirpool_tests_2 {
 
       let interest_rate_per_ms = whirpool::get_borrow_rate_per_ms<ETH>(
         &whirpool_storage,
-        &interest_rate_model_storage,
-        &dnr_storage
+        &interest_rate_model_storage
       );
 
        let btc_interest_rate_per_ms = whirpool::get_borrow_rate_per_ms<BTC>(
          &whirpool_storage,
-        &interest_rate_model_storage,
-        &dnr_storage
+        &interest_rate_model_storage
       );
 
       let (_, _, _, _, _, _, _, _, _, _, _, _, _, _, total_borrows, _) = whirpool::get_market_info<ETH>(&whirpool_storage);
@@ -1056,7 +1047,6 @@ module interest_protocol::whirpool_tests_2 {
         &mut account_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
-        &dnr_storage,
         &oracle_storage,
         &clock_object,
         mint<ETH>(new_total_borrows, 0, ctx(test)),
@@ -1111,7 +1101,6 @@ module interest_protocol::whirpool_tests_2 {
         &mut account_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
-        &dnr_storage,
         &oracle_storage,
         &clock_object,
         mint<ETH>(1, 0, ctx(test)),
@@ -1156,7 +1145,6 @@ module interest_protocol::whirpool_tests_2 {
         &mut account_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
-        &dnr_storage,
         &oracle_storage,
         &clock_object,
         mint<ETH>(1, 0, ctx(test)),
@@ -1201,7 +1189,6 @@ module interest_protocol::whirpool_tests_2 {
         &mut account_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
-        &dnr_storage,
         &oracle_storage,
         &clock_object,
         mint<DNR>(1, 0, ctx(test)),

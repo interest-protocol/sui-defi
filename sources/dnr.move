@@ -124,8 +124,7 @@ module interest_protocol::dnr {
   * It emits the MinterAdded event with the {ID} of the {Publisher}
   *
   */
-  entry fun add_minter(_: &DineroAdminCap, storage: &mut DineroStorage, publisher: &Publisher) {
-    let id = object::id(publisher);
+  entry fun add_minter(_: &DineroAdminCap, storage: &mut DineroStorage, id: ID) {
     vec_set::insert(&mut storage.minters, id);
     emit(
       MinterAdded {
@@ -143,11 +142,11 @@ module interest_protocol::dnr {
   * It emits the  MinterRemoved event with the {ID} of the {Publisher}
   *
   */
-  entry fun remove_minter(_: &DineroAdminCap, storage: &mut DineroStorage, publisher: &Publisher) {
-    vec_set::remove(&mut storage.minters, object::borrow_id(publisher));
+  entry fun remove_minter(_: &DineroAdminCap, storage: &mut DineroStorage, id: ID) {
+    vec_set::remove(&mut storage.minters, &id);
     emit(
       MinterRemoved {
-        id: object::id(publisher)
+        id
       }
     );
   } 

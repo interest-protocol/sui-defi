@@ -7,7 +7,7 @@ module interest_protocol::dex_volatile_tests {
     use sui::object;
     use sui::clock::{Self, Clock};
 
-    use interest_protocol::dex::{Self, Storage, DEXAdminCap, LPCoin};
+    use interest_protocol::dex::{Self, DEXStorage as Storage, DEXAdminCap, LPCoin};
     use interest_protocol::curve::{Volatile};
     use interest_protocol::test_utils::{people, scenario};
     use interest_protocol::math::{sqrt_u256};

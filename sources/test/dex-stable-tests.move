@@ -7,7 +7,7 @@ module interest_protocol::dex_stable_tests {
     use sui::clock::{Self, Clock};
     use sui::test_utils::{assert_eq};
 
-    use interest_protocol::dex::{Self, Storage, DEXAdminCap, LPCoin};
+    use interest_protocol::dex::{Self, DEXStorage as Storage, DEXAdminCap, LPCoin};
     use interest_protocol::curve::{Stable};
     use interest_protocol::test_utils::{people, scenario};
     use interest_protocol::math::{sqrt_u256};
