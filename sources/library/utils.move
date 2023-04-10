@@ -1,3 +1,4 @@
+// Set of common utility functions for Interest Protocol packages
 module interest_protocol::utils {
     use std::type_name;
     use std::ascii::{Self, String};
@@ -51,37 +52,37 @@ module interest_protocol::utils {
         }
     }
 
- public fun are_types_equal<X, Y>(): bool {
-  compare_struct<X, Y>() == EQUAL
- }   
+    public fun are_types_equal<X, Y>(): bool {
+      compare_struct<X, Y>() == EQUAL
+    }   
 
- public fun are_coins_sorted<X,Y>(): bool {
-        let compare_x_y: u8 = compare_struct<X, Y>();
-        assert!(compare_x_y != get_equal_enum(), ERROR_SAME_COIN);
-        (compare_x_y == get_smaller_enum())
+    public fun are_coins_sorted<X,Y>(): bool {
+      let compare_x_y: u8 = compare_struct<X, Y>();
+      assert!(compare_x_y != get_equal_enum(), ERROR_SAME_COIN);
+      (compare_x_y == get_smaller_enum())
     }
 
-  public fun quote_liquidity(amount_a: u64, reserves_a: u64, reserves_b: u64): u64 {
+    public fun quote_liquidity(amount_a: u64, reserves_a: u64, reserves_b: u64): u64 {
       amount_a * reserves_b / reserves_a
     }
 
     public fun get_ms_per_year(): u64 {
-        MS_PER_YEAR
+      MS_PER_YEAR
     }
 
-  public fun calculate_cumulative_balance(balance: u256, timestamp: u64, old_reserve_cumulative: u256): u256 {
-    let result = (balance * (timestamp as u256)) + old_reserve_cumulative;
+    public fun calculate_cumulative_balance(balance: u256, timestamp: u64, old_reserve_cumulative: u256): u256 {
+      let result = (balance * (timestamp as u256)) + old_reserve_cumulative;
 
-    while (result > MAX_U_128) {
-      result = result - MAX_U_128;
-    };
+      while (result > MAX_U_128) {
+        result = result - MAX_U_128;
+      };
 
-    result
-  }
+      result
+    }
 
-  public fun max_u_128(): u256 {
-    MAX_U_128
-  }
+    public fun max_u_128(): u256 {
+      MAX_U_128
+    }
 
     public  fun handle_coin_vector<X>(
       vector_x: vector<Coin<X>>,

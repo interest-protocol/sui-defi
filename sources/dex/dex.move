@@ -45,7 +45,7 @@ module interest_protocol::dex {
       id: UID,
     }
 
-    struct Storage has key {
+    struct DEXStorage has key {
       id: UID,
       pools: ObjectBag,
       fee_to: address
@@ -134,9 +134,9 @@ module interest_protocol::dex {
         tx_context::sender(ctx)
         );
 
-      // Share the Storage object
+      // Share the DEXStorage object
       transfer::share_object(
-         Storage {
+         DEXStorage {
            id: object::new(ctx),
            pools: object_bag::new(ctx),
            fee_to: @dev
@@ -160,7 +160,7 @@ module interest_protocol::dex {
     * - There can only be one pool per each token pair, regardless of their order.
     */
     public fun create_v_pool<X, Y>(
-      storage: &mut Storage,
+      storage: &mut DEXStorage,
       clock_object: &Clock,
       coin_x: Coin<X>,
       coin_y: Coin<Y>,
@@ -254,7 +254,7 @@ module interest_protocol::dex {
     * - There can only be one pool per each token pair, regardless of their order.
     */
     public fun create_s_pool<X, Y>(
-      storage: &mut Storage,
+      storage: &mut DEXStorage,
       clock_object: &Clock,
       coin_x: Coin<X>,
       coin_y: Coin<Y>,
@@ -348,7 +348,7 @@ module interest_protocol::dex {
     * - Coins X and Y must be sorted.
     */
     public fun add_liquidity<C, X, Y>(   
-      storage: &mut Storage,
+      storage: &mut DEXStorage,
       clock_object: &Clock,
       coin_x: Coin<X>,
       coin_y: Coin<Y>,
@@ -426,7 +426,7 @@ module interest_protocol::dex {
     * - Coins X and Y must be sorted.
     */
     public fun remove_liquidity<C, X, Y>(   
-      storage: &mut Storage,
+      storage: &mut DEXStorage,
       clock_object: &Clock,
       lp_coin: Coin<LPCoin<C, X, Y>>,
       coin_x_min_amount: u64,
@@ -500,7 +500,7 @@ module interest_protocol::dex {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-    public fun borrow_pool<C, X, Y>(storage: &Storage): &Pool<C, X, Y> {
+    public fun borrow_pool<C, X, Y>(storage: &DEXStorage): &Pool<C, X, Y> {
       object_bag::borrow<String, Pool<C, X, Y>>(&storage.pools, utils::get_coin_info_string<LPCoin<C, X, Y>>())
     }
 
@@ -511,7 +511,7 @@ module interest_protocol::dex {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-    public fun is_pool_deployed<C, X, Y>(storage: &Storage): bool {
+    public fun is_pool_deployed<C, X, Y>(storage: &DEXStorage): bool {
       object_bag::contains(&storage.pools, utils::get_coin_info_string<LPCoin<C, X, Y>>())
     }
 
@@ -521,7 +521,7 @@ module interest_protocol::dex {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-    public fun get_pool_id<C, X, Y>(storage: &Storage): ID {
+    public fun get_pool_id<C, X, Y>(storage: &DEXStorage): ID {
       let pool = borrow_pool<C, X, Y>(storage);
       object::id(pool)
     }
@@ -628,7 +628,7 @@ module interest_protocol::dex {
    * - Coins X and Y must be sorted.
    */ 
    public fun swap_token_x<C, X, Y>(
-      storage: &mut Storage, 
+      storage: &mut DEXStorage, 
       clock_object: &Clock,
       coin_x: Coin<X>,
       coin_y_min_value: u64,
@@ -691,7 +691,7 @@ module interest_protocol::dex {
    * - Coins X and Y must be sorted.
    */ 
     public fun swap_token_y<C, X, Y>(
-      storage: &mut Storage, 
+      storage: &mut DEXStorage, 
       clock_object: &Clock,
       coin_y: Coin<Y>,
       coin_x_min_value: u64,
@@ -753,7 +753,7 @@ module interest_protocol::dex {
    * - The caller must call the fn repay_flash_loan before the execution ends
    */ 
     public fun flash_loan<C, X, Y>(
-      storage: &mut Storage,
+      storage: &mut DEXStorage,
       amount_x: u64,
       amount_y: u64,
       ctx: &mut TxContext
@@ -791,7 +791,7 @@ module interest_protocol::dex {
    * - The value of Coin<X> and Coin<Y> must be equal or higher than the receipt repay amount_x and amount_y
    */ 
     public fun repay_flash_loan<C, X, Y>(
-      storage: &mut Storage,
+      storage: &mut DEXStorage,
       clock_object: &Clock,
       receipt: Receipt<C, X, Y>,
       coin_x: Coin<X>,
@@ -832,6 +832,14 @@ module interest_protocol::dex {
       (receipt.pool_id, receipt.repay_amount_x, receipt.repay_amount_y)
     }  
 
+    /**
+    * @dev It returns the AMM constant invariant based on {C}. If {C} is {Volatile}, it returns k = x * y
+    * @param x The reserves of Coin<X> in Pool<X, Y>
+    * @parma y the reserves of Coin<Y> in Pool<X, Y>
+    * @param decimals_x the decimal factor of Coin<X>. So for Sui which has 9 decimals it would be 1e9
+    * @param decimals_y the decimal factor of Coin<Y>.
+    * @return The {Volatile} or {Stable} K
+    */
     fun k<C>(
       x: u64, 
       y: u64,
@@ -900,7 +908,7 @@ module interest_protocol::dex {
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
-    fun borrow_mut_pool<C, X, Y>(storage: &mut Storage): &mut Pool<C, X, Y> {
+    fun borrow_mut_pool<C, X, Y>(storage: &mut DEXStorage): &mut Pool<C, X, Y> {
         object_bag::borrow_mut<String, Pool<C, X, Y>>(&mut storage.pools, utils::get_coin_info_string<LPCoin<C, X, Y>>())
       }   
 
@@ -1012,7 +1020,7 @@ module interest_protocol::dex {
     * @param coin_x_value The price will be returned in terms of how much coin_x_value in Coin<X>  returns when swapping to Coin<Y>
     * @retuen the value in Coin<Y>
     */
-    public fun get_coin_x_price<C, X, Y>(storage: &mut Storage, clock_object: &Clock, coin_x_value: u64): u64 {
+    public fun get_coin_x_price<C, X, Y>(storage: &mut DEXStorage, clock_object: &Clock, coin_x_value: u64): u64 {
       assert!(is_curve<C>(), ERROR_WRONG_CURVE);
 
       let pool = borrow_mut_pool<C, X, Y>(storage);
@@ -1064,7 +1072,7 @@ module interest_protocol::dex {
     * @param coin_y_value The price will be returned in terms of how much coin_y_value in Coin<Y>  returns when swapping to Coin<X>
     * @retuen the value in Coin<Y>
     */
-    public fun get_coin_y_price<C, X, Y>(storage: &mut Storage, clock_object: &Clock, coin_y_value: u64): u64 {
+    public fun get_coin_y_price<C, X, Y>(storage: &mut DEXStorage, clock_object: &Clock, coin_y_value: u64): u64 {
       assert!(is_curve<C>(), ERROR_WRONG_CURVE);
 
       let pool = borrow_mut_pool<C, X, Y>(storage);
@@ -1157,7 +1165,7 @@ module interest_protocol::dex {
     */
     entry public fun update_fee_to(
       _:&DEXAdminCap, 
-      storage: &mut Storage,
+      storage: &mut DEXStorage,
       new_fee_to: address
        ) {
       storage.fee_to = new_fee_to;
@@ -1175,7 +1183,12 @@ module interest_protocol::dex {
       transfer::transfer(admin_cap, new_admin);
     }
 
-    public fun get_pool_info<C, X, Y>(storage: &Storage): (u64, u64, u64){
+    /**
+    * @dev A utility function to return the values balance_x, balance_y and lp_coin_supply of a pool
+    * @param storage The DEXStorage shared object
+    * return (u64, u64, u64) (balance_x, balance_x, lp_coin_supply)
+    */
+    public fun get_pool_info<C, X, Y>(storage: &DEXStorage): (u64, u64, u64){
       assert!(is_curve<C>(), ERROR_WRONG_CURVE);
       let pool = borrow_pool<C, X, Y>(storage);
       (balance::value(&pool.balance_x), balance::value(&pool.balance_y), balance::supply_value(&pool.lp_coin_supply))
@@ -1187,19 +1200,19 @@ module interest_protocol::dex {
     }
 
     #[test_only]
-    public fun get_fee_to(storage: &Storage,): address {
+    public fun get_fee_to(storage: &DEXStorage): address {
       storage.fee_to
     }
 
     #[test_only]
-    public fun get_k_last<C, X, Y>(storage: &Storage): u256 {
+    public fun get_k_last<C, X, Y>(storage: &DEXStorage): u256 {
       assert!(is_curve<C>(), ERROR_WRONG_CURVE);
       let pool = borrow_pool<C, X, Y>(storage);
       pool.k_last
     }
 
     #[test_only]
-    public fun get_pool_metadata<C, X, Y>(storage: &Storage): (u64, u64) {
+    public fun get_pool_metadata<C, X, Y>(storage: &DEXStorage): (u64, u64) {
       let pool = borrow_pool<C, X, Y>(storage);
       (pool.decimals_x, pool.decimals_y)
     }

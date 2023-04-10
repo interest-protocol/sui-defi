@@ -1,3 +1,4 @@
+// Package that calculates the borrow or supply interest rate for a market
 module interest_protocol::interest_rate_model {
 
   use std::ascii::{String}; 
@@ -18,13 +19,15 @@ module interest_protocol::interest_rate_model {
     base_rate_per_ms: u256,
     multiplier_per_ms: u256,
     jump_multiplier_per_ms: u256,
-    kink: u256
+    kink: u256 
   }
 
   struct InterestRateModelStorage has key {
     id: UID,
-    interest_rate_object_table: ObjectTable<String, InterestRateData>
+    interest_rate_object_table: ObjectTable<String, InterestRateData> // market_key -> Interest Rate Data
   }
+
+  // Events
 
   struct NewInterestRateData<phantom T> has copy, drop {
     base_rate_per_ms: u256,
@@ -42,6 +45,15 @@ module interest_protocol::interest_rate_model {
       );
   }
 
+  /**
+  * @dev It returns the interest rate amount per millisecond given a market
+  * @param storage The shared object {InterestRateModelStorage}
+  * @param market_key The key to fetch the {InterestRateData} of a market
+  * @param cash The current liquidity of said market
+  * @param total_borrow_amount The total borrow amount of said market
+  * @param reserves The total protocol reserves amount for said market
+  * @return u64 The interest rate amount to charge every millisecond
+  */
   public fun get_borrow_rate_per_ms(
     storage: &InterestRateModelStorage,
     market_key: String,
@@ -52,6 +64,16 @@ module interest_protocol::interest_rate_model {
     (get_borrow_rate_per_ms_internal(storage, market_key, cash, total_borrow_amount, reserves) as u64)
   }
 
+  /**
+  * @dev It returns the interest rate amount earned by liquidity suppliers per millisecond
+  * @param storage The shared object {InterestRateModelStorage}
+  * @param market_key The key to fetch the {InterestRateData} of a market
+  * @param cash The current liquidity of said market
+  * @param total_borrow_amount The total borrow amount of said market
+  * @param reserves The total protocol reserves amount for said market
+  * @param reserve_factor
+  * @return u64 The interest rate amount to pay liquidity suppliers every millisecond  
+  */
   public fun get_supply_rate_per_ms(
     storage: &InterestRateModelStorage,
     market_key: String,
@@ -65,6 +87,15 @@ module interest_protocol::interest_rate_model {
     (d_fmul_u256(get_utilization_rate_internal(cash, total_borrow_amount, reserves), borrow_rate) as u64)
   }
 
+  /**
+  * @dev It holds the logic that calculates the interest rate amount per millisecond given a market
+  * @param storage The shared object {InterestRateModelStorage}
+  * @param market_key The key to fetch the {InterestRateData} of a market
+  * @param cash The current liquidity of said market
+  * @param total_borrow_amount The total borrow amount of said market
+  * @param reserves The total protocol reserves amount for said market
+  * @return u64 The interest rate amount to charge every millisecond
+  */
   fun get_borrow_rate_per_ms_internal(
     storage: &InterestRateModelStorage,
     market_key: String,
@@ -87,12 +118,28 @@ module interest_protocol::interest_rate_model {
       }
     }
 
+  /**
+  * @dev It returns the % that a market is being based on Supply, Borrow, Reserves in 1e18 scale
+  * @param cash The current liquidity of said market
+  * @param total_borrow_amount The total borrow amount of said market
+  * @param reserves The total protocol reserves amount for said market
+  * @return u256 The utilization rate in 1e18 scale
+  */
   fun get_utilization_rate_internal(cash: u64, total_borrow_amount: u64, reserves: u64): u256 {
     if (total_borrow_amount == 0) { 0 } else { 
       d_fdiv(total_borrow_amount, (cash + total_borrow_amount) - reserves)
      }
   }
 
+  /**
+  * @dev It sets the interest rate base, jump, kink and multiplier variables for Markets. Only Whirpool package can call it
+  * Note that the values are per year. The function will convert them to ms via {get_ms_per_year()}
+  * @param storage The shared object {InterestRateModelStorage}
+  * @param base_rate_per_year The base interest rate (minimum) per year in 1e18 scale  
+  * @param multiplier_pear_year The multiplier charged as more liquidity is borrowed
+  * @param jump_multiplier_per_year The multiplier charged as more liquidity is borrowed after a certain utilization rate {kink}
+  * @param kink The percentage that we start chargign every new borow the jump_multiplier instead of the multiplier
+  */
   public(friend) fun set_interest_rate_data<T>(
     storage: &mut InterestRateModelStorage,
     base_rate_per_year: u256,
@@ -140,6 +187,7 @@ module interest_protocol::interest_rate_model {
     );
   }
 
+  // Test only functions
   #[test_only]
   public fun init_for_testing(ctx: &mut TxContext) {
     init(ctx);

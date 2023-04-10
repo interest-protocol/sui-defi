@@ -1,3 +1,5 @@
+// Entry functions for Interest Protocol
+// TODO ADD FUNCTIONS FOR WHIRPOOL
 module interest_protocol::interface {
   use std::vector;
 
@@ -7,8 +9,8 @@ module interest_protocol::interface {
   use sui::clock::{Self, Clock};
   use sui::object::{ID};
 
-  use interest_protocol::dex::{Self, Storage as Storage, LPCoin};
-  use interest_protocol::master_chef::{Self, MasterChefStorage, AccountStorage};
+  use interest_protocol::dex::{Self, DEXStorage, LPCoin};
+  use interest_protocol::master_chef::{Self, MasterChefStorage, AccountStorage as MasterChefAccountStorage};
   use interest_protocol::ipx::{Self, IPXStorage, IPX};
   use interest_protocol::utils::{handle_coin_vector, are_coins_sorted};
   use interest_protocol::router;
@@ -18,7 +20,7 @@ module interest_protocol::interface {
   /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
   * It create a volatile Pool with Coins X and Y
-  * @param storage The storage object of the interest_protocol::dex 
+  * @param storage The DEXStorage object of the interest_protocol::dex 
   * @param clock_object The shared Clock object at id @0x6
   * @param vector_x  A list of Coin<X>, the contract will merge all coins into with the `coin_x_amount` and return any extra value
   * @param vector_y  A list of Coin<Y>, the contract will merge all coins into with the `coin_y_amount` and return any extra value 
@@ -26,7 +28,7 @@ module interest_protocol::interface {
   * @param coin_y_amount The desired amount of Coin<Y> to send
   */
   entry public fun create_v_pool<X, Y>(
-      storage: &mut Storage,
+      storage: &mut DEXStorage,
       clock_object: &Clock,
       vector_x: vector<Coin<X>>,
       vector_y: vector<Coin<Y>>,
@@ -67,7 +69,7 @@ module interest_protocol::interface {
   /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
   * It create a volatile Pool with Coins X and Y
-  * @param storage The storage object of the interest_protocol::dex
+  * @param storage The DEXStorage object of the interest_protocol::dex
   * @param clock_object The shared Clock object at id @0x6
   * @param vector_x  A list of Coin<X>, the contract will merge all coins into with the `coin_x_amount` and return any extra value
   * @param vector_y  A list of Coin<Y>, the contract will merge all coins into with the `coin_y_amount` and return any extra value 
@@ -77,7 +79,7 @@ module interest_protocol::interface {
   * @param coin_y_metadata The metadata oject of Coin<Y>
   */
   entry public fun create_s_pool<X, Y>(
-      storage: &mut Storage,
+      storage: &mut DEXStorage,
       clock_object: &Clock,
       vector_x: vector<Coin<X>>,
       vector_y: vector<Coin<Y>>,
@@ -124,7 +126,7 @@ module interest_protocol::interface {
   /**
   * @dev This function requires the tokens to be sorted
   * It performs a swap and finds the most profitable pool. X -> Y on Pool<X, Y>
-  * @param storage The storage object of the interest_protocol::dex
+  * @param storage The DEXStorage object of the interest_protocol::dex
   * @param clock_object The shared Clock object at id @0x6
   * @param vector_x A vector of several Coin<X> 
   * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
@@ -132,7 +134,7 @@ module interest_protocol::interface {
   * @param deadline The TX must be submitted before this timestamp
   */
   entry public fun swap_x<X, Y>(
-    storage: &mut Storage,
+    storage: &mut DEXStorage,
     clock_object: &Clock,
     vector_x: vector<Coin<X>>,
     coin_x_amount: u64,
@@ -161,7 +163,7 @@ module interest_protocol::interface {
   /**
   * @dev This function requires the tokens to be sorted
   * It performs a swap and finds the most profitable pool. Y -> X on Pool<X, Y>
-  * @param storage The storage object of the interest_protocol::dex
+  * @param storage The DEXStorage object of the interest_protocol::dex
   * @param clock_object The shared Clock object at id @0x6
   * @param vector_y A vector of several Coin<Y> 
   * @param coin_y_amount The value the caller wishes to deposit for Coin<Y>
@@ -169,7 +171,7 @@ module interest_protocol::interface {
   * @param deadline The TX must be submitted before this timestamp
   */
   entry public fun swap_y<X, Y>(
-    storage: &mut Storage,
+    storage: &mut DEXStorage,
     clock_object: &Clock,
     vector_y: vector<Coin<Y>>,
     coin_y_amount: u64,
@@ -198,7 +200,7 @@ module interest_protocol::interface {
   /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
   * It performs an one hop swap and finds the most profitable pool. X -> B -> Y on Pool<X, B> -> Pool<B, Y>
-  * @param storage The storage object of the interest_protocol::dex
+  * @param storage The DEXStorage object of the interest_protocol::dex
   * @param clock_object The shared Clock object
   * @param vector_x A vector of several Coin<X> 
   * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
@@ -206,7 +208,7 @@ module interest_protocol::interface {
   * @param deadline Timestamp indicating the deadline for this TX to be submitted
   */
   entry public fun one_hop_swap<X, B, Y>(
-    storage: &mut Storage,
+    storage: &mut DEXStorage,
     clock_object: &Clock,
     vector_x: vector<Coin<X>>,
     coin_x_amount: u64,
@@ -235,7 +237,7 @@ module interest_protocol::interface {
   /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
   * It performs a three hop swap and finds the most profitable pool. X -> B1 -> B2 -> Y or Y -> B1 -> B2 -> X on Pool<X, Z> -> Pool<B1, B2> -> Pool<B2, Y>
-  * @param storage The storage object of the interest_protocol::dex  
+  * @param storage The DEXStorage object of the interest_protocol::dex  
   * @param clock_object The shared Clock object
   * @param vector_x A vector of several Coin<X> 
   * @param coin_x_amount The value the caller wishes to deposit for Coin<X> 
@@ -243,7 +245,7 @@ module interest_protocol::interface {
   * @param deadline Timestamp indicating the deadline for this TX to be submitted
   */
   entry public fun two_hop_swap<X, B1, B2, Y>(
-    storage: &mut Storage,
+    storage: &mut DEXStorage,
     clock_object: &Clock,
     vector_x: vector<Coin<X>>,
     coin_x_amount: u64,
@@ -272,7 +274,7 @@ module interest_protocol::interface {
   /**
   * @dev This function does not require the coins to be sorted. It will send back any unused value. 
   * It adds liquidity to a Pool
-  * @param storage The storage object of the interest_protocol::dex  
+  * @param storage The DEXStorage object of the interest_protocol::dex  
   * @param clock_object The shared Clock object
   * @param vector_x  A list of Coin<X>, the contract will merge all coins into with the `coin_x_amount` and return any extra value
   * @param vector_y  A list of Coin<Y>, the contract will merge all coins into with the `coin_y_amount` and return any extra value 
@@ -281,7 +283,7 @@ module interest_protocol::interface {
   * @param coin_out_min_value The minimum value the caller expects to receive to protect agaisnt slippage
   */
   entry public fun add_liquidity<C, X, Y>(
-    storage: &mut Storage,
+    storage: &mut DEXStorage,
     clock_object: &Clock,
     vector_x: vector<Coin<X>>,
     vector_y: vector<Coin<Y>>,
@@ -326,7 +328,7 @@ module interest_protocol::interface {
   /**
   * @dev This function REQUIRES the coins to be sorted. It will send back any unused value. 
   * It removes liquidity from a volatile pool based on the shares
-  * @param storage The storage object of the interest_protocol::dex 
+  * @param storage The DEXStorage object of the interest_protocol::dex 
   * @param clock_object The shared Clock object
   * @param vector_lp_coin A vector of several VLPCoins
   * @param lp_coin_amount The value the caller wishes to deposit for VLPCoins 
@@ -334,7 +336,7 @@ module interest_protocol::interface {
   * @param coin_y_min_amount The minimum amount of Coin<Y> the user wishes to receive
   */
   entry public fun remove_liquidity<C, X, Y>(
-    storage: &mut Storage,
+    storage: &mut DEXStorage,
     clock_object: &Clock,
     vector_lp_coin: vector<Coin<LPCoin<C, X, Y>>>,
     lp_coin_amount: u64,
@@ -364,7 +366,7 @@ module interest_protocol::interface {
 /**
 * @notice It allows a user to deposit a Coin<T> in a farm to earn Coin<IPX>. 
 * @param storage The MasterChefStorage shared object
-* @param accounts_storage The AccountStorage shared object
+* @param accounts_storage The MasterChefAccountStorage shared object
 * @param ipx_storage The shared Object of IPX
 * @param clock_object The Clock object created at genesis
 * @param vector_token  A list of Coin<Y>, the contract will merge all coins into with the `coin_y_amount` and return any extra value 
@@ -372,7 +374,7 @@ module interest_protocol::interface {
 */
   entry public fun stake<T>(
     storage: &mut MasterChefStorage,
-    accounts_storage: &mut AccountStorage,
+    accounts_storage: &mut MasterChefAccountStorage,
     ipx_storage: &mut IPXStorage,
     clock_object: &Clock,
     vector_token: vector<Coin<T>>,
@@ -401,14 +403,14 @@ module interest_protocol::interface {
 /**
 * @notice It allows a user to withdraw an amount of Coin<T> from a farm. 
 * @param storage The MasterChefStorage shared object
-* @param accounts_storage The AccountStorage shared object
+* @param accounts_storage The MasterChefAccountStorage shared object
 * @param ipx_storage The shared Object of IPX
 * @param clock_object The Clock object created at genesis
 * @param coin_value The amount of Coin<T> the caller wishes to withdraw
 */
   entry public fun unstake<T>(
     storage: &mut MasterChefStorage,
-    accounts_storage: &mut AccountStorage,
+    accounts_storage: &mut MasterChefAccountStorage,
     ipx_storage: &mut IPXStorage,
     clock_object: &Clock,
     coin_value: u64,
@@ -437,7 +439,7 @@ module interest_protocol::interface {
 */
   entry public fun get_rewards<T>(
     storage: &mut MasterChefStorage,
-    accounts_storage: &mut AccountStorage,
+    accounts_storage: &mut MasterChefAccountStorage,
     ipx_storage: &mut IPXStorage,
     clock_object: &Clock,
     ctx: &mut TxContext   
@@ -477,7 +479,12 @@ module interest_protocol::interface {
     ipx::burn(storage, coin_ipx);
   }
 
-  public fun get_pool_id<C, X, Y>(storage: &Storage): ID {
+  /**
+  * @dev It returns the ID of a pool so frontend clients can fetch using sui_getObject. It does not need to be oredered
+  * @param storage The DEXStorage shared object from the interest_protocol::dex module 
+  * @return the unique ID of a deployed pool
+  */
+  public fun get_pool_id<C, X, Y>(storage: &DEXStorage): ID {
     if (are_coins_sorted<X, Y>()) {
       dex::get_pool_id<C, X, Y>(storage)
     } else {
@@ -485,9 +492,16 @@ module interest_protocol::interface {
     }
   }
 
+  /**
+  * @dev A utility function to return to the frontend the allocation, pool_balance and _account balance of farm for Coin<X>
+  * @param storage The MasterChefStorage shared object
+  * @param accounts_storage the MasterChefAccountStorage shared object of the masterchef contract
+  * @param account The account of the user that has Coin<X> in the farm
+  * @param farm_vector The list of farm data we will be mutation/adding
+  */
   fun get_farm<X>(
     storage: &MasterChefStorage,
-    accounts_storage: &AccountStorage,
+    accounts_storage: &MasterChefAccountStorage,
     account: address,
     farm_vector: &mut vector<vector<u64>>
   ) {
@@ -507,9 +521,16 @@ module interest_protocol::interface {
     vector::push_back(farm_vector, inner_vector);
   }
 
+  /**
+  * @dev The implementation of the get_farm function. It collects information for ${num_of_farms}.
+  * @param storage The MasterChefStorage shared object
+  * @param accounts_storage the MasterChefAccountStorage shared object of the masterchef contract
+  * @param account The account of the user that has Coin<X> in the farm
+  * @param num_of_farms The number of farms we wish to collect data from for a maximum of 5
+  */
   public fun get_farms<A, B, C, D, E>(
     storage: &MasterChefStorage,
-    accounts_storage: &AccountStorage,
+    accounts_storage: &MasterChefAccountStorage,
     account: address,
     num_of_farms: u64
   ): vector<vector<u64>> {

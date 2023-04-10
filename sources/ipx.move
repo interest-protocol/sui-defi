@@ -1,24 +1,42 @@
+// The governance token (IPX) of Interest Protocol
 module interest_protocol::ipx {
   use std::option;
 
-  use sui::object::{Self, UID};
+  use sui::object::{Self, UID, ID};
   use sui::tx_context::{TxContext};
   use sui::balance::{Self, Supply};
   use sui::transfer;
   use sui::coin::{Self, Coin};
   use sui::url;
-
-  friend interest_protocol::whirpool;
-  friend interest_protocol::master_chef;
-  friend interest_protocol::interface;
+  use sui::vec_set::{Self, VecSet};
+  use sui::tx_context;
+  use sui::package::{Publisher};
+  use sui::event::{emit};
 
   const IPX_PRE_MINT_AMOUNT: u64 = 600000000000000000; // 600M 60% of the supply
+
+  // Errors
+  const ERROR_NOT_ALLOWED_TO_MINT: u64 = 1;
 
   struct IPX has drop {}
 
   struct IPXStorage has key {
     id: UID,
-    supply: Supply<IPX>
+    supply: Supply<IPX>,
+    minters: VecSet<ID> // List of publishers that are allowed to mint DNR
+  }
+
+  struct IPXAdminCap has key {
+    id: UID
+  }
+
+  // Events 
+  struct MinterAdded has copy, drop {
+    id: ID
+  }
+
+  struct MinterRemoved has copy, drop {
+    id: ID
   }
 
   fun init(witness: IPX, ctx: &mut TxContext) {
@@ -40,13 +58,21 @@ module interest_protocol::ipx {
         coin::from_balance(
           balance::increase_supply(&mut supply, IPX_PRE_MINT_AMOUNT), ctx
         ),
-        @dev
+        tx_context::sender(ctx)
+      );
+
+      transfer::transfer(
+        IPXAdminCap {
+          id: object::new(ctx)
+        },
+        tx_context::sender(ctx)
       );
 
       transfer::share_object(
         IPXStorage {
           id: object::new(ctx),
-          supply
+          supply,
+          minters: vec_set::empty()
         }
       );
 
@@ -54,17 +80,93 @@ module interest_protocol::ipx {
       transfer::public_freeze_object(metadata);
   }
 
-  public(friend) fun mint(storage: &mut IPXStorage, value: u64, ctx: &mut TxContext): Coin<IPX> {
+  /**
+  * @dev Only minters can create new Coin<IPX>
+  * @param storage The IPXStorage
+  * @param publisher The Publisher object of the package who wishes to mint IPX
+  * @return Coin<IPX> New created IPX coin
+  */
+  public fun mint(storage: &mut IPXStorage, publisher: &Publisher, value: u64, ctx: &mut TxContext): Coin<IPX> {
+    assert!(is_minter(storage, publisher), ERROR_NOT_ALLOWED_TO_MINT);
+
     coin::from_balance(balance::increase_supply(&mut storage.supply, value), ctx)
   }
 
-  public fun burn(storage: &mut IPXStorage, coin_ipx: Coin<IPX>): u64 {
-    balance::decrease_supply(&mut storage.supply, coin::into_balance(coin_ipx))
+  /**
+  * @dev This function allows anyone to burn their own IPX.
+  * @param storage The IPXStorage shared object
+  * @param c The IPX coin that will be burned
+  */
+  public fun burn(storage: &mut IPXStorage, c: Coin<IPX>): u64 {
+    balance::decrease_supply(&mut storage.supply, coin::into_balance(c))
   }
 
+  /**
+  * @dev A utility function to transfer IPX to a {recipient}
+  * @param c The Coin<IPX> to transfer
+  * @param recipient The recipient of the Coin<IPX>
+  */
   public entry fun transfer(c: coin::Coin<IPX>, recipient: address) {
     transfer::public_transfer(c, recipient);
   }
+
+  /**
+  * @dev It returns the total supply of the Coin<X>
+  * @param storage The {IPXStorage} shared object
+  * @return the total supply in u64
+  */
+  public fun total_supply(storage: &IPXStorage): u64 {
+    balance::supply_value(&storage.supply)
+  }
+
+
+  /**
+  * @dev It allows the holder of the {IPXAdminCap} to add a minter. 
+  * @param _ The IPXAdminCap to guard this function 
+  * @param storage The IPXStorage shared object
+  * @param publisher The package that owns this publisher will be able to mint IPX
+  *
+  * It emits the MinterAdded event with the {ID} of the {Publisher}
+  *
+  */
+  entry fun add_minter(_: &IPXAdminCap, storage: &mut IPXStorage, publisher: &Publisher) {
+    let id = object::id(publisher);
+    vec_set::insert(&mut storage.minters, id);
+    emit(
+      MinterAdded {
+        id
+      }
+    );
+  }
+
+  /**
+  * @dev It allows the holder of the {IPXAdminCap} to remove a minter. 
+  * @param _ The IPXAdminCap to guard this function 
+  * @param storage The IPXStorage shared object
+  * @param publisher The package that will no longer be able to mint IPX
+  *
+  * It emits the  MinterRemoved event with the {ID} of the {Publisher}
+  *
+  */
+  entry fun remove_minter(_: &IPXAdminCap, storage: &mut IPXStorage, publisher: &Publisher) {
+    vec_set::remove(&mut storage.minters, object::borrow_id(publisher));
+    emit(
+      MinterRemoved {
+        id: object::id(publisher)
+      }
+    );
+  } 
+
+  /**
+  * @dev It indicates if a package has the right to mint IPX
+  * @param storage The IPXStorage shared object
+  * @param publisher of the package 
+  * @return bool true if it can mint IPX
+  */
+  public fun is_minter(storage: &IPXStorage, publisher: &Publisher): bool {
+    vec_set::contains(&storage.minters, object::borrow_id(publisher))
+  }
+
 
   #[test_only]
   public fun init_for_testing(ctx: &mut TxContext) {

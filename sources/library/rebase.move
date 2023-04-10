@@ -1,3 +1,6 @@
+// A utility package to calculate properly calculate shares of a pool when losses or profits are incurred
+// Base represents the shares
+// Elastic represents the actual amount
 module interest_protocol::rebase {
 
   use interest_protocol::math::{mul_div_u128};

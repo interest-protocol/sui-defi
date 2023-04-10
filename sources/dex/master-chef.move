@@ -11,6 +11,7 @@ module interest_protocol::master_chef {
   use sui::transfer;
   use sui::coin::{Self, Coin};
   use sui::event;
+  use sui::package::{Self, Publisher};
 
   use interest_protocol::ipx::{Self, IPX, IPXStorage};
   use interest_protocol::utils::{get_coin_info_string};
@@ -26,13 +27,17 @@ module interest_protocol::master_chef {
   const ERROR_NOT_ENOUGH_BALANCE: u64 = 2;
   const ERROR_NO_PENDING_REWARDS: u64 = 3;
 
+  // OTW
+  struct MASTER_CHEF has drop {}
+
   struct MasterChefStorage has key {
     id: UID,
     ipx_per_ms: u64,
     total_allocation_points: u64,
     pool_keys: Table<String, PoolKey>,
     pools: ObjectTable<u64, Pool>,
-    start_timestamp: u64
+    start_timestamp: u64,
+    publisher: Publisher
   }
 
   struct Pool has key, store {
@@ -94,7 +99,7 @@ module interest_protocol::master_chef {
     admin: address
   }
 
-  fun init(ctx: &mut TxContext) {
+  fun init(witness: MASTER_CHEF, ctx: &mut TxContext) {
       // Set up object_tables for the storage objects 
       let pools = object_table::new<u64, Pool>(ctx);  
       let pool_keys = table::new<String, PoolKey>(ctx);
@@ -140,7 +145,8 @@ module interest_protocol::master_chef {
           ipx_per_ms: IPX_PER_MS,
           total_allocation_points: 1000,
           pool_keys,
-          start_timestamp: START_TIMESTAMP
+          start_timestamp: START_TIMESTAMP,
+          publisher: package::claim(witness, ctx)
         }
       );
 
@@ -293,7 +299,7 @@ module interest_protocol::master_chef {
   );
 
   // Mint Coin<IPX> rewards for the caller.
-  ipx::mint(ipx_storage, (pending_rewards as u64), ctx)
+  ipx::mint(ipx_storage, &storage.publisher, (pending_rewards as u64), ctx)
  }
 
 /**
@@ -358,7 +364,7 @@ module interest_protocol::master_chef {
 
   // Mint Coin<IPX> rewards and returns the Coin<T>
   (
-    ipx::mint(ipx_storage, (pending_rewards as u64), ctx),
+    ipx::mint(ipx_storage, &storage.publisher, (pending_rewards as u64), ctx),
     staked_coin
   )
  } 
@@ -408,7 +414,7 @@ module interest_protocol::master_chef {
   };
 
   // Mint Coin<IPX> rewards to the caller
-  ipx::mint(ipx_storage, (pending_rewards as u64), ctx)
+  ipx::mint(ipx_storage, &storage.publisher, (pending_rewards as u64), ctx)
  }
 
  /**
@@ -767,6 +773,15 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
     )
   }
 
+  /**
+  * @dev It allows other modules to borrow the publisher
+  * @param storage The MasterChefStorage of this contract
+  * @return borrow read only Publisher of this module
+  */
+  public fun borrow_publisher(storage: &MasterChefStorage): &Publisher {
+    &storage.publisher
+  }
+
 /**
  * @notice A getter function
  * @param storage The MasterChefStorage shared object
@@ -798,6 +813,6 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
   
   #[test_only]
   public fun init_for_testing(ctx: &mut TxContext) {
-    init(ctx);
+    init(MASTER_CHEF {} ,ctx);
   }
 }
