@@ -5,7 +5,7 @@ module interest_protocol::dex_volatile_tests {
     use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
     use sui::math;
     use sui::object;
-    use sui::clock::{Self, Clock};
+    use sui::clock;
 
     use interest_protocol::dex::{Self, DEXStorage as Storage, DEXAdminCap, LPCoin};
     use interest_protocol::curve::{Volatile};
@@ -28,13 +28,13 @@ module interest_protocol::dex_volatile_tests {
       next_tx(test, alice);
       {
         dex::init_for_testing(ctx(test));
-        clock::create_for_testing(ctx(test));
       };
 
+      let clock_object = clock::create_for_testing(ctx(test));
+      
       next_tx(test, alice);
       {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         let lp_coin = dex::create_v_pool(
           &mut storage,
@@ -45,8 +45,7 @@ module interest_protocol::dex_volatile_tests {
         );
 
         assert!(burn(lp_coin) == lp_coin_initial_user_balance, 0);
-
-        test::return_shared(clock_object);        
+      
         test::return_shared(storage);
       };
 
@@ -61,7 +60,9 @@ module interest_protocol::dex_volatile_tests {
         assert!(usdc_reserves == INITIAL_USDC_VALUE, 0);
 
         test::return_shared(storage);
-      }
+      };
+
+      clock::destroy_for_testing(clock_object);
     }
 
     #[test] 
@@ -75,11 +76,11 @@ module interest_protocol::dex_volatile_tests {
        test_create_pool_(test);
 
        let (_, bob) = people();
+       let clock_object = clock::create_for_testing(ctx(test));
 
        next_tx(test, bob);
        {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         let ether_amount = INITIAL_ETHER_VALUE / 10;
 
@@ -99,9 +100,10 @@ module interest_protocol::dex_volatile_tests {
 
         assert!(burn(usdc) == usdc_amount_received, 0);
 
-        test::return_shared(clock_object);
         test::return_shared(storage);
        };
+
+      clock::destroy_for_testing(clock_object);
     }
 
     #[test]
@@ -115,11 +117,11 @@ module interest_protocol::dex_volatile_tests {
        test_create_pool_(test);
 
        let (_, bob) = people();
+       let clock_object = clock::create_for_testing(ctx(test));
 
        next_tx(test, bob);
        {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         let usdc_amount = INITIAL_USDC_VALUE / 10;
 
@@ -139,9 +141,10 @@ module interest_protocol::dex_volatile_tests {
 
         assert!(burn(ether) == ether_amount_received, 0);
 
-        test::return_shared(clock_object);
         test::return_shared(storage);
        };
+
+      clock::destroy_for_testing(clock_object);
     }
 
     #[test]
@@ -159,11 +162,11 @@ module interest_protocol::dex_volatile_tests {
 
         let ether_value = INITIAL_ETHER_VALUE / 10;
         let usdc_value = INITIAL_USDC_VALUE / 10;
+        let clock_object = clock::create_for_testing(ctx(test));
 
         next_tx(test, bob);
         {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         let pool = dex::borrow_pool<Volatile, ETH, USDC>(&storage);
         let (_, _, supply) = dex::get_amounts(pool);
@@ -184,9 +187,10 @@ module interest_protocol::dex_volatile_tests {
         assert!(ether_reserves == INITIAL_ETHER_VALUE + ether_value, 0);
         assert!(usdc_reserves == INITIAL_USDC_VALUE + usdc_value, 0);
         
-        test::return_shared(clock_object);     
         test::return_shared(storage);
-        }
+        };
+
+      clock::destroy_for_testing(clock_object);  
     }
 
 
@@ -205,11 +209,11 @@ module interest_protocol::dex_volatile_tests {
 
         let ether_value = INITIAL_ETHER_VALUE / 10;
         let usdc_value = INITIAL_USDC_VALUE / 10;
+        let clock_object = clock::create_for_testing(ctx(test));
 
         next_tx(test, bob);
         {
           let storage = test::take_shared<Storage>(test);
-          let clock_object = test::take_shared<Clock>(test);
 
           let lp_coin = dex::add_liquidity<Volatile, ETH, USDC>(
             &mut storage,
@@ -244,9 +248,10 @@ module interest_protocol::dex_volatile_tests {
           assert!(ether_reserves_1 == ether_reserves_2 + 9999, 0);
           assert!(usdc_reserves_1 == usdc_reserves_2 + 14999989, 0);
 
-          test::return_shared(clock_object);
           test::return_shared(storage);
-        }
+        };
+
+      clock::destroy_for_testing(clock_object);  
     }
 
     #[test]
@@ -263,11 +268,11 @@ module interest_protocol::dex_volatile_tests {
        let usdc_value = INITIAL_USDC_VALUE / 10;
 
        let (_, bob) = people();
-        
+       let clock_object = clock::create_for_testing(ctx(test));
+
        next_tx(test, bob);
        {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
         
         let usdc = dex::swap_token_x<Volatile, ETH, USDC>(
           &mut storage,
@@ -279,14 +284,12 @@ module interest_protocol::dex_volatile_tests {
 
         assert!(burn(usdc) != 0, 0);
         
-        test::return_shared(clock_object);
         test::return_shared(storage); 
        };
 
        next_tx(test, bob);
        {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         let pool = dex::borrow_pool<Volatile, ETH, USDC>(&storage);
         let (ether_reserves_1, usdc_reserves_1, supply_1) = dex::get_amounts(pool);
@@ -313,10 +316,11 @@ module interest_protocol::dex_volatile_tests {
 
         assert!(fee > 0, 0);
         assert!((burn(lp_coin) as u128) + fee + (supply_1 as u128) == (supply_2 as u128), 0);
-
-        test::return_shared(clock_object);        
+      
         test::return_shared(storage);
-       }
+       };
+
+      clock::destroy_for_testing(clock_object); 
     }
 
     #[test]
@@ -330,11 +334,11 @@ module interest_protocol::dex_volatile_tests {
         test_create_pool_(test);
 
        let (_, bob) = people();
-        
+       let clock_object = clock::create_for_testing(ctx(test));
+
        next_tx(test, bob);
         {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         let usdc = dex::swap_token_x<Volatile, ETH, USDC>(
           &mut storage,
@@ -346,14 +350,12 @@ module interest_protocol::dex_volatile_tests {
 
         assert!(burn(usdc) != 0, 0);
 
-        test::return_shared(clock_object);
         test::return_shared(storage); 
        };
 
        next_tx(test, bob);
        {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         let pool = dex::borrow_pool<Volatile, ETH, USDC>(&storage);
         let (ether_reserves_1, usdc_reserves_1, supply_1) = dex::get_amounts(pool);
@@ -384,9 +386,10 @@ module interest_protocol::dex_volatile_tests {
         assert!(fee > 0, 0);
         assert!((supply_2 as u256) == (supply_1 as u256) + fee - 30000, 0);
 
-        test::return_shared(clock_object);
         test::return_shared(storage);
-       }
+       };
+
+      clock::destroy_for_testing(clock_object);
     }
 
     #[test]
@@ -400,11 +403,11 @@ module interest_protocol::dex_volatile_tests {
       test_create_pool_(test);
 
       let (_, bob) = people();
-        
+      let clock_object = clock::create_for_testing(ctx(test));
+
       next_tx(test, bob);
       {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         let (receipt, ether, usdc) = dex::flash_loan<Volatile, ETH, USDC>(&mut storage, INITIAL_ETHER_VALUE / 2, INITIAL_USDC_VALUE / 3, ctx(test));
 
@@ -433,9 +436,10 @@ module interest_protocol::dex_volatile_tests {
           usdc
         );
 
-        test::return_shared(clock_object);
         test::return_shared(storage);
       };
+
+    clock::destroy_for_testing(clock_object);
     }
 
     #[test]
@@ -455,13 +459,12 @@ module interest_protocol::dex_volatile_tests {
       next_tx(test, alice);
       {
        dex::init_for_testing(ctx(test));
-       clock::create_for_testing(ctx(test));
       };
 
+      let clock_object = clock::create_for_testing(ctx(test));
       next_tx(test, alice);
       {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         burn(dex::create_v_pool(
           &mut storage,
@@ -471,10 +474,10 @@ module interest_protocol::dex_volatile_tests {
           ctx(test)
         ));
 
-        test::return_shared(clock_object);
         test::return_shared(storage);
       };
-      
+
+      clock::destroy_for_testing(clock_object);      
       test::end(scenario);
   }
 
@@ -484,17 +487,16 @@ module interest_protocol::dex_volatile_tests {
       let scenario = scenario();
       let (alice, _) = people();
       let test = &mut scenario;
+      let clock_object = clock::create_for_testing(ctx(test));
 
       next_tx(test, alice);
       {
        dex::init_for_testing(ctx(test));
-       clock::create_for_testing(ctx(test));
       };
 
       next_tx(test, alice);
       {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         burn(dex::create_v_pool(
           &mut storage,
@@ -504,10 +506,10 @@ module interest_protocol::dex_volatile_tests {
           ctx(test)
         ));
 
-        test::return_shared(clock_object);
         test::return_shared(storage);
       };
-      
+
+      clock::destroy_for_testing(clock_object);
       test::end(scenario);
   }
 
@@ -521,13 +523,13 @@ module interest_protocol::dex_volatile_tests {
       next_tx(test, alice);
       {
        dex::init_for_testing(ctx(test));
-       clock::create_for_testing(ctx(test));
       };
+
+      let clock_object = clock::create_for_testing(ctx(test));
 
       next_tx(test, alice);
       {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         burn(dex::create_v_pool(
           &mut storage,
@@ -537,10 +539,10 @@ module interest_protocol::dex_volatile_tests {
           ctx(test)
         ));
 
-        test::return_shared(clock_object);
         test::return_shared(storage);
       };
-      
+
+      clock::destroy_for_testing(clock_object);      
       test::end(scenario);
   }
 
@@ -555,11 +557,11 @@ module interest_protocol::dex_volatile_tests {
       
       let ether_value = 0;
       let usdc_value = INITIAL_USDC_VALUE / 10;
+      let clock_object = clock::create_for_testing(ctx(test));
 
       next_tx(test, alice);
       {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         burn(dex::add_liquidity<Volatile, ETH, USDC>(
           &mut storage,
@@ -569,10 +571,11 @@ module interest_protocol::dex_volatile_tests {
           0,
           ctx(test)
         ));
-
-        test::return_shared(clock_object);      
+  
         test::return_shared(storage);
       }; 
+
+      clock::destroy_for_testing(clock_object);
       test::end(scenario);
   }
 
@@ -587,11 +590,11 @@ module interest_protocol::dex_volatile_tests {
       
       let ether_value = INITIAL_ETHER_VALUE / 10;
       let usdc_value = 0;
+      let clock_object = clock::create_for_testing(ctx(test));
 
       next_tx(test, alice);
       {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         burn(dex::add_liquidity<Volatile, ETH, USDC>(
           &mut storage,
@@ -601,10 +604,11 @@ module interest_protocol::dex_volatile_tests {
           0,
           ctx(test)
         ));
-        
-        test::return_shared(clock_object);       
+            
         test::return_shared(storage);
-      }; 
+      };
+
+      clock::destroy_for_testing(clock_object); 
       test::end(scenario);
   }
 
@@ -616,11 +620,11 @@ module interest_protocol::dex_volatile_tests {
       let test = &mut scenario;
 
       test_create_pool_(test);
-      
+      let clock_object = clock::create_for_testing(ctx(test));
+
       next_tx(test, alice);
       {
         let storage = test::take_shared<Storage>(test);
-        let clock_object = test::take_shared<Clock>(test);
 
         let (usdc, usdt) = dex::remove_liquidity<Volatile, ETH, USDC>(
           &mut storage,
@@ -634,9 +638,10 @@ module interest_protocol::dex_volatile_tests {
         burn(usdc);
         burn(usdt);
 
-        test::return_shared(clock_object);  
         test::return_shared(storage);
       };
+
+      clock::destroy_for_testing(clock_object);
       test::end(scenario);
   }
 
@@ -652,11 +657,11 @@ module interest_protocol::dex_volatile_tests {
       
       let ether_value = INITIAL_ETHER_VALUE / 10;
       let usdc_value = INITIAL_USDC_VALUE / 10;
+      let clock_object = clock::create_for_testing(ctx(test));
 
        next_tx(test, alice);
         {
           let storage = test::take_shared<Storage>(test);
-          let clock_object = test::take_shared<Clock>(test);
 
           let lp_coin = dex::add_liquidity<Volatile, ETH, USDC>(
             &mut storage,
@@ -678,10 +683,11 @@ module interest_protocol::dex_volatile_tests {
 
           burn(usdc);
           burn(ether);
-
-          test::return_shared(clock_object);           
+        
           test::return_shared(storage);
         };
+
+      clock::destroy_for_testing(clock_object);
       test::end(scenario);
   }
 
@@ -697,11 +703,11 @@ module interest_protocol::dex_volatile_tests {
       
       let ether_value = INITIAL_ETHER_VALUE / 10;
       let usdc_value = INITIAL_USDC_VALUE / 10;
+      let clock_object = clock::create_for_testing(ctx(test));
 
        next_tx(test, alice);
         {
           let storage = test::take_shared<Storage>(test);
-          let clock_object = test::take_shared<Clock>(test);
 
           let lp_coin = dex::add_liquidity<Volatile, ETH, USDC>(
             &mut storage,
@@ -723,10 +729,11 @@ module interest_protocol::dex_volatile_tests {
 
           burn(usdc);
           burn(ether);
-
-          test::return_shared(clock_object);            
+        
           test::return_shared(storage);
         };
+
+      clock::destroy_for_testing(clock_object);  
       test::end(scenario);
   }
 
@@ -739,11 +746,11 @@ module interest_protocol::dex_volatile_tests {
     test_create_pool_(test);
 
     let (_, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, bob);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let ether_amount = INITIAL_ETHER_VALUE / 10;
 
@@ -763,9 +770,10 @@ module interest_protocol::dex_volatile_tests {
 
       assert!(burn(usdc) == usdc_amount_received, 0);
       
-      test::return_shared(clock_object); 
       test::return_shared(storage);
     };
+
+     clock::destroy_for_testing(clock_object);
      test::end(scenario);
   }
 
@@ -776,13 +784,13 @@ module interest_protocol::dex_volatile_tests {
     let test = &mut scenario;
     
     test_create_pool_(test);
+    let clock_object = clock::create_for_testing(ctx(test));
 
     let (_, bob) = people();
 
     next_tx(test, bob);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let ether_amount = INITIAL_ETHER_VALUE / 10;
 
@@ -802,9 +810,10 @@ module interest_protocol::dex_volatile_tests {
 
       assert!(burn(usdc) == usdc_amount_received, 0);
 
-      test::return_shared(clock_object);
       test::return_shared(storage);
     };
+
+     clock::destroy_for_testing(clock_object); 
      test::end(scenario);
   }
 
@@ -817,11 +826,11 @@ module interest_protocol::dex_volatile_tests {
     test_create_pool_(test);
 
     let (_, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, bob);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let usdc_amount = INITIAL_USDC_VALUE / 10;
 
@@ -841,9 +850,10 @@ module interest_protocol::dex_volatile_tests {
 
         assert!(burn(ether) == ether_amount_received, 0);
 
-        test::return_shared(clock_object);
         test::return_shared(storage);
        };
+
+     clock::destroy_for_testing(clock_object);  
      test::end(scenario);
   }
 
@@ -856,11 +866,11 @@ module interest_protocol::dex_volatile_tests {
     test_create_pool_(test);
 
     let (_, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, bob);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let usdc_amount = INITIAL_USDC_VALUE / 10;
 
@@ -880,9 +890,10 @@ module interest_protocol::dex_volatile_tests {
 
         assert!(burn(ether) == ether_amount_received, 0);
 
-        test::return_shared(clock_object);
         test::return_shared(storage);
        };
+
+     clock::destroy_for_testing(clock_object);
      test::end(scenario);
   }
 
@@ -894,11 +905,12 @@ module interest_protocol::dex_volatile_tests {
     test_create_pool_(test);
 
     let (_, bob) = people();
-        
+
+    let clock_object = clock::create_for_testing(ctx(test));    
+    
     next_tx(test, bob);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let (receipt, ether, usdc) = dex::flash_loan<Volatile, ETH, USDC>(&mut storage, INITIAL_ETHER_VALUE + 1, INITIAL_USDC_VALUE / 3, ctx(test));
 
@@ -941,11 +953,11 @@ module interest_protocol::dex_volatile_tests {
     test_create_pool_(test);
 
     let (_, bob) = people();
-        
+    let clock_object = clock::create_for_testing(ctx(test));
+
     next_tx(test, bob);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let (receipt, ether, usdc) = dex::flash_loan<Volatile, ETH, USDC>(&mut storage, INITIAL_ETHER_VALUE / 2, INITIAL_USDC_VALUE / 3, ctx(test));
 
@@ -974,9 +986,10 @@ module interest_protocol::dex_volatile_tests {
           usdc
       );
 
-      test::return_shared(clock_object);
       test::return_shared(storage);
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -988,11 +1001,11 @@ module interest_protocol::dex_volatile_tests {
     test_create_pool_(test);
 
     let (_, bob) = people();
-        
+    let clock_object = clock::create_for_testing(ctx(test));
+
     next_tx(test, bob);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       
       let (receipt, ether, usdc) = dex::flash_loan<Volatile, ETH, USDC>(&mut storage, INITIAL_ETHER_VALUE / 2, INITIAL_USDC_VALUE / 3, ctx(test));
 
@@ -1021,9 +1034,10 @@ module interest_protocol::dex_volatile_tests {
           usdc
         );
 
-      test::return_shared(clock_object);
       test::return_shared(storage);
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -1036,11 +1050,11 @@ module interest_protocol::dex_volatile_tests {
     test_create_pool_(test);
 
     let (alice, _) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
         burn(dex::add_liquidity<Test, ETH, USDC>(
           &mut storage,
@@ -1051,9 +1065,10 @@ module interest_protocol::dex_volatile_tests {
           ctx(test)
         ));
   
-        test::return_shared(clock_object);    
         test::return_shared(storage);
     };
+  
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);  
   }
 
@@ -1067,10 +1082,11 @@ module interest_protocol::dex_volatile_tests {
 
     let (alice, _) = people();
 
+    let clock_object = clock::create_for_testing(ctx(test));
+
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let (ether, usdc) = dex::remove_liquidity<Test, ETH, USDC>(
               &mut storage,
@@ -1083,10 +1099,11 @@ module interest_protocol::dex_volatile_tests {
 
       burn(ether);
       burn(usdc);
-
-      test::return_shared(clock_object);       
+   
       test::return_shared(storage);
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);  
   }
 
@@ -1100,11 +1117,11 @@ module interest_protocol::dex_volatile_tests {
     test_create_pool_(test);
 
     let (alice, _) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(dex::swap_token_x<Test, ETH, USDC>(
           &mut storage,
@@ -1114,9 +1131,10 @@ module interest_protocol::dex_volatile_tests {
           ctx(test)
       ));
 
-      test::return_shared(clock_object); 
       test::return_shared(storage);
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);  
   }
 
@@ -1129,11 +1147,11 @@ module interest_protocol::dex_volatile_tests {
     test_create_pool_(test);
 
     let (alice, _) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(dex::swap_token_y<Test, ETH, USDC>(
           &mut storage,
@@ -1143,9 +1161,10 @@ module interest_protocol::dex_volatile_tests {
           ctx(test)
       ));
 
-      test::return_shared(clock_object); 
       test::return_shared(storage);
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);  
   }
   
@@ -1158,11 +1177,11 @@ module interest_protocol::dex_volatile_tests {
     test_create_pool_(test);
 
     let (alice, _) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let (receipt, ether, usdc) = dex::flash_loan<Test, ETH, USDC>(&mut storage, INITIAL_ETHER_VALUE / 2, INITIAL_USDC_VALUE / 3, ctx(test));
        
@@ -1174,9 +1193,10 @@ module interest_protocol::dex_volatile_tests {
           usdc
       );
 
-      test::return_shared(clock_object); 
       test::return_shared(storage);
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);  
   }
 

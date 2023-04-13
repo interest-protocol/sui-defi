@@ -5,7 +5,7 @@ module interest_protocol::dex_twap_tests {
   use sui::coin::{mint_for_testing as mint, burn_for_testing as burn};
   use sui::test_scenario::{Self as test, next_tx, Scenario, ctx};
   use sui::test_utils::{assert_eq};
-  use sui::clock::{Self, Clock};
+  use sui::clock;
 
   use interest_protocol::dex::{Self, DEXStorage as Storage};
   use interest_protocol::test_utils::{people, scenario};
@@ -57,11 +57,11 @@ module interest_protocol::dex_twap_tests {
     let (alice, _) = people();
 
     start_dex(test);
-
+    let clock_object = clock::create_for_testing(ctx(test));
+    
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let period_size = dex::get_period_size();
 
@@ -117,10 +117,11 @@ module interest_protocol::dex_twap_tests {
       assert_eq(eth_twap_price > 1500, true);
 
       assert_eq(usdc_twap_price, 11);
-
-      test::return_shared(clock_object);        
+    
       test::return_shared(storage);            
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);       
   }
 
@@ -130,19 +131,12 @@ module interest_protocol::dex_twap_tests {
     next_tx(test, alice);
     {
       dex::init_for_testing(ctx(test));
-      clock::create_for_testing(ctx(test));
     };
-
-    next_tx(test, alice);
-    {
-      dex::init_for_testing(ctx(test));
-      clock::create_for_testing(ctx(test));
-    };
-
+    
+    let clock_object = clock::create_for_testing(ctx(test));
     next_tx(test, alice);
     {
       let storage = test::take_shared<Storage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       clock::increment_for_testing(&mut clock_object, START_TIME_STAMP);
 
@@ -153,9 +147,10 @@ module interest_protocol::dex_twap_tests {
         mint<USDC>(INITIAL_USDC_VALUE, ctx(test)),
         ctx(test)
       ));
-
-      test::return_shared(clock_object);        
+       
       test::return_shared(storage);
     };
+
+    clock::destroy_for_testing(clock_object);
   }
 }
