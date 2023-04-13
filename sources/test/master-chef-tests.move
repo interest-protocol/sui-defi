@@ -3,7 +3,7 @@ module interest_protocol::master_chef_tests {
 
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
   use sui::coin::{mint_for_testing as mint,  burn_for_testing as burn};
-  use sui::clock::{Self, Clock};
+  use sui::clock;
 
   use interest_protocol::master_chef::{Self, MasterChefStorage, AccountStorage, MasterChefAdmin};
   use interest_protocol::ipx::{Self, IPXStorage, IPX, IPXAdminCap};
@@ -19,12 +19,12 @@ module interest_protocol::master_chef_tests {
     let (alice, _) = people();
 
     register_token(test);
-
+    
+    let clock_object = clock::create_for_testing(ctx(test));  
     next_tx(test, alice);
     {
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
 
       let coin_ipx = master_chef::stake(
@@ -45,7 +45,6 @@ module interest_protocol::master_chef_tests {
       assert!(rewards_paid == 0, 0);
 
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);
     };
@@ -54,7 +53,6 @@ module interest_protocol::master_chef_tests {
     {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
 
       clock::increment_for_testing(&mut clock_object, 5000);
@@ -78,7 +76,6 @@ module interest_protocol::master_chef_tests {
       assert!(last_reward_timestamp == 5000, 0);
 
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);
     };
@@ -87,7 +84,6 @@ module interest_protocol::master_chef_tests {
     {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
 
       clock::increment_for_testing(&mut clock_object, 12000);
@@ -116,10 +112,11 @@ module interest_protocol::master_chef_tests {
       assert!(last_reward_timestamp == 17000, 0);
 
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);   
     };
+
+    clock::destroy_for_testing(clock_object);
   }
 
 
@@ -134,12 +131,12 @@ module interest_protocol::master_chef_tests {
     let (alice, _) = people();
 
     register_token(test);
+    let clock_object = clock::create_for_testing(ctx(test));  
 
     next_tx(test, alice);
     {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
 
       burn(
@@ -153,7 +150,6 @@ module interest_protocol::master_chef_tests {
        );
      
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);
     };
@@ -162,7 +158,6 @@ module interest_protocol::master_chef_tests {
     {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
 
       clock::increment_for_testing(&mut clock_object, 5000);
@@ -190,10 +185,11 @@ module interest_protocol::master_chef_tests {
       assert!(last_reward_timestamp == 5000, 0);
       
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);
     };
+
+    clock::destroy_for_testing(clock_object);
   }
 
   #[test]
@@ -276,12 +272,12 @@ module interest_protocol::master_chef_tests {
     let (alice, _) = people();
 
     register_token(test);
+    let clock_object = clock::create_for_testing(ctx(test));  
 
     next_tx(test, alice);
     {
       let storage = test::take_shared<MasterChefStorage>(test);
       let admin_cap = test::take_from_sender<MasterChefAdmin>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       master_chef::update_ipx_per_ms(&admin_cap, &mut storage, &clock_object, 300);
 
@@ -289,10 +285,10 @@ module interest_protocol::master_chef_tests {
 
       assert!(ipx_per_ms == 300, 0);
 
-      test::return_shared(clock_object);
       test::return_shared(storage);
       test::return_to_sender(test, admin_cap);
     };
+   clock::destroy_for_testing(clock_object);
   }
 
   #[test]
@@ -306,12 +302,12 @@ module interest_protocol::master_chef_tests {
     let (owner, _) = people();
 
     register_token(test);
+    let clock_object = clock::create_for_testing(ctx(test));  
 
     next_tx(test, owner);
     {
       let storage = test::take_shared<MasterChefStorage>(test);
       let admin_cap = test::take_from_sender<MasterChefAdmin>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let new_lo_coin_allocation_points = 400;
 
       master_chef::set_allocation_points<LPCoin>(&admin_cap, &mut storage, &clock_object, new_lo_coin_allocation_points, false);
@@ -329,10 +325,11 @@ module interest_protocol::master_chef_tests {
       assert!(ipx_allocation_points == ipx_allocation, 0);
       assert!(total_allocation_points == new_lo_coin_allocation_points + ipx_allocation, 0);
 
-      test::return_shared(clock_object);
       test::return_shared(storage);
       test::return_to_sender(test, admin_cap);
     };    
+
+    clock::destroy_for_testing(clock_object);
   }
 
   #[test]
@@ -346,13 +343,13 @@ module interest_protocol::master_chef_tests {
     let (alice, _) = people();
 
     register_token(test);
+    let clock_object = clock::create_for_testing(ctx(test));  
 
     let deposit_amount = 500;
     next_tx(test, alice);
     {
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
 
       burn(master_chef::stake<LPCoin>(
@@ -365,7 +362,6 @@ module interest_protocol::master_chef_tests {
       );
 
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);     
     };
@@ -373,7 +369,6 @@ module interest_protocol::master_chef_tests {
     next_tx(test, alice);
     {
       let storage = test::take_shared<MasterChefStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       clock::increment_for_testing(&mut clock_object, 3000);
 
@@ -391,8 +386,9 @@ module interest_protocol::master_chef_tests {
       assert!(accrued_ipx_per_share_2 == (((pool_allocation * (3000 - last_reward_timestamp) * ipx_per_ms  / total_allocation_points) / 500) as u256), 0);
 
       test::return_shared(storage);
-      test::return_shared(clock_object);
-    }
+    };
+    
+    clock::destroy_for_testing(clock_object);
   }
 
   #[test]
@@ -407,12 +403,12 @@ module interest_protocol::master_chef_tests {
      
      // Register first token
      register_token(test);
-     
+
+    let clock_object = clock::create_for_testing(ctx(test));       
      // Register second token
      next_tx(test, alice);
      {
       let storage = test::take_shared<MasterChefStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let admin_cap = test::take_from_sender<MasterChefAdmin>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
 
@@ -421,7 +417,6 @@ module interest_protocol::master_chef_tests {
       test::return_to_sender(test, admin_cap);
       test::return_shared(account_storage);
       test::return_shared(storage);
-      test::return_shared(clock_object);
      };
 
     let deposit_amount = 500;
@@ -429,7 +424,6 @@ module interest_protocol::master_chef_tests {
     {
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
 
       clock::increment_for_testing(&mut clock_object, 1000);
@@ -444,7 +438,6 @@ module interest_protocol::master_chef_tests {
       );
 
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);   
     };
@@ -452,7 +445,6 @@ module interest_protocol::master_chef_tests {
     next_tx(test, alice);
     {
      let master_chef_storage = test::take_shared<MasterChefStorage>(test);
-     let clock_object = test::take_shared<Clock>(test);
      
       clock::increment_for_testing(&mut clock_object, 2000);
 
@@ -468,8 +460,9 @@ module interest_protocol::master_chef_tests {
       assert!(lp_coin_2_accrued_ipx_per_share == (((lp_coin_2_pool_allocation * 2000 * ipx_per_ms  / total_allocation_points) / 1000) as u256), 0);
 
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
-    }
+    };
+
+   clock::destroy_for_testing(clock_object); 
   }
 
   #[test]
@@ -488,12 +481,12 @@ module interest_protocol::master_chef_tests {
 
     register_token(test);
 
+    let clock_object = clock::create_for_testing(ctx(test));  
     next_tx(test, owner);
     {
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
       let admin_cap = test::take_from_sender<MasterChefAdmin>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       master_chef::add_pool<LPCoin>(
         &admin_cap, 
@@ -505,12 +498,12 @@ module interest_protocol::master_chef_tests {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(master_chef_storage);
       test::return_to_sender(test, admin_cap);
       test::return_shared(account_storage);
     };
 
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -524,11 +517,11 @@ module interest_protocol::master_chef_tests {
 
     register_token(test);
 
+    let clock_object = clock::create_for_testing(ctx(test));  
     next_tx(test, alice);
     {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
 
       burn(
@@ -542,7 +535,6 @@ module interest_protocol::master_chef_tests {
        );
      
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);
     };
@@ -551,7 +543,6 @@ module interest_protocol::master_chef_tests {
     {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
 
       clock::increment_for_testing(&mut clock_object, 5000);
@@ -579,10 +570,11 @@ module interest_protocol::master_chef_tests {
       assert!(last_reward_timestamp == 5000, 0);
       
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -596,11 +588,11 @@ module interest_protocol::master_chef_tests {
 
     register_token(test);
 
+    let clock_object = clock::create_for_testing(ctx(test));  
     next_tx(test, alice);
     {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
 
       burn(
@@ -614,7 +606,6 @@ module interest_protocol::master_chef_tests {
        );
      
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);
     };
@@ -623,7 +614,6 @@ module interest_protocol::master_chef_tests {
     {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
 
       burn(
@@ -636,22 +626,23 @@ module interest_protocol::master_chef_tests {
        );
      
       test::return_shared(master_chef_storage);
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);   
   } 
 
 
   fun register_token(test: &mut Scenario) {
     let (owner, _) = people();
+    let clock_object = clock::create_for_testing(ctx(test));  
 
     next_tx(test, owner);
     {
       master_chef::init_for_testing(ctx(test));
       ipx::init_for_testing(ctx(test));
-      clock::create_for_testing(ctx(test));
     };
 
     next_tx(test, owner);
@@ -659,7 +650,6 @@ module interest_protocol::master_chef_tests {
       let master_chef_storage = test::take_shared<MasterChefStorage>(test);
       let admin_cap = test::take_from_sender<MasterChefAdmin>(test);
       let account_storage = test::take_shared<AccountStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       master_chef::add_pool<LPCoin>(
         &admin_cap, 
@@ -671,7 +661,6 @@ module interest_protocol::master_chef_tests {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(master_chef_storage);
       test::return_to_sender(test, admin_cap);
       test::return_shared(account_storage);
@@ -695,5 +684,7 @@ module interest_protocol::master_chef_tests {
       test::return_shared(ipx_storage);
       test::return_shared(master_chef_storage);
     };
+
+    clock::destroy_for_testing(clock_object);
   }
 }
