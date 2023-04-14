@@ -58,6 +58,7 @@ module interest_protocol::dex_twap_tests {
 
     start_dex(test);
     let clock_object = clock::create_for_testing(ctx(test));
+    clock::increment_for_testing(&mut clock_object, START_TIME_STAMP);
     
     next_tx(test, alice);
     {

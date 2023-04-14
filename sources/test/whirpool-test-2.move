@@ -5,7 +5,7 @@ module interest_protocol::whirpool_tests_2 {
   use sui::test_utils::{assert_eq};
   use sui::coin::{Self, burn_for_testing as burn};
   use sui::math;
-  use sui::clock::{Self, Clock};
+  use sui::clock;
 
   use interest_protocol::whirpool::{Self, WhirpoolAdminCap, WhirpoolStorage, AccountStorage};
   use interest_protocol::ipx::{IPXStorage};
@@ -35,6 +35,7 @@ module interest_protocol::whirpool_tests_2 {
     init_test(test);
 
     let (alice, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);
     {
@@ -42,7 +43,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let coin_ipx = whirpool::deposit<BTC>(
         &mut whirpool_storage,
@@ -66,7 +66,6 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage);
-      test::return_shared(clock_object);
     };
 
     next_tx(test, alice);
@@ -75,7 +74,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       clock::increment_for_testing(&mut clock_object, 12000);
 
@@ -99,7 +97,6 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq(collateral_rewards_paid, (collateral_rewards_per_share * (15 * BTC_DECIMALS_FACTOR)) / BTC_DECIMALS_FACTOR);
       assert_eq(loan_rewards_paid, 0);
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -112,7 +109,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       clock::increment_for_testing(&mut clock_object, 20000);
 
@@ -138,12 +134,13 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq(collateral_rewards_paid, (collateral_rewards_per_share * (7 * BTC_DECIMALS_FACTOR)) / BTC_DECIMALS_FACTOR);
       assert_eq(loan_rewards_paid, 0);
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage);
     };    
+
+    clock::destroy_for_testing(clock_object);
   }
 
    #[test] 
@@ -154,6 +151,7 @@ module interest_protocol::whirpool_tests_2 {
     init_test(test);
 
     let (alice, _) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);
     {
@@ -161,7 +159,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<BTC>(
         &mut whirpool_storage,
@@ -173,7 +170,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -188,7 +184,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       // 60k
       let borrow_value = ( 60000 * DNR_DECIMALS_FACTOR as u64);
@@ -216,7 +211,6 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq(loan, borrow_value);
       assert_eq(loan_rewards_paid, 0);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -233,7 +227,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let borrow_value = (5000 * DNR_DECIMALS_FACTOR as u64);
 
@@ -279,7 +272,6 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq(collateral_rewards_paid, 0);
       assert_eq(loan_rewards_paid, loan_rewards_per_share * new_principal / DNR_DECIMALS_FACTOR);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -296,7 +288,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let borrow_value = (1000 * DNR_DECIMALS_FACTOR as u64);
 
@@ -344,7 +335,6 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq(collateral_rewards_paid, 0);
       assert_eq(loan_rewards_paid, loan_rewards_per_share * (new_principal as u256) / DNR_DECIMALS_FACTOR);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -352,6 +342,8 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -362,6 +354,7 @@ module interest_protocol::whirpool_tests_2 {
     let test = &mut scenario;
 
      init_test(test);
+    let clock_object = clock::create_for_testing(ctx(test));
 
     let (alice, _) = people();
 
@@ -372,7 +365,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       // Need to increase the supply to prevent bugs due the way the test contract is written
       burn(dnr::mint_for_testing(&mut dnr_storage, (5000 * DNR_DECIMALS_FACTOR as u64), ctx(test)));
@@ -387,7 +379,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -403,7 +394,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let borrow_value = (10000 * DNR_DECIMALS_FACTOR as u64);
 
@@ -424,7 +414,6 @@ module interest_protocol::whirpool_tests_2 {
       burn(coin_eth);
       burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -439,7 +428,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let timestame_increase = 3837618193;
 
@@ -463,7 +451,6 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq(loan, (5000 * DNR_DECIMALS_FACTOR as u64));
       assert_eq(loan_rewards_paid, loan_rewards_per_share * 5000);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);
@@ -476,7 +463,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let timestame_increase = 33234532393;
 
@@ -504,12 +490,13 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq(loan, 0);
       assert_eq(loan_rewards_paid, 0);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -521,6 +508,7 @@ module interest_protocol::whirpool_tests_2 {
     let test = &mut scenario;
 
     init_test(test);
+    let clock_object = clock::create_for_testing(ctx(test));
 
     let (alice, _) = people();
 
@@ -531,7 +519,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       // Need to increase the supply to prevent bugs due the way the test contract is written
       burn(dnr::mint_for_testing(&mut dnr_storage, (5000 * DNR_DECIMALS_FACTOR as u64), ctx(test)));
@@ -546,7 +533,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -562,7 +548,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let borrow_value = (10000 * DNR_DECIMALS_FACTOR as u64);
 
@@ -583,7 +568,6 @@ module interest_protocol::whirpool_tests_2 {
       burn(coin_eth);
       burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -599,7 +583,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let whirpool_admin_cap = test::take_from_address<WhirpoolAdminCap>(test, alice);
-      let clock_object = test::take_shared<Clock>(test);
 
       let timestame_increase = 33234532393;
 
@@ -625,13 +608,14 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq(loan, (5000 * DNR_DECIMALS_FACTOR as u64));
       assert_eq(loan_rewards_paid, loan_rewards_per_share * 5000);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
       test::return_to_address(alice, whirpool_admin_cap);
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -642,6 +626,7 @@ module interest_protocol::whirpool_tests_2 {
     let test = &mut scenario;
 
     init_test(test);
+    let clock_object = clock::create_for_testing(ctx(test));
 
     let (alice, bob) = people();
 
@@ -652,7 +637,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<BTC>(
         &mut whirpool_storage,
@@ -664,7 +648,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -677,7 +660,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<ETH>(
         &mut whirpool_storage,
@@ -689,7 +671,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -704,7 +685,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let borrow_value = (91 * ETH_DECIMALS_FACTOR as u64);
 
@@ -724,7 +704,6 @@ module interest_protocol::whirpool_tests_2 {
        burn(coin_eth);
        burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -757,7 +736,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let timestame_increase = 38452;
 
@@ -831,7 +809,6 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq(collateral, ((150 * ETH_DECIMALS_FACTOR) as u64));
       assert_eq(collateral_rewards_paid, 0);
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -839,6 +816,7 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(oracle_storage); 
      };
 
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -849,6 +827,7 @@ module interest_protocol::whirpool_tests_2 {
     let test = &mut scenario;
 
     init_test(test);
+    let clock_object = clock::create_for_testing(ctx(test));
 
     let (alice, bob) = people();
 
@@ -858,7 +837,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<BTC>(
         &mut whirpool_storage,
@@ -870,7 +848,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -883,7 +860,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<ETH>(
         &mut whirpool_storage,
@@ -895,7 +871,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -910,7 +885,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let borrow_value = (91 * ETH_DECIMALS_FACTOR as u64);
 
@@ -930,7 +904,6 @@ module interest_protocol::whirpool_tests_2 {
        burn(coin_eth);
        burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -945,7 +918,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let borrow_value = (10 * BTC_DECIMALS_FACTOR as u64);
 
@@ -965,7 +937,6 @@ module interest_protocol::whirpool_tests_2 {
        burn(coin_btc);
        burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -998,7 +969,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let timestame_increase = 98452;
 
@@ -1046,7 +1016,6 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq(collateral_rewards_paid, ((collateral as u256) * btc_accrued_collateral_rewards_per_share) / BTC_DECIMALS_FACTOR);
       assert_eq(loan_rewards_paid, 0);
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1054,6 +1023,7 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(oracle_storage); 
    };
 
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -1067,6 +1037,7 @@ module interest_protocol::whirpool_tests_2 {
     init_test(test);
 
     let (alice, _) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);
     {
@@ -1075,7 +1046,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::liquidate<BTC, ETH>(
         &mut whirpool_storage,
@@ -1089,13 +1059,14 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -1109,6 +1080,7 @@ module interest_protocol::whirpool_tests_2 {
     init_test(test);
 
     let (alice, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);
     {
@@ -1117,7 +1089,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::liquidate<DNR, ETH>(
         &mut whirpool_storage,
@@ -1131,13 +1102,14 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -1149,6 +1121,7 @@ module interest_protocol::whirpool_tests_2 {
     let test = &mut scenario;
 
     init_test(test);
+    let clock_object = clock::create_for_testing(ctx(test));
 
     let (alice, bob) = people();
 
@@ -1159,7 +1132,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::liquidate<ETH, DNR>(
         &mut whirpool_storage,
@@ -1173,13 +1145,14 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -1189,6 +1162,7 @@ module interest_protocol::whirpool_tests_2 {
      let scenario = scenario();
 
     let test = &mut scenario;
+    let clock_object = clock::create_for_testing(ctx(test));
 
     init_test(test);
 
@@ -1201,7 +1175,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::liquidate<ETH, BTC>(
         &mut whirpool_storage,
@@ -1215,13 +1188,14 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -1233,6 +1207,7 @@ module interest_protocol::whirpool_tests_2 {
     let test = &mut scenario;
 
     init_test(test);
+    let clock_object = clock::create_for_testing(ctx(test));
 
     let (alice, bob) = people();
 
@@ -1242,7 +1217,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<ETH>(
         &mut whirpool_storage,
@@ -1254,7 +1228,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1268,7 +1241,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::liquidate<ETH, BTC>(
         &mut whirpool_storage,
@@ -1282,13 +1254,14 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -1300,6 +1273,7 @@ module interest_protocol::whirpool_tests_2 {
     let test = &mut scenario;
 
     init_test(test);
+    let clock_object = clock::create_for_testing(ctx(test));
 
     let (alice, bob) = people();
 
@@ -1310,7 +1284,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<BTC>(
         &mut whirpool_storage,
@@ -1322,7 +1295,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1335,7 +1307,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<ETH>(
         &mut whirpool_storage,
@@ -1347,7 +1318,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1362,7 +1332,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let borrow_value = (91 * ETH_DECIMALS_FACTOR as u64);
 
@@ -1382,7 +1351,6 @@ module interest_protocol::whirpool_tests_2 {
        burn(coin_eth);
        burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1397,7 +1365,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::liquidate<BTC, ETH>(
         &mut whirpool_storage,
@@ -1411,13 +1378,14 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
      };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -1431,6 +1399,7 @@ module interest_protocol::whirpool_tests_2 {
     init_test(test);
 
     let (alice, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     // Deposit 200k USD can borrow up to 140k USD
     next_tx(test, alice);
@@ -1439,7 +1408,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<BTC>(
         &mut whirpool_storage,
@@ -1451,7 +1419,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1464,7 +1431,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<ETH>(
         &mut whirpool_storage,
@@ -1476,7 +1442,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1491,7 +1456,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let borrow_value = (91 * ETH_DECIMALS_FACTOR as u64);
 
@@ -1511,7 +1475,6 @@ module interest_protocol::whirpool_tests_2 {
        burn(coin_eth);
        burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1544,7 +1507,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::liquidate<BTC, ETH>(
         &mut whirpool_storage,
@@ -1558,13 +1520,14 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
      };
+
+    clock::destroy_for_testing(clock_object); 
     test::end(scenario);
   }
 
@@ -1575,6 +1538,7 @@ module interest_protocol::whirpool_tests_2 {
     let test = &mut scenario;
 
     init_test(test);
+    let clock_object = clock::create_for_testing(ctx(test));
 
     let (alice, bob) = people();
 
@@ -1585,7 +1549,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<BTC>(
         &mut whirpool_storage,
@@ -1597,7 +1560,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1613,7 +1575,6 @@ module interest_protocol::whirpool_tests_2 {
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::enter_market<BTC>(&whirpool_storage, &mut account_storage, ctx(test));
 
@@ -1632,7 +1593,6 @@ module interest_protocol::whirpool_tests_2 {
        burn(coin_dnr);
        burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -1667,7 +1627,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let timestame_increase = 38452;
 
@@ -1739,7 +1698,6 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq((collateral as u256), loan_in_btc - (loan_penalty * 200000000000000000) / scalar);
       assert_eq(collateral_rewards_paid, ((collateral as u256) * btc_accrued_collateral_rewards_per_share) / BTC_DECIMALS_FACTOR);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -1748,6 +1706,7 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(oracle_storage); 
      };     
 
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -1758,6 +1717,7 @@ module interest_protocol::whirpool_tests_2 {
     let test = &mut scenario;
 
     init_test(test);
+    let clock_object = clock::create_for_testing(ctx(test));
 
     let (alice, bob) = people();
 
@@ -1767,7 +1727,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<BTC>(
         &mut whirpool_storage,
@@ -1779,7 +1738,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1792,7 +1750,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<ETH>(
         &mut whirpool_storage,
@@ -1804,7 +1761,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1820,7 +1776,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::enter_market<BTC>(&whirpool_storage, &mut account_storage, ctx(test));
 
@@ -1839,7 +1794,6 @@ module interest_protocol::whirpool_tests_2 {
        burn(coin_dnr);
        burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -1855,7 +1809,6 @@ module interest_protocol::whirpool_tests_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let borrow_value = (10 * BTC_DECIMALS_FACTOR as u64);
 
@@ -1875,7 +1828,6 @@ module interest_protocol::whirpool_tests_2 {
        burn(coin_btc);
        burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -1909,7 +1861,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let timestame_increase = 98452;
 
@@ -1961,7 +1912,6 @@ module interest_protocol::whirpool_tests_2 {
       assert_eq(collateral_rewards_paid, ((collateral as u256) * btc_accrued_collateral_rewards_per_share) / BTC_DECIMALS_FACTOR);
       assert_eq(loan_rewards_paid, 0);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -1969,6 +1919,8 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -1982,6 +1934,7 @@ module interest_protocol::whirpool_tests_2 {
     init_test(test);
 
     let (alice, _) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);  
     {
@@ -1991,7 +1944,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::liquidate_dnr<BTC>(
         &mut whirpool_storage,
@@ -2006,7 +1958,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -2015,6 +1966,7 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(oracle_storage);       
     };
 
+    clock::destroy_for_testing(clock_object);
     test::end(scenario); 
   }
 
@@ -2028,6 +1980,7 @@ module interest_protocol::whirpool_tests_2 {
     init_test(test);
 
     let (alice, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);  
     {
@@ -2037,7 +1990,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::liquidate_dnr<DNR>(
         &mut whirpool_storage,
@@ -2052,7 +2004,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -2061,6 +2012,7 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(oracle_storage);       
     };
 
+    clock::destroy_for_testing(clock_object);
     test::end(scenario); 
   }
 
@@ -2076,6 +2028,7 @@ module interest_protocol::whirpool_tests_2 {
     init_test(test);
 
     let (alice, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);  
     {
@@ -2085,7 +2038,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::liquidate_dnr<BTC>(
         &mut whirpool_storage,
@@ -2100,7 +2052,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -2109,6 +2060,7 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(oracle_storage);       
     };
 
+    clock::destroy_for_testing(clock_object);
     test::end(scenario); 
   }
 
@@ -2122,6 +2074,7 @@ module interest_protocol::whirpool_tests_2 {
     init_test(test);
 
     let (alice, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     // Deposit 200k USD can borrow up to 140k USD
     next_tx(test, alice);
@@ -2130,7 +2083,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<BTC>(
         &mut whirpool_storage,
@@ -2142,7 +2094,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -2157,7 +2108,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::liquidate_dnr<BTC>(
         &mut whirpool_storage,
@@ -2172,7 +2122,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -2181,6 +2130,7 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(oracle_storage);       
     };
 
+    clock::destroy_for_testing(clock_object);
     test::end(scenario); 
   }
 
@@ -2194,6 +2144,7 @@ module interest_protocol::whirpool_tests_2 {
     init_test(test);
 
     let (alice, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);
     {
@@ -2201,7 +2152,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<BTC>(
         &mut whirpool_storage,
@@ -2213,7 +2163,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -2226,7 +2175,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<ETH>(
         &mut whirpool_storage,
@@ -2238,7 +2186,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -2254,7 +2201,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::enter_market<BTC>(&whirpool_storage, &mut account_storage, ctx(test));
 
@@ -2273,7 +2219,6 @@ module interest_protocol::whirpool_tests_2 {
        burn(coin_dnr);
        burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -2290,7 +2235,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let timestame_increase = 98452;
 
@@ -2309,7 +2253,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -2317,6 +2260,8 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 
@@ -2330,6 +2275,7 @@ module interest_protocol::whirpool_tests_2 {
     init_test(test);
 
     let (alice, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
 
     next_tx(test, alice);
     {
@@ -2337,7 +2283,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<BTC>(
         &mut whirpool_storage,
@@ -2349,7 +2294,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -2362,7 +2306,6 @@ module interest_protocol::whirpool_tests_2 {
       let account_storage = test::take_shared<AccountStorage>(test);
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       burn(whirpool::deposit<ETH>(
         &mut whirpool_storage,
@@ -2374,7 +2317,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
        ));
 
-      test::return_shared(clock_object);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
       test::return_shared(account_storage);
@@ -2390,7 +2332,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       whirpool::enter_market<BTC>(&whirpool_storage, &mut account_storage, ctx(test));
 
@@ -2409,7 +2350,6 @@ module interest_protocol::whirpool_tests_2 {
        burn(coin_dnr);
        burn(coin_ipx);
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -2444,7 +2384,6 @@ module interest_protocol::whirpool_tests_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let dnr_storage = test::take_shared<DineroStorage>(test);
       let oracle_storage = test::take_shared<OracleStorage>(test);
-      let clock_object = test::take_shared<Clock>(test);
 
       let timestame_increase = 98452;
 
@@ -2463,7 +2402,6 @@ module interest_protocol::whirpool_tests_2 {
         ctx(test)
       );
 
-      test::return_shared(clock_object);
       test::return_shared(dnr_storage);
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -2471,6 +2409,8 @@ module interest_protocol::whirpool_tests_2 {
       test::return_shared(whirpool_storage); 
       test::return_shared(oracle_storage); 
     };
+
+    clock::destroy_for_testing(clock_object);
     test::end(scenario);
   }
 }
