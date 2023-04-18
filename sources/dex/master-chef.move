@@ -773,15 +773,6 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
     )
   }
 
-  /**
-  * @dev It allows other modules to borrow the publisher
-  * @param storage The MasterChefStorage of this contract
-  * @return borrow read only Publisher of this module
-  */
-  public fun borrow_publisher(storage: &MasterChefStorage): &Publisher {
-    &storage.publisher
-  }
-
 /**
  * @notice A getter function
  * @param storage The MasterChefStorage shared object
@@ -820,5 +811,4 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
   public fun get_publisher_id(storage: &MasterChefStorage): ID {
     object::id(&storage.publisher)
   }
-
 }
