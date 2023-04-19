@@ -12,19 +12,30 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 
 ### Run tests
 
+**To run the tests on the dex directory**
+
 ```bash
+  cd dex
   sui move test
 ```
 
 ### Publish
 
 ```bash
+  cd dex
   sui client publish --gas-budget 50000
 ```
 
+## Repo Structure
+
+- **dex:** It contains the logic for users to swap, add/remove liquidity and create pools
+- **whirlpool:** It contains the logic for users to borrow and lend coins
+- **coins:** It contains the IPX and DNR coins that are used by other modules
+- **library:** It contains utility functions that are used by other modules
+
 ## Functionality
 
-### Lending (WIP)
+### Whirlpool
 
 The Interest Protocol Lending Protocol allows users to borrow and lend cryptocurrencies.
 

@@ -1,5 +1,5 @@
 // Package that calculates the borrow or supply interest rate for a market
-module whirpool::interest_rate_model {
+module whirlpool::interest_rate_model {
 
   use std::ascii::{String}; 
 
@@ -12,7 +12,7 @@ module whirpool::interest_rate_model {
   use library::math::{d_fdiv, d_fmul_u256, double_scalar};
   use library::utils::{get_coin_info_string, get_ms_per_year};
 
-  friend whirpool::core;
+  friend whirlpool::core;
 
   struct InterestRateData has key, store {
     id: UID,

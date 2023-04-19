@@ -1,5 +1,5 @@
 // TODO CONNECT TO PYTH ORACLES
-module whirpool::oracle {
+module whirlpool::oracle {
   use std::ascii::{String}; 
 
   use sui::tx_context::{Self, TxContext};

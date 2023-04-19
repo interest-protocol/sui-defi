@@ -1,5 +1,5 @@
 [package]
-name = "Whirpool"
+name = "Whirlpool"
 version = "0.0.1"
 
 [dependencies]
@@ -8,6 +8,6 @@ Library = { local = "../library" }
 Coins = { local = "../coins" }
 
 [addresses]
-whirpool =  "0x0"
+whirlpool =  "0x0"
 sui =  "0x2"
 treasury = "0xCAFE"

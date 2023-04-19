@@ -1,9 +1,9 @@
 #[test_only]
-module whirpool::interest_rate_model_test {
+module whirlpool::interest_rate_model_test {
 
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
 
-  use whirpool::interest_rate_model::{Self as model, InterestRateModelStorage};
+  use whirlpool::interest_rate_model::{Self as model, InterestRateModelStorage};
   use library::test_utils::{people, scenario};
   use library::utils::{get_coin_info_string};
   use library::math::{d_fdiv, d_fmul_u256, double_scalar};
