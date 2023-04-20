@@ -30,7 +30,8 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 
 - **dex:** It contains the logic for users to swap, add/remove liquidity and create pools
 - **whirlpool:** It contains the logic for users to borrow and lend coins
-- **coins:** It contains the IPX and DNR coins that are used by other modules
+- **ipx:** The governance token of Interest Protocol
+- **sui-dollar:** The stable coin of Interest Protocol
 - **library:** It contains utility functions that are used by other modules
 
 ## Functionality
