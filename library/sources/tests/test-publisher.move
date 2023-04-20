@@ -1,5 +1,5 @@
 #[test_only]
-module coins::foo {
+module library::foo {
 
   use sui::object::{Self, UID, ID};
   use sui::package::{Self, Publisher};

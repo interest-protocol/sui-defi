@@ -10,7 +10,7 @@ module dex::interface {
 
   use dex::core::{Self, DEXStorage, LPCoin};
   use dex::master_chef::{Self, MasterChefStorage, AccountStorage as MasterChefAccountStorage};
-  use coins::ipx::{Self, IPXStorage, IPX};
+  use ipx::ipx::{Self, IPXStorage, IPX};
   use library::utils::{handle_coin_vector, are_coins_sorted};
   use dex::router;
 

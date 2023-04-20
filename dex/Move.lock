@@ -4,14 +4,14 @@
 version = 0
 
 dependencies = [
-  { name = "Coins" },
+  { name = "IPX" },
   { name = "Library" },
   { name = "Sui" },
 ]
 
 [[move.package]]
-name = "Coins"
-source = { local = "../coins" }
+name = "IPX"
+source = { local = "../ipx" }
 
 dependencies = [
   { name = "Library" },

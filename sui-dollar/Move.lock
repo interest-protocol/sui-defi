@@ -4,17 +4,6 @@
 version = 0
 
 dependencies = [
-  { name = "IPX" },
-  { name = "Library" },
-  { name = "Sui" },
-  { name = "SuiDollar" },
-]
-
-[[move.package]]
-name = "IPX"
-source = { local = "../ipx" }
-
-dependencies = [
   { name = "Library" },
   { name = "Sui" },
 ]
@@ -37,13 +26,4 @@ source = { git = "https://github.com/MystenLabs/sui.git", rev = "testnet", subdi
 
 dependencies = [
   { name = "MoveStdlib" },
-]
-
-[[move.package]]
-name = "SuiDollar"
-source = { local = "../sui-dollar" }
-
-dependencies = [
-  { name = "Library" },
-  { name = "Sui" },
 ]

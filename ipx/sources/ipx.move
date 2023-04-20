@@ -1,5 +1,5 @@
 // The governance token (IPX) of Interest Protocol
-module coins::ipx {
+module ipx::ipx {
   use std::option;
 
   use sui::object::{Self, UID, ID};

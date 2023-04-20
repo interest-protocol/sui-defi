@@ -1,5 +1,5 @@
 [package]
-name = "Coins"
+name = "SuiDollar"
 version = "0.0.1"
 
 [dependencies]
@@ -7,5 +7,5 @@ Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-fram
 Library = { local = "../library" }
 
 [addresses]
-coins =  "0x0"
+sui_dollar =  "0x0"
 sui =  "0x2"

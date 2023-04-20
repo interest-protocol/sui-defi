@@ -1,13 +1,11 @@
 [package]
-name = "DEX"
+name = "IPX"
 version = "0.0.1"
 
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "testnet" }
 Library = { local = "../library" }
-IPX = { local = "../ipx" }
 
 [addresses]
-dex =  "0x0"
+ipx =  "0x0"
 sui =  "0x2"
-treasury = "0xCAFE"

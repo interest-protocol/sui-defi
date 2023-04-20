@@ -6,7 +6,7 @@ module dex::master_chef_tests {
   use sui::clock;
 
   use dex::master_chef::{Self, MasterChefStorage, AccountStorage, MasterChefAdmin};
-  use coins::ipx::{Self, IPXStorage, IPX, IPXAdminCap};
+  use ipx::ipx::{Self, IPXStorage, IPX, IPXAdminCap};
   use library::test_utils::{people, scenario};
   
   const START_TIMESTAMP: u64 = 0;

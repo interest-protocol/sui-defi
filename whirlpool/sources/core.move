@@ -19,8 +19,8 @@ module whirlpool::core {
 
   use whirlpool::interest_rate_model::{Self, InterestRateModelStorage};
   use whirlpool::oracle::{Self, OracleStorage};
-  use coins::ipx::{Self, IPX, IPXStorage};
-  use coins::dnr::{Self, DNR, DineroStorage};
+  use ipx::ipx::{Self, IPX, IPXStorage};
+  use sui_dollar::suid::{Self, SUID, SuiDollarStorage};
   use library::utils::{get_coin_info_string, get_ms_per_year};
   use library::rebase::{Self, Rebase};
   use library::math::{d_fmul, d_fdiv_u256, d_fmul_u256, double_scalar};
@@ -28,8 +28,8 @@ module whirlpool::core {
   const INITIAL_RESERVE_FACTOR_MANTISSA: u256 = 200000000000000000; // 0.2e18 or 20%
   const INITIAL_IPX_PER_MS: u64 = 1268391; // 40M IPX per year
   const TWENTY_FIVE_PER_CENT: u256 = 250000000000000000; // 0.25e18 or 25%
-  const INITIAL_DNR_INTEREST_RATE_PER_YEAR: u64 = 20000000000000000; // 2% a year
-  const MAX_DNR_INTEREST_RATE_PER_YEAR: u64 = 200000000000000000; // 20% a year
+  const INITIAL_SUID_INTEREST_RATE_PER_YEAR: u64 = 20000000000000000; // 2% a year
+  const MAX_SUID_INTEREST_RATE_PER_YEAR: u64 = 200000000000000000; // 20% a year
 
   const ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW: u64 = 1;
   const ERROR_NOT_ENOUGH_CASH_TO_LEND: u64 = 2;
@@ -43,8 +43,8 @@ module whirlpool::core {
   const ERROR_MARKET_EXIT_LOAN_OPEN: u64 = 10;
   const ERROR_USER_IS_INSOLVENT: u64 = 11;
   const ERROR_NOT_ENOUGH_RESERVES: u64 = 12;
-  const ERROR_CAN_NOT_USE_DNR: u64 = 13;
-  const ERROR_DNR_OPERATION_NOT_ALLOWED: u64 = 14;
+  const ERROR_CAN_NOT_USE_SUID: u64 = 13;
+  const ERROR_SUID_OPERATION_NOT_ALLOWED: u64 = 14;
   const ERROR_USER_IS_SOLVENT: u64 = 15;
   const ERROR_ACCOUNT_COLLATERAL_DOES_EXIST: u64 = 16;
   const ERROR_ACCOUNT_LOAN_DOES_EXIST: u64 = 17;
@@ -97,7 +97,7 @@ module whirlpool::core {
     market_balance_bag: Bag, // get_coin_info -> MarketBalance,
     total_allocation_points: u256,
     ipx_per_ms: u64,
-    dnr_interest_rate_per_ms: u64,
+    suid_interest_rate_per_ms: u64,
     publisher: Publisher
   }
 
@@ -229,7 +229,7 @@ module whirlpool::core {
     liquidator: address
   }
 
-  struct Update_DNR_Interest_Rate has drop, copy {
+  struct Update_SUID_Interest_Rate has drop, copy {
     old_value: u64,
     new_value: u64
   }
@@ -251,7 +251,7 @@ module whirlpool::core {
         market_balance_bag: bag::new(ctx),
         total_allocation_points: 0,
         ipx_per_ms: INITIAL_IPX_PER_MS,
-        dnr_interest_rate_per_ms: INITIAL_DNR_INTEREST_RATE_PER_YEAR / get_ms_per_year(),
+        suid_interest_rate_per_ms: INITIAL_SUID_INTEREST_RATE_PER_YEAR / get_ms_per_year(),
         publisher: package::claim<CORE>(witness, ctx)
       }
     );
@@ -292,23 +292,23 @@ module whirlpool::core {
   }
 
   /**
-  * @notice It updates the loan information for the DNR MarketData
+  * @notice It updates the loan information for the SUID MarketData
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param clock_object The shard Clock object
   */
-  public fun accrue_dnr(
+  public fun accrue_suid(
     whirpool_storage: &mut WhirlpoolStorage, 
     clock_object: &Clock
   ) {
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms; // IPX mint amount per ms
     let total_allocation_points = whirpool_storage.total_allocation_points; // Total allocation points
-    let market_key = get_coin_info_string<DNR>();
+    let market_key = get_coin_info_string<SUID>();
 
-    accrue_internal_dnr(
+    accrue_internal_suid(
       borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key), 
       clock_object,
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points
     );
@@ -338,8 +338,8 @@ module whirlpool::core {
   ): Coin<IPX> {
       // Get the type name of the Coin<T> of this market.
       let market_key = get_coin_info_string<T>();
-      // User cannot use DNR as collateral
-      assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+      // User cannot use SUID as collateral
+      assert!(market_key != get_coin_info_string<SUID>(), ERROR_SUID_OPERATION_NOT_ALLOWED);
 
       // Reward information in memory
       let ipx_per_ms = whirpool_storage.ipx_per_ms;
@@ -439,11 +439,11 @@ module whirlpool::core {
   ): (Coin<T>, Coin<IPX>) {
     // Get the type name of the Coin<T> of this market.
     let market_key = get_coin_info_string<T>();
-    // User cannot use DNR as collateral
-    assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+    // User cannot use SUID as collateral
+    assert!(market_key != get_coin_info_string<SUID>(), ERROR_SUID_OPERATION_NOT_ALLOWED);
 
     // Reward information in memory
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
       
@@ -500,7 +500,7 @@ module whirlpool::core {
       oracle_storage, 
       interest_rate_model_storage, 
       clock_object,
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points,
       market_key, 
@@ -548,12 +548,12 @@ module whirlpool::core {
   ): (Coin<T>, Coin<IPX>) {
     // Get the type name of the Coin<T> of this market.
     let market_key = get_coin_info_string<T>();
-    let dnr_market_key = get_coin_info_string<DNR>();
-    // User cannot use DNR as collateral
-    assert!(market_key != dnr_market_key, ERROR_DNR_OPERATION_NOT_ALLOWED);
+    let suid_market_key = get_coin_info_string<SUID>();
+    // User cannot use SUID as collateral
+    assert!(market_key != suid_market_key, ERROR_SUID_OPERATION_NOT_ALLOWED);
 
     // Reward information in memory
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
       
@@ -616,7 +616,7 @@ module whirlpool::core {
       oracle_storage, 
       interest_rate_model_storage, 
       clock_object,
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points, 
       market_key, 
@@ -660,8 +660,8 @@ module whirlpool::core {
   ): Coin<IPX> {
     // Get the type name of the Coin<T> of this market.
     let market_key = get_coin_info_string<T>();
-    // User cannot use DNR as collateral
-    assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+    // User cannot use SUID as collateral
+    assert!(market_key != get_coin_info_string<SUID>(), ERROR_SUID_OPERATION_NOT_ALLOWED);
 
     // Reward information in memory
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
@@ -769,9 +769,9 @@ module whirlpool::core {
     interest_rate_model_storage: &InterestRateModelStorage,
     market_key: String,
     ): u64 {
-      // DNR has a constant interest_rate
-      if (get_coin_info_string<DNR>() == market_key) {
-        whirpool_storage.dnr_interest_rate_per_ms
+      // SUID has a constant interest_rate
+      if (get_coin_info_string<SUID>() == market_key) {
+        whirpool_storage.suid_interest_rate_per_ms
       } else {
        // Other coins follow the start jump rate interest rate model 
         interest_rate_model::get_borrow_rate_per_ms(
@@ -795,7 +795,7 @@ module whirlpool::core {
     interest_rate_model_storage: &InterestRateModelStorage
   ): u64 {
       let market_key = get_coin_info_string<T>();
-      assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+      assert!(market_key != get_coin_info_string<SUID>(), ERROR_SUID_OPERATION_NOT_ALLOWED);
 
       let market_data = borrow_market_data(&whirpool_storage.market_data_table, market_key);
       // Other coins follow the start jump rate interest rate model       
@@ -864,7 +864,7 @@ module whirlpool::core {
     let sender = tx_context::sender(ctx);
     let account = borrow_account(account_storage, sender, market_key);
 
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
 
@@ -890,7 +890,7 @@ module whirlpool::core {
       oracle_storage, 
       interest_rate_model_storage, 
       clock_object,
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points,
       sender
@@ -923,7 +923,7 @@ module whirlpool::core {
     let market_key = get_coin_info_string<T>();  
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
 
     // Get the market data
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
@@ -936,7 +936,7 @@ module whirlpool::core {
       interest_rate_model_storage, 
       clock_object,
       market_key, 
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points
     )
@@ -949,7 +949,7 @@ module whirlpool::core {
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param clock_object The shared Clock object
   * @param market_key The key of the market in question
-  * @param dnr_interest_rate_per_ms The borrow rate of DNR per ms
+  * @param suid_interest_rate_per_ms The borrow rate of SUID per ms
   * @param ipx_per_ms The value of IPX to mint per epoch for the entire module
   * @param total_allocation_points It stores all allocation points assigned to all markets
   * @return (collateral value, loan value)
@@ -960,16 +960,16 @@ module whirlpool::core {
     interest_rate_model_storage: &InterestRateModelStorage,
     clock_object: &Clock,
     market_key: String, 
-    dnr_interest_rate_per_ms: u64,
+    suid_interest_rate_per_ms: u64,
     ipx_per_ms: u64,
     total_allocation_points: u256
   ): (u64, u64) {
     if (clock::timestamp_ms(clock_object) > market_data.accrued_timestamp) {
-        if (market_key == get_coin_info_string<DNR>()) {
-             accrue_internal_dnr(
+        if (market_key == get_coin_info_string<SUID>()) {
+             accrue_internal_suid(
               market_data, 
               clock_object,
-              dnr_interest_rate_per_ms,
+              suid_interest_rate_per_ms,
               ipx_per_ms,
               total_allocation_points
             );
@@ -995,14 +995,14 @@ module whirlpool::core {
   * @notice It updates the MarketData loan and rewards information
   * @param market_data The MarketData struct
   * @param clock_object The shared Clock object
-  * @param dnr_interest_rate_per_ms The borrow rate of DNR per ms
+  * @param suid_interest_rate_per_ms The borrow rate of SUID per ms
   * @param ipx_per_epoch The value of IPX to mint per epoch for the entire module
   * @param total_allocation_points It stores all allocation points assigned to all markets
   */
-  fun accrue_internal_dnr(
+  fun accrue_internal_suid(
     market_data: &mut MarketData, 
     clock_object: &Clock,
-    dnr_interest_rate_per_ms: u64,
+    suid_interest_rate_per_ms: u64,
     ipx_per_ms: u64,
     total_allocation_points: u256
   ) {
@@ -1013,7 +1013,7 @@ module whirlpool::core {
     if (timestamp_ms_delta == 0) return;
 
     // Calculate the interest rate % accumulated for all epochs since the last update
-    let interest_rate = timestamp_ms_delta * dnr_interest_rate_per_ms;
+    let interest_rate = timestamp_ms_delta * suid_interest_rate_per_ms;
 
     // Calculate the total interest rate amount earned by the protocol
     let interest_rate_amount = (d_fmul(interest_rate, rebase::elastic(&market_data.loan_rebase)) as u64);
@@ -1199,8 +1199,8 @@ module whirlpool::core {
   * @param The key of the Coin
   */
   fun get_price(oracle_storage: &OracleStorage, key: String): u256 {
-    // DNR is always 1 USD regardless of prices anywhere else
-    if (key == get_coin_info_string<DNR>()) return double_scalar();
+    // SUID is always 1 USD regardless of prices anywhere else
+    if (key == get_coin_info_string<SUID>()) return double_scalar();
 
     // Fetch the price from the oracle
     let (price, decimals) = oracle::get_price(oracle_storage, key);
@@ -1235,7 +1235,7 @@ module whirlpool::core {
     ctx: &mut TxContext
   ) {
     let market_key = get_coin_info_string<T>();
-    assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+    assert!(market_key != get_coin_info_string<SUID>(), ERROR_SUID_OPERATION_NOT_ALLOWED);
 
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
@@ -1460,7 +1460,7 @@ module whirlpool::core {
     ) {
     assert!(TWENTY_FIVE_PER_CENT >= new_reserve_factor, ERROR_VALUE_TOO_HIGH);
     let market_key = get_coin_info_string<T>();
-    assert!(market_key != get_coin_info_string<DNR>(), ERROR_DNR_OPERATION_NOT_ALLOWED);
+    assert!(market_key != get_coin_info_string<SUID>(), ERROR_SUID_OPERATION_NOT_ALLOWED);
 
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
@@ -1486,7 +1486,7 @@ module whirlpool::core {
   * @param _ The WhirlpoolAdminCap
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
-  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param dinero_storage The shared ofbject of the module ipx::suid 
   * @param clock_object The shared Clock object
   * @param withdraw_value The value of reserves to withdraw
   */
@@ -1494,24 +1494,24 @@ module whirlpool::core {
     _: &WhirlpoolAdminCap, 
     whirpool_storage: &mut WhirlpoolStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
-    dinero_storage: &mut DineroStorage,
+    dinero_storage: &mut SuiDollarStorage,
     clock_object: &Clock,
     withdraw_value: u64,
     ctx: &mut TxContext
   ) {
     let market_key = get_coin_info_string<T>();
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
-    let is_dnr = market_key == get_coin_info_string<DNR>();
+    let is_suid = market_key == get_coin_info_string<SUID>();
 
-    if (is_dnr) {
-      accrue_internal_dnr(
+    if (is_suid) {
+      accrue_internal_suid(
         market_data, 
         clock_object,
-        dnr_interest_rate_per_ms,
+        suid_interest_rate_per_ms,
         ipx_per_ms,
         total_allocation_points,
        );
@@ -1535,9 +1535,9 @@ module whirlpool::core {
     assert!(market_data.total_reserves >= withdraw_value, ERROR_NOT_ENOUGH_RESERVES);
     market_data.total_reserves = market_data.total_reserves - withdraw_value;
 
-    if (is_dnr) {
+    if (is_suid) {
        transfer::public_transfer(
-        dnr::mint(dinero_storage, &whirpool_storage.publisher, withdraw_value, ctx),
+        suid::mint(dinero_storage, &whirpool_storage.publisher, withdraw_value, ctx),
         tx_context::sender(ctx)
       );
     } else {
@@ -1568,16 +1568,16 @@ module whirlpool::core {
     new_ltv: u256
     ) {
     let market_key = get_coin_info_string<T>();
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
-    if (market_key == get_coin_info_string<DNR>()) {
-      accrue_internal_dnr(
+    if (market_key == get_coin_info_string<SUID>()) {
+      accrue_internal_suid(
         market_data, 
         clock_object, 
-        dnr_interest_rate_per_ms,
+        suid_interest_rate_per_ms,
         ipx_per_ms,
         total_allocation_points
        );
@@ -1603,27 +1603,27 @@ module whirlpool::core {
   * @param _ The WhirlpoolAdminCap
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param clock_object The shared Clock obkect
-  * @param new_interest_rate_per_year The new Dinero interest rate
+  * @param new_interest_rate_per_year The new SuiDollar interest rate
   */
-  entry public fun update_dnr_interest_rate_per_ms(
+  entry public fun update_suid_interest_rate_per_ms(
     _: &WhirlpoolAdminCap, 
     whirpool_storage: &mut WhirlpoolStorage,
     clock_object: &Clock,
     new_interest_rate_per_year: u64
   ) {
-    assert!(MAX_DNR_INTEREST_RATE_PER_YEAR > new_interest_rate_per_year, ERROR_INTEREST_RATE_OUT_OF_BOUNDS);
-    // Get DNR key
-    let market_key = get_coin_info_string<DNR>();
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    assert!(MAX_SUID_INTEREST_RATE_PER_YEAR > new_interest_rate_per_year, ERROR_INTEREST_RATE_OUT_OF_BOUNDS);
+    // Get SUID key
+    let market_key = get_coin_info_string<SUID>();
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
-    // Update the Dinero market before updating the interest rate
-    accrue_internal_dnr(
+    // Update the SuiDollar market before updating the interest rate
+    accrue_internal_suid(
       market_data, 
       clock_object,
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points
     );
@@ -1631,13 +1631,13 @@ module whirlpool::core {
     let new_interest_rate = new_interest_rate_per_year / get_ms_per_year();
 
     emit(
-      Update_DNR_Interest_Rate {
-        old_value: whirpool_storage.dnr_interest_rate_per_ms,
+      Update_SUID_Interest_Rate {
+        old_value: whirpool_storage.suid_interest_rate_per_ms,
         new_value: new_interest_rate
       }
     );
 
-    whirpool_storage.dnr_interest_rate_per_ms = new_interest_rate;
+    whirpool_storage.suid_interest_rate_per_ms = new_interest_rate;
   }
 
     /**
@@ -1651,7 +1651,7 @@ module whirlpool::core {
     whirpool_storage: &mut WhirlpoolStorage,
     can_be_collateral: bool
   ) {
-    // Get DNR key
+    // Get SUID key
     let market_key = get_coin_info_string<T>();
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
@@ -1676,16 +1676,16 @@ module whirlpool::core {
     new_allocation_points: u256
   ) {
     let market_key = get_coin_info_string<T>();
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
-    if (market_key == get_coin_info_string<DNR>()) {
-      accrue_internal_dnr(
+    if (market_key == get_coin_info_string<SUID>()) {
+      accrue_internal_suid(
         market_data, 
         clock_object,
-        dnr_interest_rate_per_ms,
+        suid_interest_rate_per_ms,
         ipx_per_ms,
         total_allocation_points
        );
@@ -1725,7 +1725,7 @@ module whirlpool::core {
     clock_object: &Clock,
     new_ipx_per_ms: u64
   ) {
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
 
@@ -1740,11 +1740,11 @@ module whirlpool::core {
       // Put the key back in the copy
       vector::push_back(&mut copy_vector, key);
 
-      if (key == get_coin_info_string<DNR>()) {
-        accrue_internal_dnr(
+      if (key == get_coin_info_string<SUID>()) {
+        accrue_internal_suid(
           borrow_mut_market_data(&mut whirpool_storage.market_data_table, key), 
           clock_object,
-          dnr_interest_rate_per_ms,
+          suid_interest_rate_per_ms,
           ipx_per_ms,
           total_allocation_points,
         );
@@ -1787,41 +1787,41 @@ module whirlpool::core {
     emit(NewAdmin { admin: new_admin });
   }
 
-  // DNR operations
+  // SUID operations
 
 
   /**
-  * @notice It allows a user to borrow Coin<DNR>.  
+  * @notice It allows a user to borrow Coin<SUID>.  
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param ipx_storage The shared object of the module ipx::ipx 
-  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param dinero_storage The shared ofbject of the module ipx::suid 
   * @param oracle_storage The shared object of the module ipx::oracle 
   * @param clock_object The shared Clock object
   * @param borrow_value The value of Coin<T> the user wishes to borrow
-  * @return (Coin<DNR>, Coin<IPX>)
+  * @return (Coin<SUID>, Coin<IPX>)
   * Requirements: 
   * - Market is not paused 
-  * - User is solvent after borrowing Coin<DNR> collateral
+  * - User is solvent after borrowing Coin<SUID> collateral
   * - Market borrow cap has not been reached
   */
-  public fun borrow_dnr(
+  public fun borrow_suid(
     whirpool_storage: &mut WhirlpoolStorage,
     account_storage: &mut AccountStorage, 
     interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage,
-    dinero_storage: &mut DineroStorage,
+    dinero_storage: &mut SuiDollarStorage,
     oracle_storage: &OracleStorage,
     clock_object: &Clock,
     borrow_value: u64,
     ctx: &mut TxContext
-  ): (Coin<DNR>, Coin<IPX>) {
-    // Get the type name of the Coin<DNR> of this market.
-    let market_key = get_coin_info_string<DNR>();
+  ): (Coin<SUID>, Coin<IPX>) {
+    // Get the type name of the Coin<SUID> of this market.
+    let market_key = get_coin_info_string<SUID>();
 
     // Reward information in memory
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
       
@@ -1829,10 +1829,10 @@ module whirlpool::core {
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
     // Update the market rewards & loans before any mutations
-    accrue_internal_dnr(
+    accrue_internal_suid(
       market_data, 
       clock_object,
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points
     );
@@ -1874,7 +1874,7 @@ module whirlpool::core {
       oracle_storage, 
       interest_rate_model_storage, 
       clock_object,
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points, 
       market_key, 
@@ -1882,7 +1882,7 @@ module whirlpool::core {
     );
 
     emit(
-      Borrow<DNR> {
+      Borrow<SUID> {
         principal: borrow_principal,
         value: borrow_value,
         pending_rewards,
@@ -1891,39 +1891,39 @@ module whirlpool::core {
     );
 
     (
-      dnr::mint(dinero_storage, &whirpool_storage.publisher, borrow_value, ctx), 
+      suid::mint(dinero_storage, &whirpool_storage.publisher, borrow_value, ctx), 
       mint_ipx(whirpool_storage, ipx_storage, pending_rewards, ctx)
     )
   }
 
   /**
-  * @notice It allows a user repay his principal of Coin<DNR>.  
+  * @notice It allows a user repay his principal of Coin<SUID>.  
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param ipx_storage The shared object of the module ipx::ipx 
-  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param dinero_storage The shared ofbject of the module ipx::suid 
   * @param clock_object The shared Clock object
-  * @param asset The Coin<DNR> he is repaying. 
+  * @param asset The Coin<SUID> he is repaying. 
   * @param principal_to_repay The principal he wishes to repay
   * @return Coin<IPX> rewards
   * Requirements: 
   * - Market is not paused 
   */
-  public fun repay_dnr(
+  public fun repay_suid(
     whirpool_storage: &mut WhirlpoolStorage, 
     account_storage: &mut AccountStorage,
     ipx_storage: &mut IPXStorage, 
-    dinero_storage: &mut DineroStorage,
+    dinero_storage: &mut SuiDollarStorage,
     clock_object: &Clock,
-    asset: Coin<DNR>,
+    asset: Coin<SUID>,
     principal_to_repay: u64,
     ctx: &mut TxContext 
   ): Coin<IPX> {
-  // Get the type name of the Coin<DNR> of this market.
-    let market_key = get_coin_info_string<DNR>();
+  // Get the type name of the Coin<SUID> of this market.
+    let market_key = get_coin_info_string<SUID>();
 
     // Reward information in memory
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
       
@@ -1931,10 +1931,10 @@ module whirlpool::core {
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
     // Update the market rewards & loans before any mutations
-    accrue_internal_dnr(
+    accrue_internal_suid(
       market_data, 
       clock_object,
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points
     );
@@ -1977,13 +1977,13 @@ module whirlpool::core {
     // Consider all rewards paid
     account.loan_rewards_paid = (account.principal as u256) * market_data.accrued_loan_rewards_per_share / (market_data.decimals_factor as u256);
 
-    // Burn the DNR
-    dnr::burn(dinero_storage, asset);
+    // Burn the SUID
+    suid::burn(dinero_storage, asset);
 
     repay_allowed(market_data);
 
     emit(
-      Repay<DNR> {
+      Repay<SUID> {
         principal: safe_asset_principal,
         value: repay_amount,
         pending_rewards,
@@ -2150,13 +2150,13 @@ module whirlpool::core {
     borrower: address,
     ctx: &mut TxContext
   ) {
-    // Get keys for collateral, loan and dnr market
+    // Get keys for collateral, loan and suid market
     let collateral_market_key = get_coin_info_string<C>();
     let loan_market_key = get_coin_info_string<L>();
-    let dnr_market_key = get_coin_info_string<DNR>();
+    let suid_market_key = get_coin_info_string<SUID>();
     let liquidator_address = tx_context::sender(ctx);
     
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
 
@@ -2168,10 +2168,10 @@ module whirlpool::core {
 
     // User cannot liquidate himself
     assert!(liquidator_address != borrower, ERROR_LIQUIDATOR_IS_BORROWER);
-    // DNR cannot be used as collateral
-    // DNR liquidation has its own function
-    assert!(collateral_market_key != dnr_market_key, ERROR_DNR_OPERATION_NOT_ALLOWED);
-    assert!(loan_market_key != dnr_market_key, ERROR_DNR_OPERATION_NOT_ALLOWED);
+    // SUID cannot be used as collateral
+    // SUID liquidation has its own function
+    assert!(collateral_market_key != suid_market_key, ERROR_SUID_OPERATION_NOT_ALLOWED);
+    assert!(loan_market_key != suid_market_key, ERROR_SUID_OPERATION_NOT_ALLOWED);
 
     // Update the collateral market
     accrue_internal(
@@ -2207,7 +2207,7 @@ module whirlpool::core {
       oracle_storage, 
       interest_rate_model_storage, 
       clock_object,
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points,
       borrower), 
@@ -2323,31 +2323,31 @@ module whirlpool::core {
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param ipx_storage The shared object of the module ipx::ipx 
-  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param dinero_storage The shared ofbject of the module ipx::suid 
   * @param oracle_storage The shared object of the module ipx::oracle 
-  * @param asset The Coin<DNR> he is repaying. 
+  * @param asset The Coin<SUID> he is repaying. 
   * @param principal_to_repay The principal he wishes to repay
   * Requirements: 
   * - borrower is insolvent
   */
-  public fun liquidate_dnr<C>(
+  public fun liquidate_suid<C>(
    whirpool_storage: &mut WhirlpoolStorage,
     account_storage: &mut AccountStorage, 
     interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage,
-    dinero_storage: &mut DineroStorage,
+    dinero_storage: &mut SuiDollarStorage,
     oracle_storage: &OracleStorage,
     clock_object: &Clock,
-    asset: Coin<DNR>,
+    asset: Coin<SUID>,
     borrower: address,
     ctx: &mut TxContext
   ) {
-    // Get keys for collateral, loan and dnr market
+    // Get keys for collateral, loan and suid market
     let collateral_market_key = get_coin_info_string<C>();
-    let dnr_market_key = get_coin_info_string<DNR>();
+    let suid_market_key = get_coin_info_string<SUID>();
     let liquidator_address = tx_context::sender(ctx);
     
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
 
@@ -2359,8 +2359,8 @@ module whirlpool::core {
 
     // User cannot liquidate himself
     assert!(liquidator_address != borrower, ERROR_LIQUIDATOR_IS_BORROWER);
-    // DNR cannot be used as collateral
-    assert!(collateral_market_key != dnr_market_key, ERROR_DNR_OPERATION_NOT_ALLOWED);
+    // SUID cannot be used as collateral
+    assert!(collateral_market_key != suid_market_key, ERROR_SUID_OPERATION_NOT_ALLOWED);
 
     // Update the collateral market
     accrue_internal(
@@ -2373,17 +2373,17 @@ module whirlpool::core {
     );
 
     // Update the market rewards & loans before any mutations
-    accrue_internal_dnr(
-      borrow_mut_market_data(&mut whirpool_storage.market_data_table, dnr_market_key), 
+    accrue_internal_suid(
+      borrow_mut_market_data(&mut whirpool_storage.market_data_table, suid_market_key), 
       clock_object, 
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points
     );
 
     // Accounts must exist or there is no point o proceed.
     assert!(account_exists(account_storage, borrower, collateral_market_key), ERROR_ACCOUNT_COLLATERAL_DOES_EXIST);
-    assert!(account_exists(account_storage, borrower, dnr_market_key), ERROR_ACCOUNT_LOAN_DOES_EXIST);
+    assert!(account_exists(account_storage, borrower, suid_market_key), ERROR_ACCOUNT_LOAN_DOES_EXIST);
 
     // If the liquidator does not have an account in the collateral market, we make one. 
     // So he can accept the collateral
@@ -2396,17 +2396,17 @@ module whirlpool::core {
       oracle_storage, 
       interest_rate_model_storage, 
       clock_object,
-      dnr_interest_rate_per_ms,
+      suid_interest_rate_per_ms,
       ipx_per_ms,
       total_allocation_points,
       borrower), 
     ERROR_USER_IS_SOLVENT);
 
     // Get the borrower loan account information
-    let borrower_loan_account = borrow_mut_account(account_storage, borrower, dnr_market_key);
+    let borrower_loan_account = borrow_mut_account(account_storage, borrower, suid_market_key);
     // Convert the principal to a nominal amount
     let borrower_loan_amount = rebase::to_elastic(
-      &borrow_market_data(&whirpool_storage.market_data_table, dnr_market_key).loan_rebase, 
+      &borrow_market_data(&whirpool_storage.market_data_table, suid_market_key).loan_rebase, 
       borrower_loan_account.principal, 
       true
       );
@@ -2423,11 +2423,11 @@ module whirlpool::core {
     // Return to the liquioator any extra value
     if (asset_value > repay_max_amount) pay::split_and_transfer(&mut asset, asset_value - repay_max_amount, liquidator_address, ctx);
 
-    // Burn the DNR
-    dnr::burn(dinero_storage, asset);
+    // Burn the SUID
+    suid::burn(dinero_storage, asset);
 
 
-    let loan_market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, dnr_market_key);
+    let loan_market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, suid_market_key);
 
     // Convert the repay amount to principal
     let base_repay = rebase::to_base(&loan_market_data.loan_rebase, repay_max_amount, true);
@@ -2491,7 +2491,7 @@ module whirlpool::core {
     // Send the rewards to the borrower
     transfer::public_transfer(mint_ipx(whirpool_storage, ipx_storage, pending_rewards, ctx), borrower);
 
-    emit(Liquidate<C, DNR> {
+    emit(Liquidate<C, SUID> {
         principal_repaid,
         liquidator_amount,
         protocol_amount,
@@ -2598,7 +2598,7 @@ module whirlpool::core {
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     clock_object: &Clock,
-    dnr_interest_rate_per_ms: u64,
+    suid_interest_rate_per_ms: u64,
     ipx_per_ms: u64,
     total_allocation_points: u256, 
     market_key: String,
@@ -2616,7 +2616,7 @@ module whirlpool::core {
         oracle_storage, 
         interest_rate_model_storage, 
         clock_object,
-        dnr_interest_rate_per_ms,
+        suid_interest_rate_per_ms,
         ipx_per_ms,
         total_allocation_points, 
         user
@@ -2631,7 +2631,7 @@ module whirlpool::core {
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param oracle_storage The shared object of the module ipx::oracle 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
-  * @param dinero_storage The shared ofbject of the module ipx::dnr 
+  * @param dinero_storage The shared ofbject of the module ipx::suid 
   * @param clock_object The shared Clock object
   * @param ipx_per_ms The value of Coin<IPX> this module can mint per ms
   * @param total_allocation_points The total rewards points in the module
@@ -2647,7 +2647,7 @@ module whirlpool::core {
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     clock_object: &Clock,
-    dnr_interest_rate_per_ms: u64,
+    suid_interest_rate_per_ms: u64,
     ipx_per_ms: u64,
     total_allocation_points: u256, 
     market_key: String,
@@ -2675,7 +2675,7 @@ module whirlpool::core {
         oracle_storage, 
         interest_rate_model_storage, 
         clock_object,
-        dnr_interest_rate_per_ms,
+        suid_interest_rate_per_ms,
         ipx_per_ms,
         total_allocation_points,
         user
@@ -2713,18 +2713,18 @@ module whirlpool::core {
   ): (u256, u256) {
 
     // Reward information in memory
-    let dnr_interest_rate_per_ms = whirpool_storage.dnr_interest_rate_per_ms;
+    let suid_interest_rate_per_ms = whirpool_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = whirpool_storage.ipx_per_ms;
     let total_allocation_points = whirpool_storage.total_allocation_points;
       
     // Get market core information
     let market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, market_key);
 
-    if (market_key == get_coin_info_string<DNR>()) {
-      accrue_internal_dnr(
+    if (market_key == get_coin_info_string<SUID>()) {
+      accrue_internal_suid(
         market_data, 
         clock_object,
-        dnr_interest_rate_per_ms,
+        suid_interest_rate_per_ms,
         ipx_per_ms,
         total_allocation_points,
       );
@@ -2784,7 +2784,7 @@ module whirlpool::core {
     oracle_storage: &OracleStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
     clock_object: &Clock,
-    dnr_interest_rate_per_ms: u64,
+    suid_interest_rate_per_ms: u64,
     ipx_per_ms: u64,
     total_allocation_points: u256, 
     user: address
@@ -2822,7 +2822,7 @@ module whirlpool::core {
         interest_rate_model_storage, 
         clock_object,
         key, 
-        dnr_interest_rate_per_ms,
+        suid_interest_rate_per_ms,
         ipx_per_ms,
         total_allocation_points
       );
@@ -2854,7 +2854,7 @@ module whirlpool::core {
 
   #[test_only]
   public fun get_interest_rate_per_ms(storage: &WhirlpoolStorage): u64 {
-    storage.dnr_interest_rate_per_ms
+    storage.suid_interest_rate_per_ms
   }
 
   #[test_only]
