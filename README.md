@@ -76,7 +76,7 @@ The DEX supports two types of pools denoted as:
 
 It is the governance coin of the protocol and it is minted as rewards by the Masterchef and lending modules. This coin will power the DAO in the future.
 
-### DNR Coin
+### SUID Coin
 
 It is a stablecoin created by the lending module. It is pegged to he USD dollars. Users pay a constant interest rate to borrow it.
 
