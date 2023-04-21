@@ -8,11 +8,13 @@ module dex::interface {
   use sui::clock::{Self, Clock};
   use sui::object::{ID};
 
+  use dex::router;
   use dex::core::{Self, DEXStorage, LPCoin};
   use dex::master_chef::{Self, MasterChefStorage, AccountStorage as MasterChefAccountStorage};
+
   use ipx::ipx::{Self, IPXStorage, IPX};
+  
   use library::utils::{handle_coin_vector, are_coins_sorted};
-  use dex::router;
 
   const ERROR_TX_DEADLINE_REACHED: u64 = 1;
 

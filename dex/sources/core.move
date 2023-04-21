@@ -12,7 +12,8 @@ module dex::core {
   use sui::event;
   use sui::clock::{Self, Clock};
 
-  use library::curve::{is_curve, is_volatile, Stable, Volatile};
+  use ipx::curve::{is_curve, is_volatile, Stable, Volatile};
+  
   use library::utils;
   use library::math::{mul_div, sqrt_u256, scalar};
 

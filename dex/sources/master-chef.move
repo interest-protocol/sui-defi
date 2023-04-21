@@ -12,6 +12,7 @@ module dex::master_chef {
   use sui::coin::{Self, Coin};
   use sui::event;
   use sui::package::{Self, Publisher};
+  
   use ipx::ipx::{Self, IPX, IPXStorage};
 
   use library::utils::{get_coin_info_string};
