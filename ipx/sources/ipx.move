@@ -17,6 +17,7 @@ module ipx::ipx {
 
   // Errors
   const ERROR_NOT_ALLOWED_TO_MINT: u64 = 1;
+  const ERROR_NO_ZERO_ADDRESS: u64 = 2;
 
   struct IPX has drop {}
 
@@ -37,6 +38,10 @@ module ipx::ipx {
 
   struct MinterRemoved has copy, drop {
     id: ID
+  }
+
+  struct NewAdmin has copy, drop {
+    admin: address
   }
 
   fun init(witness: IPX, ctx: &mut TxContext) {
@@ -155,6 +160,24 @@ module ipx::ipx {
         id
       }
     );
+  } 
+
+
+  /**
+  * @dev It gives the admin rights to the recipient. 
+  * @param admin_cap The IPXAdminCap that will be transferred
+  * @recipient the new admin address
+  *
+  * It emits the NewAdmin event with the new admin address
+  *
+  */
+  entry public fun transfer_admin(admin_cap: IPXAdminCap, recipient: address) {
+    assert!(recipient != @0x0, ERROR_NO_ZERO_ADDRESS);
+    transfer::transfer(admin_cap, recipient);
+
+    emit(NewAdmin {
+      admin: recipient
+    });
   } 
 
   /**
