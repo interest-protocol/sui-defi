@@ -52,7 +52,7 @@ module ipx::ipx {
             b"IPX",
             b"Interest Protocol Token",
             b"The governance token of Interest Protocol",
-            option::some(url::new_unsafe_from_bytes(b"https://files.interestprotocol.com/ipfs/QmXCQHziDxHP3b4tvoYLUs5h6RyaX1z5zNP9zdYNRjjxsP")),
+            option::some(url::new_unsafe_from_bytes(b"https://interestprotocol.infura-ipfs.io/ipfs/QmXCQHziDxHP3b4tvoYLUs5h6RyaX1z5zNP9zdYNRjjxsP")),
             ctx
         );
       // Transform the treasury_cap into a supply struct to allow this contract to mint/burn DNR
