@@ -3,9 +3,9 @@ module dex::dex_stable_tests {
 
     use sui::coin::{Self, mint_for_testing as mint, burn_for_testing as burn, CoinMetadata};
     use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
+    use sui::test_utils::{assert_eq};
     use sui::object;
     use sui::clock;
-    use sui::test_utils::{assert_eq};
 
     use dex::core::{Self as dex, DEXStorage as Storage, DEXAdminCap, LPCoin};
     use dex::curve::{Stable};
@@ -25,9 +25,9 @@ module dex::dex_stable_tests {
 
     fun test_create_pool_(test: &mut Scenario) {
       let (alice, _) = people();
-
+      
       let initial_k = dex::get_k<Stable>(INITIAL_USDC_VALUE, INITIAL_USDT_VALUE, USDC_DECIMAL_SCALAR, USDT_DECIMAL_SCALAR);
-      let lp_coin_initial_user_balance = (sqrt_u256(initial_k) / DESCALE_FACTOR as u64) - MINIMUM_LIQUIDITY;
+      let lp_coin_initial_user_balance = (sqrt_u256(sqrt_u256((INITIAL_USDC_VALUE as u256) * (INITIAL_USDT_VALUE as u256))) as u64);
 
       next_tx(test, alice);
       {
@@ -54,7 +54,7 @@ module dex::dex_stable_tests {
           ctx(test)
         );
 
-        assert!(burn(lp_coin) == lp_coin_initial_user_balance, 0);
+        assert!(burn(lp_coin) == (lp_coin_initial_user_balance as u64), 0);
         test::return_shared(storage);
         test::return_immutable(usdc_coin_metadata);
         test::return_immutable(usdt_coin_metadata);
@@ -270,11 +270,11 @@ module dex::dex_stable_tests {
           let (usdc_reserves_2, usdt_reserves_2, supply_2) = dex::get_amounts(pool);
 
           // rounding issues
-          assert!(burn(usdt) == 9998714322, 0);
-          assert!(burn(usdc) == 9998714, 0);
-          assert!(supply_1 == supply_2 + lp_coin_value, 0);
-          assert!(usdc_reserves_1 == usdc_reserves_2 + 9998714, 0);
-          assert!(usdt_reserves_1 == usdt_reserves_2 + 9998714322, 0);
+          assert_eq(burn(usdt), 9999353462);
+          assert_eq(burn(usdc), 9999353);
+          assert_eq(supply_1, supply_2 + lp_coin_value);
+          assert_eq(usdc_reserves_1, usdc_reserves_2 + 9999353);
+          assert_eq(usdt_reserves_1, usdt_reserves_2 + 9999353462);
 
           test::return_shared(storage);
         };

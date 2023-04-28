@@ -3,6 +3,7 @@ module dex::dex_volatile_tests {
 
     use sui::coin::{Self, mint_for_testing as mint, burn_for_testing as burn};
     use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
+    use sui::test_utils::{assert_eq};
     use sui::math;
     use sui::object;
     use sui::clock;
@@ -23,7 +24,7 @@ module dex::dex_volatile_tests {
     fun test_create_pool_(test: &mut Scenario) {
       let (alice, _) = people();
 
-      let lp_coin_initial_user_balance = math::sqrt(INITIAL_ETHER_VALUE * INITIAL_USDC_VALUE);
+      let lp_coin_initial_user_balance = math::sqrt(math::sqrt(INITIAL_ETHER_VALUE * INITIAL_USDC_VALUE));
 
       next_tx(test, alice);
       {
@@ -242,11 +243,11 @@ module dex::dex_volatile_tests {
           let (ether_reserves_2, usdc_reserves_2, supply_2) = dex::get_amounts(pool);
 
           // rounding issues
-          assert!(burn(ether) == 9999, 0);
-          assert!(burn(usdc) == 14999989, 0);
+          assert_eq(burn(ether), 9967);
+          assert_eq(burn(usdc), 14951701);
           assert!(supply_1 == supply_2 + lp_coin_value, 0);
-          assert!(ether_reserves_1 == ether_reserves_2 + 9999, 0);
-          assert!(usdc_reserves_1 == usdc_reserves_2 + 14999989, 0);
+          assert!(ether_reserves_1 == ether_reserves_2 + 9967, 0);
+          assert!(usdc_reserves_1 == usdc_reserves_2 + 14951701, 0);
 
           test::return_shared(storage);
         };
@@ -273,16 +274,27 @@ module dex::dex_volatile_tests {
        next_tx(test, bob);
        {
         let storage = test::take_shared<Storage>(test);
-        
-        let usdc = dex::swap_token_x<Volatile, ETH, USDC>(
+
+        let num_swaps = 10;
+
+        while(num_swaps > 0) {
+          burn(dex::swap_token_x<Volatile, ETH, USDC>(
           &mut storage,
           &clock_object,
-          mint<ETH>(ether_value, ctx(test)),
+          mint<ETH>(INITIAL_ETHER_VALUE / 3, ctx(test)),
           0,
           ctx(test)
-        );
+        ));
 
-        assert!(burn(usdc) != 0, 0);
+          burn(dex::swap_token_y<Volatile, ETH, USDC>(
+          &mut storage,
+          &clock_object,
+          mint<USDC>(INITIAL_USDC_VALUE / 3, ctx(test)),
+          0,
+          ctx(test)
+          ));
+          num_swaps = num_swaps - 1;
+        };
         
         test::return_shared(storage); 
        };
@@ -340,15 +352,26 @@ module dex::dex_volatile_tests {
         {
         let storage = test::take_shared<Storage>(test);
 
-        let usdc = dex::swap_token_x<Volatile, ETH, USDC>(
+        let num_swaps = 10;
+
+        while(num_swaps > 0) {
+          burn(dex::swap_token_x<Volatile, ETH, USDC>(
           &mut storage,
           &clock_object,
-          mint<ETH>(INITIAL_ETHER_VALUE / 10, ctx(test)),
+          mint<ETH>(INITIAL_ETHER_VALUE / 3, ctx(test)),
           0,
           ctx(test)
-        );
+        ));
 
-        assert!(burn(usdc) != 0, 0);
+          burn(dex::swap_token_y<Volatile, ETH, USDC>(
+          &mut storage,
+          &clock_object,
+          mint<USDC>(INITIAL_USDC_VALUE / 3, ctx(test)),
+          0,
+          ctx(test)
+          ));
+          num_swaps = num_swaps - 1;
+        };
 
         test::return_shared(storage); 
        };
@@ -368,10 +391,12 @@ module dex::dex_volatile_tests {
         let denominator  = (root_k * 5) + root_k_last;
         let fee = numerator / denominator;
 
+        let withdraw_amount = supply_1 / 3;
+
         let (ether, usdc) = dex::remove_liquidity<Volatile, ETH, USDC>(
           &mut storage,
           &clock_object,
-          mint<LPCoin<Volatile, ETH, USDC>>(30000, ctx(test)),
+          mint<LPCoin<Volatile, ETH, USDC>>(withdraw_amount, ctx(test)),
           0,
           0,
           ctx(test)
@@ -383,8 +408,8 @@ module dex::dex_volatile_tests {
         let pool = dex::borrow_pool<Volatile, ETH, USDC>(&storage);
         let (_, _, supply_2) = dex::get_amounts(pool);
 
-        assert!(fee > 0, 0);
-        assert!((supply_2 as u256) == (supply_1 as u256) + fee - 30000, 0);
+        assert_eq(fee > 0, true);
+        assert_eq((supply_2 as u256), (supply_1 as u256) + fee - (withdraw_amount as u256));
 
         test::return_shared(storage);
        };

@@ -15,7 +15,7 @@ module dex::core {
   use dex::curve::{is_curve, is_volatile, Stable, Volatile};
   
   use library::utils;
-  use library::math::{mul_div, sqrt_u256, scalar};
+  use library::math::{mul_div, sqrt_u256};
 
   const MINIMUM_LIQUIDITY: u64 = 10;
   const PRECISION: u256 = 1000000000000000000; //1e18;
@@ -183,8 +183,8 @@ module dex::core {
       assert!(!object_bag::contains(&storage.pools, type), ERROR_POOL_EXISTS);
 
       // Calculate the constant product k = x * y
-      let _k = k<Volatile>(coin_x_value, coin_y_value, 0, 0) - (MINIMUM_LIQUIDITY as u256);
-      let shares = (sqrt_u256(_k) as u64);
+      let _k = k<Volatile>(coin_x_value, coin_y_value, 0, 0);
+      let shares = (sqrt_u256(sqrt_u256(_k)) as u64);
 
       // Create the VLP coin for the Pool<X, Y>. 
       // This coin has 0 decimals and no metadata 
@@ -282,10 +282,8 @@ module dex::core {
       let decimals_x = math::pow(10, coin::get_decimals(coin_x_metadata));
       let decimals_y = math::pow(10, coin::get_decimals(coin_y_metadata));
 
-      // Calculate k = x^3y + y^3x
-      let k = k<Stable>(coin_x_value, coin_y_value, decimals_x, decimals_y);
       // Calculate the number of shares
-      let shares = ((sqrt_u256(k) / scalar()) as u64) - MINIMUM_LIQUIDITY;
+      let shares = (sqrt_u256(sqrt_u256(((coin_x_value as u256) * (coin_y_value as u256)))) as u64);
 
       // Create the SLP coin for the Pool<X, Y>. 
       // This coin has 0 decimals and no metadata 
@@ -317,7 +315,8 @@ module dex::core {
         type,
         Pool {
           id,
-          k_last: k,
+          // Calculate k = x^3y + y^3x
+          k_last: k<Stable>(coin_x_value, coin_y_value, decimals_x, decimals_y),
           lp_coin_supply: supply,
           balance_x: coin::into_balance<X>(coin_x),
           balance_y: coin::into_balance<Y>(coin_y),
