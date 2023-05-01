@@ -229,7 +229,7 @@ module whirlpool::core {
     liquidator: address
   }
 
-  struct Update_SUID_Interest_Rate has drop, copy {
+  struct UpdateSUIDInterestRate has drop, copy {
     old_value: u64,
     new_value: u64
   }
@@ -1486,7 +1486,7 @@ module whirlpool::core {
   * @param _ The WhirlpoolAdminCap
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
-  * @param dinero_storage The shared ofbject of the module ipx::suid 
+  * @param suid_storage The shared ofbject of the module ipx::suid 
   * @param clock_object The shared Clock object
   * @param withdraw_value The value of reserves to withdraw
   */
@@ -1494,7 +1494,7 @@ module whirlpool::core {
     _: &WhirlpoolAdminCap, 
     whirpool_storage: &mut WhirlpoolStorage,
     interest_rate_model_storage: &InterestRateModelStorage,
-    dinero_storage: &mut SuiDollarStorage,
+    suid_storage: &mut SuiDollarStorage,
     clock_object: &Clock,
     withdraw_value: u64,
     ctx: &mut TxContext
@@ -1537,7 +1537,7 @@ module whirlpool::core {
 
     if (is_suid) {
        transfer::public_transfer(
-        suid::mint(dinero_storage, &whirpool_storage.publisher, withdraw_value, ctx),
+        suid::mint(suid_storage, &whirpool_storage.publisher, withdraw_value, ctx),
         tx_context::sender(ctx)
       );
     } else {
@@ -1599,7 +1599,7 @@ module whirlpool::core {
   }
 
   /**
-  * @notice It allows the admin to update the dinero interest rate per epoch
+  * @notice It allows the admin to update the suid interest rate per epoch
   * @param _ The WhirlpoolAdminCap
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param clock_object The shared Clock obkect
@@ -1631,7 +1631,7 @@ module whirlpool::core {
     let new_interest_rate = new_interest_rate_per_year / get_ms_per_year();
 
     emit(
-      Update_SUID_Interest_Rate {
+      UpdateSUIDInterestRate {
         old_value: whirpool_storage.suid_interest_rate_per_ms,
         new_value: new_interest_rate
       }
@@ -1796,7 +1796,7 @@ module whirlpool::core {
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param ipx_storage The shared object of the module ipx::ipx 
-  * @param dinero_storage The shared ofbject of the module ipx::suid 
+  * @param suid_storage The shared ofbject of the module ipx::suid 
   * @param oracle_storage The shared object of the module ipx::oracle 
   * @param clock_object The shared Clock object
   * @param borrow_value The value of Coin<T> the user wishes to borrow
@@ -1811,7 +1811,7 @@ module whirlpool::core {
     account_storage: &mut AccountStorage, 
     interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage,
-    dinero_storage: &mut SuiDollarStorage,
+    suid_storage: &mut SuiDollarStorage,
     oracle_storage: &OracleStorage,
     clock_object: &Clock,
     borrow_value: u64,
@@ -1891,7 +1891,7 @@ module whirlpool::core {
     );
 
     (
-      suid::mint(dinero_storage, &whirpool_storage.publisher, borrow_value, ctx), 
+      suid::mint(suid_storage, &whirpool_storage.publisher, borrow_value, ctx), 
       mint_ipx(whirpool_storage, ipx_storage, pending_rewards, ctx)
     )
   }
@@ -1901,7 +1901,7 @@ module whirlpool::core {
   * @param whirpool_storage The shared storage object of ipx::whirpool 
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param ipx_storage The shared object of the module ipx::ipx 
-  * @param dinero_storage The shared ofbject of the module ipx::suid 
+  * @param suid_storage The shared ofbject of the module ipx::suid 
   * @param clock_object The shared Clock object
   * @param asset The Coin<SUID> he is repaying. 
   * @param principal_to_repay The principal he wishes to repay
@@ -1913,7 +1913,7 @@ module whirlpool::core {
     whirpool_storage: &mut WhirlpoolStorage, 
     account_storage: &mut AccountStorage,
     ipx_storage: &mut IPXStorage, 
-    dinero_storage: &mut SuiDollarStorage,
+    suid_storage: &mut SuiDollarStorage,
     clock_object: &Clock,
     asset: Coin<SUID>,
     principal_to_repay: u64,
@@ -1978,7 +1978,7 @@ module whirlpool::core {
     account.loan_rewards_paid = (account.principal as u256) * market_data.accrued_loan_rewards_per_share / (market_data.decimals_factor as u256);
 
     // Burn the SUID
-    suid::burn(dinero_storage, asset);
+    suid::burn(suid_storage, asset);
 
     repay_allowed(market_data);
 
@@ -2323,7 +2323,7 @@ module whirlpool::core {
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param ipx_storage The shared object of the module ipx::ipx 
-  * @param dinero_storage The shared ofbject of the module ipx::suid 
+  * @param suid_storage The shared ofbject of the module ipx::suid 
   * @param oracle_storage The shared object of the module ipx::oracle 
   * @param asset The Coin<SUID> he is repaying. 
   * @param principal_to_repay The principal he wishes to repay
@@ -2335,7 +2335,7 @@ module whirlpool::core {
     account_storage: &mut AccountStorage, 
     interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage,
-    dinero_storage: &mut SuiDollarStorage,
+    suid_storage: &mut SuiDollarStorage,
     oracle_storage: &OracleStorage,
     clock_object: &Clock,
     asset: Coin<SUID>,
@@ -2424,7 +2424,7 @@ module whirlpool::core {
     if (asset_value > repay_max_amount) pay::split_and_transfer(&mut asset, asset_value - repay_max_amount, liquidator_address, ctx);
 
     // Burn the SUID
-    suid::burn(dinero_storage, asset);
+    suid::burn(suid_storage, asset);
 
 
     let loan_market_data = borrow_mut_market_data(&mut whirpool_storage.market_data_table, suid_market_key);
@@ -2631,7 +2631,7 @@ module whirlpool::core {
   * @param account_storage The shared account storage object of ipx::whirpool 
   * @param oracle_storage The shared object of the module ipx::oracle 
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
-  * @param dinero_storage The shared ofbject of the module ipx::suid 
+  * @param suid_storage The shared ofbject of the module ipx::suid 
   * @param clock_object The shared Clock object
   * @param ipx_per_ms The value of Coin<IPX> this module can mint per ms
   * @param total_allocation_points The total rewards points in the module
