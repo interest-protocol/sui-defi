@@ -4,15 +4,19 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon --config nodemon.json src/main/server.ts"
+    "dev": "nodemon --config nodemon.json src/index.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@mysten/bcs": "^0.7.1",
+    "crypto-js": "^4.1.1",
+    "merkletreejs": "^0.3.10",
     "typescript": "^5.0.4"
   },
   "devDependencies": {
+    "@types/crypto-js": "^4.1.1",
     "@types/node": "^18.16.3",
     "@typescript-eslint/eslint-plugin": "^5.59.2",
     "@typescript-eslint/parser": "^5.59.2",
