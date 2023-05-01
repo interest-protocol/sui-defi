@@ -4,7 +4,7 @@
 module movemate::vectors {
     use std::vector;
 
-    use movemate::math;
+    use library::math;
 
     /// @dev When you supply vectors of different lengths to a function requiring equal-length vectors.
     /// TODO: Support variable length vectors?
