@@ -1,5 +1,5 @@
 import { BCS, getSuiMoveConfig } from '@mysten/bcs';
-import { SHA256 } from 'crypto-js';
+import { sha3_256 } from 'js-sha3';
 import { MerkleTree } from 'merkletreejs';
 
 const bcs = new BCS(getSuiMoveConfig());
@@ -14,26 +14,34 @@ const ADDRESS_TWO =
 
 const AMOUNT_TWO = 27;
 
-const DATA_ONE = new Uint8Array([
-  ...bcs.ser(BCS.ADDRESS, ADDRESS_ONE).toBytes(),
-  ...bcs.ser(BCS.U64, AMOUNT_ONE).toBytes(),
+const DATA_ONE = Buffer.concat([
+  Buffer.from(bcs.ser(BCS.ADDRESS, ADDRESS_ONE).toBytes()),
+  Buffer.from(bcs.ser(BCS.U64, AMOUNT_ONE).toBytes()),
 ]);
 
-const DATA_TWO = new Uint8Array([
-  ...bcs.ser(BCS.ADDRESS, ADDRESS_TWO).toBytes(),
-  ...bcs.ser(BCS.U64, AMOUNT_TWO).toBytes(),
+const DATA_TWO = Buffer.concat([
+  Buffer.from(bcs.ser(BCS.ADDRESS, ADDRESS_TWO).toBytes()),
+  Buffer.from(bcs.ser(BCS.U64, AMOUNT_TWO).toBytes()),
 ]);
 
-const leaves = [DATA_ONE, DATA_TWO].map(x => SHA256(x.toString()));
-const tree = new MerkleTree(leaves, SHA256, { sortPairs: true });
-const root = tree.getRoot().toString('hex');
-const leaf = SHA256(DATA_ONE.toString());
-const proof = tree.getProof(leaf.toString());
+const leaves = [DATA_ONE, DATA_TWO].map(x => sha3_256(x));
 
-const wrongLeaf = new Uint8Array([
-  ...bcs.ser(BCS.ADDRESS, ADDRESS_ONE).toBytes(),
-  ...bcs.ser(BCS.U64, AMOUNT_ONE + 1).toBytes(),
-]).toString();
+const tree = new MerkleTree(leaves, sha3_256, { sortPairs: true });
+const root = tree.getHexRoot();
+
+const leaf = sha3_256(DATA_ONE);
+const proof = tree.getHexProof(leaf);
+
+const wrongLeaf = sha3_256(
+  Buffer.concat([
+    Buffer.from(bcs.ser(BCS.ADDRESS, ADDRESS_TWO).toBytes()),
+    Buffer.from(bcs.ser(BCS.U64, AMOUNT_TWO + 1).toBytes()),
+  ]),
+);
+
+console.log('root', root);
+console.log('proof alice', proof);
+console.log('leaf', leaf);
 
 console.log('wrong leaf', tree.verify(proof, wrongLeaf, root)); // false
-console.log('right leaf', tree.verify(proof, leaf.toString(), root)); // true
+console.log('right leaf', tree.verify(proof, leaf, root)); // true

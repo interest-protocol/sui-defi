@@ -72,7 +72,9 @@ module airdrop::core {
     let start = storage.start;
 
     vector::append(&mut payload, bcs::to_bytes(&amount));
-    let leaf = hash::sha2_256(payload);
+
+    let leaf = hash::sha3_256(payload);
+    
     assert!(merkle_proof::verify(&proof, storage.root, leaf), ERROR_INVALID_PROOF);
 
     let account = get_mut_account(storage, sender);
@@ -143,5 +145,10 @@ module airdrop::core {
   #[test_only]
   public fun read_storage(storage: &AirdropStorage): (u64, vector<u8>, u64) {
     (balance::value(&storage.balance), storage.root, storage.start)
+  }
+
+  #[test_only]
+  public fun get_duration():u64 {
+    THIRTY_DAYS_IN_MS
   }
 }

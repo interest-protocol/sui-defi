@@ -11,7 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "@mysten/bcs": "^0.7.1",
-    "crypto-js": "^4.1.1",
+    "js-sha3": "^0.8.0",
     "merkletreejs": "^0.3.10",
     "typescript": "^5.0.4"
   },
