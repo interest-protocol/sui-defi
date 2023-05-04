@@ -33,6 +33,7 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 - **ipx:** The governance token of Interest Protocol
 - **sui-dollar:** The stable coin of Interest Protocol
 - **library:** It contains utility functions that are used by other modules
+- **airdrop:** It contains the module to airdrop the IPX governance token to whitelisted accounts
 
 ## Functionality
 
@@ -66,11 +67,7 @@ The DEX supports two types of pools denoted as:
 - Two Hop Swap: Pool<BTC, Ether> & Pool<Ether, USDC> & Pool<Sui, USDC> | BTC -> Ether -> USDC -> Sui | Sui -> USDC -> Ether -> BTC
 - Farms to deposit VLPCoins and SLPCoins to farm IPX tokens
 - Flash loans
-
-**Future Features**
-
 - TWAP Oracle
-- [Concentrated Liquidity](https://uniswap.org/whitepaper-v3.pdf)
 
 ### IPX Coin
 
@@ -79,6 +76,12 @@ It is the governance coin of the protocol and it is minted as rewards by the Mas
 ### SUID Coin
 
 It is a stablecoin created by the lending module. It is pegged to he USD dollars. Users pay a constant interest rate to borrow it.
+
+### Airdrop
+
+It contains the airdrop module for the IPX governance. It distributes the tokens linearly to whitelisted addresses using a merkle tree.
+
+### Airdrop
 
 ## Live
 
