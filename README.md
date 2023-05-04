@@ -33,7 +33,9 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 - **ipx:** The governance token of Interest Protocol
 - **sui-dollar:** The stable coin of Interest Protocol
 - **library:** It contains utility functions that are used by other modules
+- **movemate:** It contains updated modules from the [movemate](https://github.com/pentagonxyz/movemate) repository to work with latest Sui version
 - **airdrop:** It contains the module to airdrop the IPX governance token to whitelisted accounts
+- **examples:** A myriad of examples on how to interact with various modules
 
 ## Functionality
 
@@ -79,9 +81,11 @@ It is a stablecoin created by the lending module. It is pegged to he USD dollars
 
 ### Airdrop
 
-It contains the airdrop module for the IPX governance. It distributes the tokens linearly to whitelisted addresses using a merkle tree.
+It contains the airdrop module for the IPX governance coin. It distributes the tokens linearly to whitelisted addresses using a merkle tree.
 
-### Airdrop
+### Examples
+
+- **airdrop-tree:** A typescript implementation of a merkle tree to use with the airdrop module
 
 ## Live
 
