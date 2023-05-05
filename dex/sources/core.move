@@ -1307,7 +1307,7 @@ module dex::core {
     }
 
     #[test_only]
-    public fun is_minimum_liquidity(): u64 {
+    public fun get_minimum_liquidity(): u64 {
       MINIMUM_LIQUIDITY
     }
 

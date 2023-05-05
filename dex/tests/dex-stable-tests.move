@@ -27,7 +27,7 @@ module dex::dex_stable_tests {
       
       let initial_k = dex::get_k<Stable>(INITIAL_USDC_VALUE, INITIAL_USDT_VALUE, USDC_DECIMAL_SCALAR, USDT_DECIMAL_SCALAR);
       let lp_coin_initial_user_balance = (sqrt_u256(sqrt_u256((INITIAL_USDC_VALUE as u256) * (INITIAL_USDT_VALUE as u256))) as u64);
-      let minimum_liquidity = dex::is_minimum_liquidity();
+      let minimum_liquidity = dex::get_minimum_liquidity();
 
       next_tx(test, alice);
       {

@@ -26,7 +26,7 @@ module dex::dex_volatile_tests {
 
       let lp_coin_initial_user_balance = math::sqrt(math::sqrt(INITIAL_ETHER_VALUE * INITIAL_USDC_VALUE));
 
-      let minimum_liquidity = dex::is_minimum_liquidity();
+      let minimum_liquidity = dex::get_minimum_liquidity();
 
       next_tx(test, alice);
       {
