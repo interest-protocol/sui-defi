@@ -493,7 +493,7 @@ module dex::dex_stable_tests {
 
         let pool = dex::borrow_pool<Stable, USDC, USDT>(&storage);
 
-        let (recipet_pool_id, repay_amount_x, repay_amount_y) = dex::get_receipt_data(&receipt);
+        let (recipet_pool_id, repay_amount_x, repay_amount_y, _) = dex::get_receipt_data(&receipt);
         let (fee, precision) = dex::get_flash_loan_fee_percent();
 
         let amount_to_mint_x = (((INITIAL_USDC_VALUE / 2 as u256) * fee / precision) as u64);
@@ -504,6 +504,7 @@ module dex::dex_stable_tests {
         assert!(object::id(pool) == recipet_pool_id, 0);
         assert!(repay_amount_x == INITIAL_USDC_VALUE / 2 + amount_to_mint_x, 0);
         assert!(repay_amount_y == INITIAL_USDT_VALUE / 3 + amount_to_mint_y, 0);
+        assert!(dex::is_pool_locked<Stable, USDC, USDT>(&storage), 0);
 
         coin::join(&mut usdc, mint<USDC>(amount_to_mint_x, ctx(test)));
         coin::join(&mut usdt, mint<USDT>(amount_to_mint_y, ctx(test)));
@@ -515,6 +516,7 @@ module dex::dex_stable_tests {
           usdc,
           usdt
         );
+        assert!(!dex::is_pool_locked<Stable, USDC, USDT>(&storage), 0);
 
         test::return_shared(storage);
       };
@@ -1041,7 +1043,7 @@ module dex::dex_stable_tests {
 
         let pool = dex::borrow_pool<Stable, USDC, USDT>(&storage);
 
-        let (recipet_pool_id, repay_amount_x, repay_amount_y) = dex::get_receipt_data(&receipt);
+        let (recipet_pool_id, repay_amount_x, repay_amount_y, _) = dex::get_receipt_data(&receipt);
         let (fee, precision) = dex::get_flash_loan_fee_percent();
 
         let amount_to_mint_x = (((INITIAL_USDC_VALUE / 2 as u256) * fee / precision) as u64);
@@ -1089,7 +1091,7 @@ module dex::dex_stable_tests {
 
         let pool = dex::borrow_pool<Stable, USDC, USDT>(&storage);
 
-        let (recipet_pool_id, repay_amount_x, repay_amount_y) = dex::get_receipt_data(&receipt);
+        let (recipet_pool_id, repay_amount_x, repay_amount_y, _) = dex::get_receipt_data(&receipt);
         let (fee, precision) = dex::get_flash_loan_fee_percent();
 
         let amount_to_mint_x = (((INITIAL_USDC_VALUE / 2 as u256) * fee / precision) as u64);
@@ -1138,7 +1140,7 @@ module dex::dex_stable_tests {
 
         let pool = dex::borrow_pool<Stable, USDC, USDT>(&storage);
 
-        let (recipet_pool_id, repay_amount_x, repay_amount_y) = dex::get_receipt_data(&receipt);
+        let (recipet_pool_id, repay_amount_x, repay_amount_y, _) = dex::get_receipt_data(&receipt);
         let (fee, precision) = dex::get_flash_loan_fee_percent();
 
         let amount_to_mint_x = (((INITIAL_USDC_VALUE / 2 as u256) * fee / precision) as u64);

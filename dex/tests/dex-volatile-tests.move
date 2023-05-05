@@ -438,7 +438,7 @@ module dex::dex_volatile_tests {
 
         let pool = dex::borrow_pool<Volatile, ETH, USDC>(&storage);
 
-        let (recipet_pool_id, repay_amount_x, repay_amount_y) = dex::get_receipt_data(&receipt);
+        let (recipet_pool_id, repay_amount_x, repay_amount_y, _) = dex::get_receipt_data(&receipt);
         let (fee, precision) = dex::get_flash_loan_fee_percent();
 
         let amount_to_mint_x = (((INITIAL_ETHER_VALUE / 2 as u256) * fee / precision) as u64);
@@ -449,6 +449,7 @@ module dex::dex_volatile_tests {
         assert!(object::id(pool) == recipet_pool_id, 0);
         assert!(repay_amount_x == INITIAL_ETHER_VALUE / 2 + amount_to_mint_x, 0);
         assert!(repay_amount_y == INITIAL_USDC_VALUE / 3 + amount_to_mint_y, 0);
+        assert!(dex::is_pool_locked<Volatile, ETH, USDC>(&storage), 0);
 
         coin::join(&mut ether, mint<ETH>(amount_to_mint_x, ctx(test)));
         coin::join(&mut usdc, mint<USDC>(amount_to_mint_y, ctx(test)));
@@ -460,6 +461,8 @@ module dex::dex_volatile_tests {
           ether,
           usdc
         );
+
+        assert!(!dex::is_pool_locked<Volatile, ETH, USDC>(&storage), 0);
 
         test::return_shared(storage);
       };
@@ -941,7 +944,7 @@ module dex::dex_volatile_tests {
 
       let pool = dex::borrow_pool<Volatile, ETH, USDC>(&storage);
 
-      let (recipet_pool_id, repay_amount_x, repay_amount_y) = dex::get_receipt_data(&receipt);
+      let (recipet_pool_id, repay_amount_x, repay_amount_y, _) = dex::get_receipt_data(&receipt);
       let (fee, precision) = dex::get_flash_loan_fee_percent();
 
       let amount_to_mint_x = (((INITIAL_ETHER_VALUE / 2 as u256) * fee / precision) as u64);
@@ -988,7 +991,7 @@ module dex::dex_volatile_tests {
 
       let pool = dex::borrow_pool<Volatile, ETH, USDC>(&storage);
 
-      let (recipet_pool_id, repay_amount_x, repay_amount_y) = dex::get_receipt_data(&receipt);
+      let (recipet_pool_id, repay_amount_x, repay_amount_y, _) = dex::get_receipt_data(&receipt);
       let (fee, precision) = dex::get_flash_loan_fee_percent();
 
       let amount_to_mint_x = (((INITIAL_ETHER_VALUE / 2 as u256) * fee / precision) as u64);
@@ -1036,7 +1039,7 @@ module dex::dex_volatile_tests {
 
       let pool = dex::borrow_pool<Volatile, ETH, USDC>(&storage);
 
-      let (recipet_pool_id, repay_amount_x, repay_amount_y) = dex::get_receipt_data(&receipt);
+      let (recipet_pool_id, repay_amount_x, repay_amount_y, _) = dex::get_receipt_data(&receipt);
       let (fee, precision) = dex::get_flash_loan_fee_percent();
 
       let amount_to_mint_x = (((INITIAL_ETHER_VALUE / 2 as u256) * fee / precision) as u64);
