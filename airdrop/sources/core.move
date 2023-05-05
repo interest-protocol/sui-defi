@@ -13,7 +13,7 @@ module airdrop::core {
 
   use ipx::ipx::{IPX};
 
-  use movemate::merkle_proof;
+  use library::merkle_proof;
 
   const THIRTY_DAYS_IN_MS: u64 = 2592000000;
 
