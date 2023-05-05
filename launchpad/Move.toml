@@ -1,11 +1,10 @@
 [package]
-name = "Movemate"
+name = "launchpad"
 version = "0.0.1"
 
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "testnet" }
-Library = { git = "https://github.com/interest-protocol/sui-defi", subdir = "library", rev = "main" }
 
 [addresses]
-movemate =  "0x0"
-sui =  "0x2"
+launchpad =  "0x0"
+sui =  "0000000000000000000000000000000000000000000000000000000000000002"

@@ -1,7 +1,8 @@
 /// @title vectors
 /// @notice Vector utilities.
 /// @dev TODO: Fuzz testing?
-module movemate::vectors {
+/// Taken from https://github.com/pentagonxyz/movemate
+module library::vectors {
     use std::vector;
 
     use library::math;

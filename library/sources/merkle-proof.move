@@ -17,11 +17,12 @@
 /// const proof = tree.getProof(leaf)
 /// console.log(tree.verify(proof, leaf, root)) // true
 /// TODO: Unit tests for multi-proof verification.
-module movemate::merkle_proof {
+/// Taken from https://github.com/pentagonxyz/movemate
+module library::merkle_proof {
     use std::hash;
     use std::vector;
 
-    use movemate::vectors;
+    use library::vectors;
 
     /// @dev When an invalid multi-proof is supplied. Proof flags length must equal proof length + leaves length - 1.
     const EINVALID_MULTI_PROOF: u64 = 0;
