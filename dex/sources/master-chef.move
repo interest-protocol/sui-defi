@@ -27,6 +27,7 @@ module dex::master_chef {
   const ERROR_POOL_ADDED_ALREADY: u64 = 1;
   const ERROR_NOT_ENOUGH_BALANCE: u64 = 2;
   const ERROR_NO_PENDING_REWARDS: u64 = 3;
+  const ERROR_NO_ZERO_ALLOCATION_POINTS: u64 = 4;
 
   // OTW
   struct MASTER_CHEF has drop {}
@@ -95,7 +96,6 @@ module dex::master_chef {
     rewards: u64
   }
 
-
   struct NewAdmin has drop, copy {
     admin: address
   }
@@ -137,6 +137,14 @@ module dex::master_chef {
           pool_key: 0
           }
       );
+
+        // Emit
+        event::emit(
+          AddPool<IPX> {
+          key: 0,
+          allocation_points: 1000
+          }
+        );
 
       // Share MasterChefStorage
       transfer::share_object(
@@ -636,6 +644,8 @@ fun borrow_mut_account<T>(accounts_storage: &mut AccountStorage, key: u64, sende
   update: bool,
   ctx: &mut TxContext
  ) {
+  // Ensure that a new pool has an allocation
+  assert!(allocation_points != 0, ERROR_NO_ZERO_ALLOCATION_POINTS);
   // Save total allocation points and start epoch in memory
   let total_allocation_points = storage.total_allocation_points;
   let start_timestamp = storage.start_timestamp;

@@ -41,6 +41,7 @@ module dex::core {
   const ERROR_WRONG_REPAY_AMOUNT_Y: u64 = 13;
   const ERROR_WRONG_CURVE: u64 = 14;
   const ERROR_MISSING_OBSERVATION: u64 = 15;
+  const ERROR_NO_ZERO_ADDRESS: u64 = 16;
 
     struct DEXAdminCap has key {
       id: UID,
@@ -120,6 +121,14 @@ module dex::core {
       coin_x_out: u64,
       coin_y_out: u64,
       shares_destroyed: u64
+    }
+
+    struct NewAdmin has copy, drop {
+      admin: address
+    }
+
+    struct NewFeeTo has copy, drop {
+      fee_to: address
     }
 
     /**
@@ -1130,6 +1139,7 @@ module dex::core {
       new_fee_to: address
        ) {
       storage.fee_to = new_fee_to;
+      event::emit(NewFeeTo { fee_to: new_fee_to });
     }
 
     /**
@@ -1141,7 +1151,9 @@ module dex::core {
       admin_cap: DEXAdminCap,
       new_admin: address
     ) {
+      assert!(new_admin != @0x0, ERROR_NO_ZERO_ADDRESS);
       transfer::transfer(admin_cap, new_admin);
+      event::emit(NewAdmin { admin: new_admin });
     }
 
     /**
