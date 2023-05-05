@@ -1,11 +1,10 @@
 module dex::router {
 
   use sui::coin::{Self, Coin};
-  use sui::tx_context::{Self, TxContext};
+  use sui::tx_context::{TxContext};
   use sui::clock::{Clock};
-  use sui::pay;
   
-  use dex::core::{Self, DEXStorage, LPCoin};
+  use dex::core::{Self, DEXStorage};
   use dex::curve::{Volatile, Stable};
   
   use library::utils;
@@ -211,53 +210,6 @@ public fun two_hop_swap<X, B1, B2, Y>(
   }
 
   /**
-  * @notice This function calculates the right ratio to add liquidity to prevent loss to the caller and adds liquidity to volatile Pool<X, Y>
-  * It will return any extra coin_x sent
-  * @param storage The DEXStorage object of the module ipx::dex_volatile 
-  * @param clock_object The shared Clock object with id @0x6
-  * @param coin_x The Coin<X> of Pool<X, Y>
-  * @param coin_y The Coin<Y> of Pool<X, Y>
-  * @param vlp_coin_min_amiunt the minimum amount of shares the caller is willing to receive
-  * @return the shares equivalent to the deposited token
-  */
-  public fun add_liquidity<C, X, Y>(
-    storage: &mut DEXStorage,
-    clock_object: &Clock,
-    coin_x: Coin<X>,
-    coin_y: Coin<Y>,
-    vlp_coin_min_amount: u64,
-    ctx: &mut TxContext
-  ): (Coin<LPCoin<C, X, Y>>) {
-    let coin_x_value = coin::value(&coin_x);
-    let coin_y_value = coin::value(&coin_y);
-
-    // Get the current pool reserves
-    let (coin_x_reserves, coin_y_reserves, _) =  core::get_amounts(core::borrow_pool<C, X, Y>(storage));
-
-    // Calculate an optimal coinX and coinY amount to keep the pool's ratio
-    let (optimal_x_amount, optimal_y_amount) = calculate_optimal_add_liquidity(
-        coin_x_value,
-        coin_y_value,
-        coin_x_reserves,
-        coin_y_reserves
-    );
-    
-    // Repay the extra amount
-    if (coin_x_value > optimal_x_amount) pay::split_and_transfer(&mut coin_x, coin_x_value - optimal_x_amount, tx_context::sender(ctx), ctx);
-    if (coin_y_value > optimal_y_amount) pay::split_and_transfer(&mut coin_y, coin_y_value - optimal_y_amount, tx_context::sender(ctx), ctx);
-
-    // Add liquidity
-    core::add_liquidity(
-        storage,
-        clock_object,
-        coin_x,
-        coin_y,
-        vlp_coin_min_amount,
-        ctx
-      )
-  }
-
-  /**
   * @notice It indicates which pool (stable/volatile) is more profitable for the caller
   * @param The DEXStorage shared object of the DEX module
   * @param coin_x_value the value of Coin<X> of Pool<X, Y>
@@ -307,29 +259,5 @@ public fun two_hop_swap<X, B1, B2, Y>(
 
     // Volatile pools consumes less gas and is more profitable for the protocol :) 
     v_amount_out >= s_amount_out
-  }
-  
-  /**
-  * @dev A utility function to ensure that the user is adding the correct amounts of Coin<X> and Coin<Y> to a Pool<X, Y>
-  * @param desired_amount_x The value of Coin<X> the user wishes to add
-  * @param desired_amount_y The value of Coin<Y> the user wishes to add
-  * @param reserve_x The current Balance<X> in the pool
-  * @param reserve_y The current Balance<Y> in the pool
-  * @ return (u64, u64) (coin_x_amount_to_add, coin_y_amount_to_add)
-  */
-  fun calculate_optimal_add_liquidity(
-    desired_amount_x: u64,
-    desired_amount_y: u64,
-    reserve_x: u64,
-    reserve_y: u64
-  ): (u64, u64) {
-
-    if (reserve_x == 0 && reserve_y == 0) return (desired_amount_x, desired_amount_y);
-
-    let optimal_y_amount = utils::quote_liquidity(desired_amount_x, reserve_x, reserve_y);
-    if (desired_amount_y >= optimal_y_amount) return (desired_amount_x, optimal_y_amount);
-
-    let optimal_x_amount = utils::quote_liquidity(desired_amount_y, reserve_y, reserve_x);
-    (optimal_x_amount, desired_amount_y)
   }
 }

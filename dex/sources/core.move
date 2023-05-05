@@ -11,6 +11,7 @@ module dex::core {
   use sui::object_bag::{Self, ObjectBag};
   use sui::event;
   use sui::clock::{Self, Clock};
+  use sui::pay;
 
   use dex::curve::{is_curve, is_volatile, Stable, Volatile};
   
@@ -256,6 +257,18 @@ module dex::core {
 
         // Save the reserves and supply amount of Pool<X, Y> locally.
         let (coin_x_reserve, coin_y_reserve, supply) = get_amounts(pool);
+
+        // Calculate an optimal coinX and coinY amount to keep the pool's ratio
+        let (optimal_x_amount, optimal_y_amount) = calculate_optimal_add_liquidity(
+          coin_x_value,
+          coin_y_value,
+          coin_x_reserve,
+          coin_y_reserve
+        );
+    
+        // Repay the extra amount
+        if (coin_x_value > optimal_x_amount) pay::split_and_transfer(&mut coin_x, coin_x_value - optimal_x_amount, tx_context::sender(ctx), ctx);
+        if (coin_y_value > optimal_y_amount) pay::split_and_transfer(&mut coin_y, coin_y_value - optimal_y_amount, tx_context::sender(ctx), ctx);
 
         // Calculate the number of shares to mint. Note if of the coins has a value of 0. The `shares_to_mint` will be 0.
         let share_to_mint = math::min(
@@ -870,6 +883,30 @@ module dex::core {
             PRECISION +
             ((((x0 * x0) / PRECISION) * x0) / PRECISION)
     }
+
+  /**
+  * @dev A utility function to ensure that the user is adding the correct amounts of Coin<X> and Coin<Y> to a Pool<X, Y>
+  * @param desired_amount_x The value of Coin<X> the user wishes to add
+  * @param desired_amount_y The value of Coin<Y> the user wishes to add
+  * @param reserve_x The current Balance<X> in the pool
+  * @param reserve_y The current Balance<Y> in the pool
+  * @ return (u64, u64) (coin_x_amount_to_add, coin_y_amount_to_add)
+  */
+  fun calculate_optimal_add_liquidity(
+    desired_amount_x: u64,
+    desired_amount_y: u64,
+    reserve_x: u64,
+    reserve_y: u64
+  ): (u64, u64) {
+
+    if (reserve_x == 0 && reserve_y == 0) return (desired_amount_x, desired_amount_y);
+
+    let optimal_y_amount = utils::quote_liquidity(desired_amount_x, reserve_x, reserve_y);
+    if (desired_amount_y >= optimal_y_amount) return (desired_amount_x, optimal_y_amount);
+
+    let optimal_x_amount = utils::quote_liquidity(desired_amount_y, reserve_y, reserve_x);
+    (optimal_x_amount, desired_amount_y)
+  }
 
     /**
     * @dev It returns a mutable Pool<X, Y>. 
