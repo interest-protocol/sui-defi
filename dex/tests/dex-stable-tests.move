@@ -19,7 +19,6 @@ module dex::dex_stable_tests {
     const USDC_DECIMAL_SCALAR: u64 = 1000000; // 6 decimals
     const INITIAL_USDC_VALUE: u64 = 100 * 1000000;
     const ZERO_ACCOUNT: address = @0x0;
-    const MINIMUM_LIQUIDITY: u64 = 10;
     const DESCALE_FACTOR: u256 =  1000000000; //1e9 
 
 
@@ -28,6 +27,7 @@ module dex::dex_stable_tests {
       
       let initial_k = dex::get_k<Stable>(INITIAL_USDC_VALUE, INITIAL_USDT_VALUE, USDC_DECIMAL_SCALAR, USDT_DECIMAL_SCALAR);
       let lp_coin_initial_user_balance = (sqrt_u256(sqrt_u256((INITIAL_USDC_VALUE as u256) * (INITIAL_USDT_VALUE as u256))) as u64);
+      let minimum_liquidity = dex::is_minimum_liquidity();
 
       next_tx(test, alice);
       {
@@ -68,7 +68,7 @@ module dex::dex_stable_tests {
         let k_last = dex::get_k_last<Stable, USDC, USDT>(&storage);
         let (decimals_x, decimals_y) = dex::get_pool_metadata<Stable, USDC, USDT>(&storage);
 
-        assert!(supply == lp_coin_initial_user_balance + MINIMUM_LIQUIDITY, 0);
+        assert!(supply == lp_coin_initial_user_balance + minimum_liquidity, 0);
         assert!(usdc_reserves == INITIAL_USDC_VALUE, 0);
         assert!(usdt_reserves == INITIAL_USDT_VALUE, 0);
         assert!(k_last == initial_k, 0);
@@ -270,11 +270,11 @@ module dex::dex_stable_tests {
           let (usdc_reserves_2, usdt_reserves_2, supply_2) = dex::get_amounts(pool);
 
           // rounding issues
-          assert_eq(burn(usdt), 9999353462);
-          assert_eq(burn(usdc), 9999353);
+          assert_eq(burn(usdt), 9999354495);
+          assert_eq(burn(usdc), 9999354);
           assert_eq(supply_1, supply_2 + lp_coin_value);
-          assert_eq(usdc_reserves_1, usdc_reserves_2 + 9999353);
-          assert_eq(usdt_reserves_1, usdt_reserves_2 + 9999353462);
+          assert_eq(usdc_reserves_1, usdc_reserves_2 + 9999354);
+          assert_eq(usdt_reserves_1, usdt_reserves_2 + 9999354495);
 
           test::return_shared(storage);
         };

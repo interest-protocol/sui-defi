@@ -548,6 +548,8 @@ module dex::core {
         // Save the reserves of Pool<X, Y> locally.
         let (coin_x_reserve, coin_y_reserve, _) = get_amounts(pool);  
 
+        let prev_k = k<C>(coin_x_reserve, coin_y_reserve, pool.decimals_x, pool.decimals_y);
+
         // Store the value being sold locally
         let coin_x_value = balance::value(&coin_x_balance);
         
@@ -578,6 +580,9 @@ module dex::core {
 
        sync_obervations(pool, clock_object);
 
+       let (coin_x_reserve, coin_y_reserve, _) = get_amounts(pool);  
+       assert!(k<C>(coin_x_reserve, coin_y_reserve, pool.decimals_x, pool.decimals_y) > prev_k, ERROR_INVALID_K); 
+       
        coin
       }
 
@@ -601,6 +606,7 @@ module dex::core {
         assert!(is_curve<C>(), ERROR_WRONG_CURVE);
         // Ensure we are selling something
         assert!(coin::value(&coin_y) != 0, ERROR_ZERO_VALUE_SWAP);
+        
 
         // Borrow a mutable Pool<X, Y>.
         let pool = borrow_mut_pool<C, X, Y>(storage);
@@ -612,6 +618,8 @@ module dex::core {
 
         // Save the reserves of Pool<X, Y> locally.
         let (coin_x_reserve, coin_y_reserve, _) = get_amounts(pool);  
+
+        let prev_k = k<C>(coin_x_reserve, coin_y_reserve, pool.decimals_x, pool.decimals_y);
 
         // Store the value being sold locally
         let coin_y_value = balance::value(&coin_y_balance);
@@ -642,6 +650,9 @@ module dex::core {
 
         // Update the TWAP
         sync_obervations(pool, clock_object);
+
+        let (coin_x_reserve, coin_y_reserve, _) = get_amounts(pool);  
+        assert!(k<C>(coin_x_reserve, coin_y_reserve, pool.decimals_x, pool.decimals_y) > prev_k, ERROR_INVALID_K);
 
         coin
       }
@@ -870,20 +881,29 @@ module dex::core {
       }
     }  
 
+    /**
+    * @notice It is based on https://github.com/curvefi/curve-contract/blob/master/contracts/pools/aeth/StableSwapAETH.vy
+    * @dev Calculates the reserves of out the out token based on reserves of token in (x0), current k and reserves of token out. 
+    * @param x0 The reserves of the tokenIn + amountIn - fee
+    * @param xy The current K of the pool
+    * @param y The reserves of the token that is being bought
+    */
     fun y(x0: u256, xy: u256, y: u256): u256 {
       let i = 0;
 
+      // Here it is using the Newton's method to to make sure that y and and y_prev are equal   
       while (i < 255) {
         i = i + 1;
         let y_prev = y;
         let k = f(x0, y);
         
         if (k < xy) {
-            y = y + ((xy - k) * PRECISION) / d(x0, y);
+          let dy = (((xy - k) * PRECISION) / d(x0, y)) + 1; // round up
+            y = y + dy;
           } else {
             y = y - ((k - xy) * PRECISION) / d(x0, y);
           };
-          
+
         if (y > y_prev) {
             if (y - y_prev <= 1) break
           } else {
@@ -1284,6 +1304,11 @@ module dex::core {
     public fun is_pool_locked<C, X, Y>(storage: &DEXStorage): bool {
       let pool = borrow_pool<C, X, Y>(storage);
       pool.locked
+    }
+
+    #[test_only]
+    public fun is_minimum_liquidity(): u64 {
+      MINIMUM_LIQUIDITY
     }
 
     #[test_only]

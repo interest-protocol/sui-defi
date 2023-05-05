@@ -26,6 +26,8 @@ module dex::dex_volatile_tests {
 
       let lp_coin_initial_user_balance = math::sqrt(math::sqrt(INITIAL_ETHER_VALUE * INITIAL_USDC_VALUE));
 
+      let minimum_liquidity = dex::is_minimum_liquidity();
+
       next_tx(test, alice);
       {
         dex::init_for_testing(ctx(test));
@@ -56,7 +58,7 @@ module dex::dex_volatile_tests {
         let pool = dex::borrow_pool<Volatile, ETH, USDC>(&storage);
         let (ether_reserves, usdc_reserves, supply) = dex::get_amounts(pool);
 
-        assert!(supply == lp_coin_initial_user_balance + 10, 0);
+        assert!(supply == lp_coin_initial_user_balance + minimum_liquidity, 0);
         assert!(ether_reserves == INITIAL_ETHER_VALUE, 0);
         assert!(usdc_reserves == INITIAL_USDC_VALUE, 0);
 
@@ -243,11 +245,11 @@ module dex::dex_volatile_tests {
           let (ether_reserves_2, usdc_reserves_2, supply_2) = dex::get_amounts(pool);
 
           // rounding issues
-          assert_eq(burn(ether), 9967);
-          assert_eq(burn(usdc), 14951701);
+          assert_eq(burn(ether), 9969);
+          assert_eq(burn(usdc), 14953805);
           assert!(supply_1 == supply_2 + lp_coin_value, 0);
-          assert!(ether_reserves_1 == ether_reserves_2 + 9967, 0);
-          assert!(usdc_reserves_1 == usdc_reserves_2 + 14951701, 0);
+          assert!(ether_reserves_1 == ether_reserves_2 + 9969, 0);
+          assert!(usdc_reserves_1 == usdc_reserves_2 + 14953805, 0);
 
           test::return_shared(storage);
         };
