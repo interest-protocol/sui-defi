@@ -73,6 +73,7 @@ module dex::core {
         timestamp_last: u64,
         balance_x_cumulative_last: u256,
         balance_y_cumulative_last: u256,
+        locked: bool
     }
 
     // Important this struct cannot have any type abilities
@@ -153,7 +154,7 @@ module dex::core {
     * @param clock_object The shared Clock object 0x6
     * @oaram coin_x the first token of the pool
     * @param coin_y the scond token of the pool
-    * @return The number of shares as VLPCoins that can be used later on to redeem his coins + commissions.
+    * @return The number of shares as LPCoins that can be used later on to redeem his coins + commissions.
     * Requirements: 
     * - It will throw if the X and Y are not sorted.
     * - Both coins must have a value greater than 0. 
@@ -167,87 +168,20 @@ module dex::core {
       coin_y: Coin<Y>,
       ctx: &mut TxContext
     ): Coin<LPCoin<Volatile, X, Y>> {
-      // Store the value of the coins locally
-      let coin_x_value = coin::value(&coin_x);
-      let coin_y_value = coin::value(&coin_y);
-
-      // Ensure that the both coins have a value greater than 0.
-      assert!(coin_x_value != 0 && coin_y_value != 0, ERROR_CREATE_PAIR_ZERO_VALUE);
-      assert!(utils::are_coins_sorted<X, Y>(), ERROR_UNSORTED_COINS);
-
-      // Construct the name of the VLPCoin, which will be used as a key to store the pool data.
-      // This fn will throw if X and Y are not sorted.
-      let type = utils::get_coin_info_string<LPCoin<Volatile, X, Y>>();
-
-      // Checks that the pool does not exist.
-      assert!(!object_bag::contains(&storage.pools, type), ERROR_POOL_EXISTS);
-
-      // Calculate the constant product k = x * y
-      let _k = k<Volatile>(coin_x_value, coin_y_value, 0, 0);
-      let shares = (sqrt_u256(sqrt_u256(_k)) as u64);
-
-      // Create the VLP coin for the Pool<X, Y>. 
-      // This coin has 0 decimals and no metadata 
-      let supply = balance::create_supply(LPCoin<Volatile, X, Y> {});
-      // The number of shares the zero address will receive to prevent 0 divisions in the future.
-      let min_liquidity_balance = balance::increase_supply(&mut supply, MINIMUM_LIQUIDITY);
-      // The number of shares (VLPCoins<X, Y>) the caller will receive.
-      let sender_balance = balance::increase_supply(&mut supply, shares);
-
-      // Transfer the zero address shares
-      transfer::public_transfer(coin::from_balance(min_liquidity_balance, ctx), @0x0);
-
-      // Calculate an id for the pool and the event
-      let pool_id = object::new(ctx);
-
-      event::emit(
-          PoolCreated<Pool<Volatile, X, Y>> {
-            id: object::uid_to_inner(&pool_id),
-            shares: shares,
-            value_x: coin_x_value,
-            value_y: coin_y_value,
-            sender: tx_context::sender(ctx)
-          }
-        );
-
-      let current_timestamp = clock::timestamp_ms(clock_object);
-
-      // Store the new pool in Storage.pools
-      object_bag::add(
-        &mut storage.pools,
-        type,
-        Pool {
-          id: pool_id,
-          k_last: _k,
-          lp_coin_supply: supply,
-          balance_x: coin::into_balance<X>(coin_x),
-          balance_y: coin::into_balance<Y>(coin_y),
-          decimals_x: 0,
-          decimals_y: 0,
-          is_stable: false,
-          observations: init_observation_vector(),
-          timestamp_last: current_timestamp,
-          balance_x_cumulative_last: utils::calculate_cumulative_balance((coin_x_value as u256), current_timestamp, 0),
-          balance_y_cumulative_last: utils::calculate_cumulative_balance((coin_y_value as u256), current_timestamp, 0),
-        }
-      );
-
-      // Return the caller shares
-      coin::from_balance(sender_balance, ctx)
+      // decimals are not used in the Volatile curve calculation
+      create_pool<Volatile, X, Y>(storage, clock_object, coin_x, coin_y, 0, 0, false, ctx)
     }
 
-        /**
-    * @notice Only the admin can create stable pools because we need the decimals to be correct
+  /**
     * @notice Please make sure that the tokens X and Y are sorted before calling this fn.
     * @dev It creates a new Pool with X and Y coins. The pool accepts swaps using the x^3y+y^3x >= k invariant.
-    * @param _ The StableDEXAdminCap
     * @param storage the object that stores the pools object_bag
     * @param clock_object The shared Clock object 0x6
     * @oaram coin_x the first token of the pool
     * @param coin_y the scond token of the pool
     * @param coin_x_metadata The CoinMetadata object of Coin<X>
     * @param coin_y_metadata The CoinMetadata object of Coin<Y>
-    * @return The number of shares as VLPCoins that can be used later on to redeem his coins + commissions.
+    * @return The number of shares as LPCoins that can be used later on to redeem his coins + commissions.
     * Requirements: 
     * - It will throw if the X and Y are not sorted.
     * - Both coins must have a value greater than 0. 
@@ -263,87 +197,23 @@ module dex::core {
       coin_y_metadata: &CoinMetadata<Y>,        
       ctx: &mut TxContext
     ): Coin<LPCoin<Stable, X, Y>> {
-      // Store the value of the coins locally
-      let coin_x_value = coin::value(&coin_x);
-      let coin_y_value = coin::value(&coin_y);
-
-      // Ensure that the both coins have a value greater than 0.
-      assert!(coin_x_value != 0 && coin_y_value != 0, ERROR_CREATE_PAIR_ZERO_VALUE);    
-      assert!(utils::are_coins_sorted<X, Y>(), ERROR_UNSORTED_COINS);
-
-      // Construct the name of the VLPCoin, which will be used as a key to store the pool data.
-      // This fn will throw if X and Y are not sorted.
-      let type = utils::get_coin_info_string<LPCoin<Stable, X, Y>>();
-
-      // Checks that the pool does not exist.
-      assert!(!object_bag::contains(&storage.pools, type), ERROR_POOL_EXISTS);
-
       // Calculate the scalar of the decimals.
       let decimals_x = math::pow(10, coin::get_decimals(coin_x_metadata));
       let decimals_y = math::pow(10, coin::get_decimals(coin_y_metadata));
 
-      // Calculate the number of shares
-      let shares = (sqrt_u256(sqrt_u256(((coin_x_value as u256) * (coin_y_value as u256)))) as u64);
-
-      // Create the SLP coin for the Pool<X, Y>. 
-      // This coin has 0 decimals and no metadata 
-      let supply = balance::create_supply(LPCoin<Stable, X, Y> {});
-      let min_liquidity_balance = balance::increase_supply(&mut supply, MINIMUM_LIQUIDITY);
-      let sender_balance = balance::increase_supply(&mut supply, shares);
-
-      // Transfer the zero address shares
-      transfer::public_transfer(coin::from_balance(min_liquidity_balance, ctx), @0x0);
-
-      // Calculate an id for the pool and the event
-      let id = object::new(ctx);
-
-      event::emit(
-          PoolCreated<Pool<Stable, X, Y>> {
-            id: object::uid_to_inner(&id),
-            shares,
-            value_x: coin_x_value,
-            value_y: coin_y_value,
-            sender: tx_context::sender(ctx)
-          }
-        );
-
-      let current_timestamp = clock::timestamp_ms(clock_object);  
-
-      // Store the new pool in Storage.pools
-      object_bag::add(
-        &mut storage.pools,
-        type,
-        Pool {
-          id,
-          // Calculate k = x^3y + y^3x
-          k_last: k<Stable>(coin_x_value, coin_y_value, decimals_x, decimals_y),
-          lp_coin_supply: supply,
-          balance_x: coin::into_balance<X>(coin_x),
-          balance_y: coin::into_balance<Y>(coin_y),
-          decimals_x,
-          decimals_y,
-          is_stable: true,
-          observations: init_observation_vector(),
-          timestamp_last: current_timestamp,
-          balance_x_cumulative_last: utils::calculate_cumulative_balance((coin_x_value as u256), current_timestamp, 0),
-          balance_y_cumulative_last: utils::calculate_cumulative_balance((coin_y_value as u256), current_timestamp, 0),
-          }
-        );
-
-      // Return the caller shares
-      coin::from_balance(sender_balance, ctx)
+      create_pool<Stable, X, Y>(storage, clock_object, coin_x, coin_y, decimals_x, decimals_y, true, ctx)
     }
 
 
     /**
     * @dev This fn allows the caller to deposit coins X and Y on the Pool<X, Y>.
-    * This function will not throw if one of the coins has a value of 0, but the caller will get shares (VLPCoin) with a value of 0.
+    * This function will not throw if one of the coins has a value of 0, but the caller will get shares (LPCoin) with a value of 0.
     * @param storage the object that stores the pools object_bag 
     * @param clock_object The Clock shared object at @0x6
     * @param coin_x The Coin<X> the user wishes to deposit on Pool<X, Y>
     * @param coin_y The Coin<Y> the user wishes to deposit on Pool<X, Y>
     * @param vlp_coin_min_amount the minimum amount of shares to receive. It prevents high slippage from frontrunning. 
-    * @return VLPCoin with a value in proportion to the Coin deposited and the reserves of the Pool<X, Y>.
+    * @return LPCoin with a value in proportion to the Coin deposited and the reserves of the Pool<X, Y>.
     * Requirements: 
     * - Coins X and Y must be sorted.
     */
@@ -410,12 +280,12 @@ module dex::core {
         // Update TWAP
         sync_obervations(pool, clock_object);
 
-        // Return the shares(VLPCoin) to the caller.
+        // Return the shares(LPCoin) to the caller.
         coin
       }
 
     /**
-    * @dev It allows the caller to redeem his underlying coins in proportions to the VLPCoins he burns. 
+    * @dev It allows the caller to redeem his underlying coins in proportions to the LPCoins he burns. 
     * @param storage the object that stores the pools object_bag 
     * @param clock_object The shared Clock object 0x6
     * @param lp_coin the shares to burn
@@ -463,7 +333,7 @@ module dex::core {
         assert!(coin_x_removed >= coin_x_min_amount, ERROR_REMOVE_LIQUIDITY_X_AMOUNT);
         assert!(coin_y_removed >= coin_y_min_amount, ERROR_REMOVE_LIQUIDITY_Y_AMOUNT);
 
-        // Burn the VLPCoin deposited
+        // Burn the LPCoin deposited
         balance::decrease_supply(&mut pool.lp_coin_supply, coin::into_balance(lp_coin));
 
         // Emit the RemoveLiquidity event
@@ -831,6 +701,97 @@ module dex::core {
     public fun get_receipt_data<C, X, Y>(receipt: &Receipt<C, X, Y>): (ID, u64, u64) {
       (receipt.pool_id, receipt.repay_amount_x, receipt.repay_amount_y)
     }  
+
+    /**
+    * @dev It contains the inner logic to create pools
+    * @param storage the object that stores the pools object_bag
+    * @param clock_object The shared Clock object 0x6
+    * @oaram coin_x the first token of the pool
+    * @param coin_y the scond token of the pool
+    * @param decimals_x The decimals factor of Coin<X> - if a coin has 9 decimals this is 1e9
+    * @param decimals_y The decimals factor of Coin<Y> - if a coin has 9 decimals this is 1e9
+    * @param is_stable it indicates if a pool is stable of volatile
+    * @return The number of shares as LPCoins that can be used later on to redeem his coins + commissions.
+    */
+    fun create_pool<C, X, Y>(
+      storage: &mut DEXStorage,
+      clock_object: &Clock,
+      coin_x: Coin<X>,
+      coin_y: Coin<Y>,
+      decimals_x: u64,
+      decimals_y: u64,
+      is_stable: bool,
+      ctx: &mut TxContext
+    ): Coin<LPCoin<C, X, Y>> {
+      // Store the value of the coins locally
+      let coin_x_value = coin::value(&coin_x);
+      let coin_y_value = coin::value(&coin_y);
+
+      // Ensure that the both coins have a value greater than 0.
+      assert!(coin_x_value != 0 && coin_y_value != 0, ERROR_CREATE_PAIR_ZERO_VALUE);
+      assert!(utils::are_coins_sorted<X, Y>(), ERROR_UNSORTED_COINS);
+
+      // Construct the name of the LPCoin, which will be used as a key to store the pool data.
+      // This fn will throw if X and Y are not sorted.
+      let type = utils::get_coin_info_string<LPCoin<C, X, Y>>();
+
+      // Checks that the pool does not exist.
+      assert!(!object_bag::contains(&storage.pools, type), ERROR_POOL_EXISTS);
+
+      // Calculate the number of shares
+      // We square root it twice because LPCoins do not have decimals and we do not want the supply to be very large
+      let shares = (sqrt_u256(sqrt_u256(((coin_x_value as u256) * (coin_y_value as u256)))) as u64);
+
+      // Create the LP coin for the Pool<X, Y>. 
+      // This coin has 0 decimals and no metadata 
+      let supply = balance::create_supply(LPCoin<C, X, Y> {});
+      // The number of shares the zero address will receive to prevent 0 divisions in the future.
+      let min_liquidity_balance = balance::increase_supply(&mut supply, MINIMUM_LIQUIDITY);
+      // The number of shares (LPCoins<X, Y>) the caller will receive.
+      let sender_balance = balance::increase_supply(&mut supply, shares);
+
+      // Transfer the zero address shares
+      transfer::public_transfer(coin::from_balance(min_liquidity_balance, ctx), @0x0);
+
+      // Calculate an id for the pool and the event
+      let pool_id = object::new(ctx);
+
+      event::emit(
+          PoolCreated<Pool<Volatile, X, Y>> {
+            id: object::uid_to_inner(&pool_id),
+            shares: shares,
+            value_x: coin_x_value,
+            value_y: coin_y_value,
+            sender: tx_context::sender(ctx)
+          }
+        );
+
+      let current_timestamp = clock::timestamp_ms(clock_object);
+
+      // Store the new pool in Storage.pools
+      object_bag::add(
+        &mut storage.pools,
+        type,
+        Pool {
+          id: pool_id,
+          k_last: k<C>(coin_x_value, coin_y_value, decimals_x, decimals_y),
+          lp_coin_supply: supply,
+          balance_x: coin::into_balance<X>(coin_x),
+          balance_y: coin::into_balance<Y>(coin_y),
+          decimals_x,
+          decimals_y,
+          is_stable,
+          observations: init_observation_vector(),
+          timestamp_last: current_timestamp,
+          balance_x_cumulative_last: utils::calculate_cumulative_balance((coin_x_value as u256), current_timestamp, 0),
+          balance_y_cumulative_last: utils::calculate_cumulative_balance((coin_y_value as u256), current_timestamp, 0),
+          locked: false
+        }
+      );
+
+      // Return the caller shares
+      coin::from_balance(sender_balance, ctx)
+    }
 
     /**
     * @dev It returns the AMM constant invariant based on {C}. If {C} is {Volatile}, it returns k = x * y
