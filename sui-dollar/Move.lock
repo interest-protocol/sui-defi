@@ -10,7 +10,7 @@ dependencies = [
 
 [[move.package]]
 name = "Library"
-source = { local = "../library" }
+source = { git = "https://github.com/interest-protocol/sui-defi", rev = "main", subdir = "library" }
 
 dependencies = [
   { name = "Sui" },
