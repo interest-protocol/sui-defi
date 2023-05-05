@@ -18,7 +18,7 @@ module dex::core {
   use library::utils;
   use library::math::{mul_div, sqrt_u256};
 
-  const MINIMUM_LIQUIDITY: u64 = 10;
+  const MINIMUM_LIQUIDITY: u64 = 100;
   const PRECISION: u256 = 1000000000000000000; //1e18;
   const VOLATILE_FEE_PERCENT: u256 = 3000000000000000; //0.3%
   const STABLE_FEE_PERCENT: u256 = 500000000000000; //0.05%
