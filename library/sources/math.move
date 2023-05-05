@@ -7,11 +7,14 @@ module library::math {
   const ROUNDING_ZERO: u8 = 0; // Toward zero
   const QUADRATIC_SCALAR: u64 = 1 << 16;
 
+  const ERROR_ZERO_DIVISION: u64 = 0;
+
   public fun fmul_u256(x: u256, y: u256): u256 {
     ((x * y ) / SCALAR)
   }
 
   public fun fdiv_u256(x: u256, y: u256): u256 {
+    assert!(y != 0, ERROR_ZERO_DIVISION);
     (x * SCALAR ) / y
   }
 
@@ -20,6 +23,7 @@ module library::math {
   }
 
   public fun d_fdiv(x: u64, y: u64): u256 {
+    assert!(y != 0, ERROR_ZERO_DIVISION);
     (((x as u256) * DOUBLE_SCALAR ) / (y as u256))
   }
 
@@ -28,14 +32,17 @@ module library::math {
   }
 
   public fun d_fdiv_u256(x: u256, y: u256): u256 {
+    assert!(y != 0, ERROR_ZERO_DIVISION);
     (x * DOUBLE_SCALAR ) / y
   }
   
   public fun mul_div_u128(x: u128, y: u128, z: u128): u128 {
+    assert!(z != 0, ERROR_ZERO_DIVISION);
     ((x as u256) * (y as u256) / (z as u256) as u128)
   }
 
   public fun mul_div(x: u64, y: u64, z: u64): u64 {
+    assert!(z != 0, ERROR_ZERO_DIVISION);
     (((x as u256) * (y as u256)) / (z as u256) as u64)
   }
 

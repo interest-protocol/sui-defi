@@ -1046,10 +1046,10 @@ module dex::core {
 
       let time_elapsed = current_timestamp - first_observation.timestamp;
 
+      assert!(WINDOW > time_elapsed, ERROR_MISSING_OBSERVATION);
+
       let first_observation_balance_x_cumulative = first_observation.balance_x_cumulative;
       let first_observation_balance_y_cumulative = first_observation.balance_y_cumulative;
-
-      assert!(WINDOW > time_elapsed, ERROR_MISSING_OBSERVATION);
 
       sync_obervations(pool, clock_object);
 
@@ -1147,7 +1147,7 @@ module dex::core {
     /**
     * @dev A utility function to return the values balance_x, balance_y and lp_coin_supply of a pool
     * @param storage The DEXStorage shared object
-    * return (u64, u64, u64) (balance_x, balance_x, lp_coin_supply)
+    * return (u64, u64, u64) (balance_x, balance_y, lp_coin_supply)
     */
     public fun get_pool_info<C, X, Y>(storage: &DEXStorage): (u64, u64, u64){
       assert!(is_curve<C>(), ERROR_WRONG_CURVE);
