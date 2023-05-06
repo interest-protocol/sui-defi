@@ -1071,6 +1071,210 @@ module dex::dex_volatile_tests {
     test::end(scenario);
   }
 
+
+  #[test]
+  #[expected_failure(abort_code = dex::core::ERROR_POOL_IS_LOCKED)]
+  fun test_flash_loan_add_liquidity_error() {
+    let scenario = scenario();
+    let test = &mut scenario;
+    test_create_pool_(test);
+
+    let (_, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
+
+    next_tx(test, bob);
+    {
+      let storage = test::take_shared<Storage>(test);
+      
+      let (receipt, ether, usdc) = dex::flash_loan<Volatile, ETH, USDC>(&mut storage, INITIAL_ETHER_VALUE / 2, INITIAL_USDC_VALUE / 3, ctx(test));
+
+      burn(dex::add_liquidity<Volatile, ETH, USDC>(
+        &mut storage,
+        &clock_object,
+        mint<ETH>(1, ctx(test)),
+        mint<USDC>(1, ctx(test)),
+        0,
+        ctx(test)
+      ));
+
+      dex::repay_flash_loan<Volatile, ETH, USDC>(
+          &mut storage,
+          &clock_object,
+          receipt,
+          ether,
+          usdc
+        );
+
+      test::return_shared(storage);
+    };
+
+    clock::destroy_for_testing(clock_object);
+    test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::core::ERROR_POOL_IS_LOCKED)]
+  fun test_flash_loan_remove_liquidity_error() {
+    let scenario = scenario();
+    let test = &mut scenario;
+    test_create_pool_(test);
+
+    let (_, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
+
+    next_tx(test, bob);
+    {
+      let storage = test::take_shared<Storage>(test);
+      
+      let (receipt, ether, usdc) = dex::flash_loan<Volatile, ETH, USDC>(&mut storage, INITIAL_ETHER_VALUE / 2, INITIAL_USDC_VALUE / 3, ctx(test));
+
+      let (x, y) = dex::remove_liquidity<Volatile, ETH, USDC>(
+        &mut storage,
+        &clock_object,
+        mint<LPCoin<Volatile, ETH, USDC>>(1, ctx(test)),
+        0,
+        0,
+        ctx(test)
+      );
+
+      burn(x);
+      burn(y);
+
+      dex::repay_flash_loan<Volatile, ETH, USDC>(
+          &mut storage,
+          &clock_object,
+          receipt,
+          ether,
+          usdc
+        );
+
+      test::return_shared(storage);
+    };
+
+    clock::destroy_for_testing(clock_object);
+    test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::core::ERROR_POOL_IS_LOCKED)]
+  fun test_flash_loan_swap_token_x_error() {
+    let scenario = scenario();
+    let test = &mut scenario;
+    test_create_pool_(test);
+
+    let (_, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
+
+    next_tx(test, bob);
+    {
+      let storage = test::take_shared<Storage>(test);
+      
+      let (receipt, ether, usdc) = dex::flash_loan<Volatile, ETH, USDC>(&mut storage, INITIAL_ETHER_VALUE / 2, INITIAL_USDC_VALUE / 3, ctx(test));
+
+      burn(dex::swap_token_x<Volatile, ETH, USDC>(
+        &mut storage,
+        &clock_object,
+        mint<ETH>(1, ctx(test)),
+        0,
+        ctx(test)
+      ));
+
+      dex::repay_flash_loan<Volatile, ETH, USDC>(
+          &mut storage,
+          &clock_object,
+          receipt,
+          ether,
+          usdc
+        );
+
+      test::return_shared(storage);
+    };
+
+    clock::destroy_for_testing(clock_object);
+    test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::core::ERROR_POOL_IS_LOCKED)]
+  fun test_flash_loan_swap_token_y_error() {
+    let scenario = scenario();
+    let test = &mut scenario;
+    test_create_pool_(test);
+
+    let (_, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
+
+    next_tx(test, bob);
+    {
+      let storage = test::take_shared<Storage>(test);
+      
+      let (receipt, ether, usdc) = dex::flash_loan<Volatile, ETH, USDC>(&mut storage, INITIAL_ETHER_VALUE / 2, INITIAL_USDC_VALUE / 3, ctx(test));
+
+      burn(dex::swap_token_y<Volatile, ETH, USDC>(
+        &mut storage,
+        &clock_object,
+        mint<USDC>(1, ctx(test)),
+        0,
+        ctx(test)
+      ));
+
+      dex::repay_flash_loan<Volatile, ETH, USDC>(
+          &mut storage,
+          &clock_object,
+          receipt,
+          ether,
+          usdc
+        );
+
+      test::return_shared(storage);
+    };
+
+    clock::destroy_for_testing(clock_object);
+    test::end(scenario);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = dex::core::ERROR_POOL_IS_LOCKED)]
+  fun test_two_flash_loan_error() {
+    let scenario = scenario();
+    let test = &mut scenario;
+    test_create_pool_(test);
+
+    let (_, bob) = people();
+    let clock_object = clock::create_for_testing(ctx(test));
+
+    next_tx(test, bob);
+    {
+      let storage = test::take_shared<Storage>(test);
+      
+      let (receipt, ether, usdc) = dex::flash_loan<Volatile, ETH, USDC>(&mut storage, INITIAL_ETHER_VALUE / 2, INITIAL_USDC_VALUE / 3, ctx(test));
+
+      let (receipt_2, ether_2, usdc_2) = dex::flash_loan<Volatile, ETH, USDC>(&mut storage, INITIAL_ETHER_VALUE / 2, INITIAL_USDC_VALUE / 3, ctx(test));
+
+      dex::repay_flash_loan<Volatile, ETH, USDC>(
+          &mut storage,
+          &clock_object,
+          receipt,
+          ether,
+          usdc
+        );
+
+      dex::repay_flash_loan<Volatile, ETH, USDC>(
+          &mut storage,
+          &clock_object,
+          receipt_2,
+          ether_2,
+          usdc_2
+        );
+
+
+      test::return_shared(storage);
+    };
+
+    clock::destroy_for_testing(clock_object);
+    test::end(scenario);
+  }
+
   #[test]
   #[expected_failure(abort_code = dex::core::ERROR_WRONG_CURVE)]
   fun test_add_liquidity_curve_error() {

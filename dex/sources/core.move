@@ -675,6 +675,16 @@ module dex::core {
         assert!(is_curve<C>(), ERROR_WRONG_CURVE);
         // Borrow a mutable Pool<X, Y>.
         let pool = borrow_mut_pool<C, X, Y>(storage);
+        // Not allowed to perform this action during a flash loan
+        assert!(!pool.locked, ERROR_POOL_IS_LOCKED);
+
+        // lock the pool to prevent reetrancies
+        pool.locked = true;
+
+        // Read the values before taking the coins
+        let (coin_x_reserve, coin_y_reserve, _) = get_amounts(pool);
+
+        let prev_k = k<C>(coin_x_reserve, coin_y_reserve, pool.decimals_x, pool.decimals_y);
 
         // The pool must have enough liquidity to lend
         assert!(balance::value(&pool.balance_x) >= amount_x && balance::value(&pool.balance_y) >= amount_y, ERROR_NOT_ENOUGH_LIQUIDITY_TO_LEND);
@@ -683,16 +693,12 @@ module dex::core {
         let coin_x = coin::take(&mut pool.balance_x, amount_x, ctx);
         let coin_y = coin::take(&mut pool.balance_y, amount_y, ctx);
 
-        let (coin_x_reserve, coin_y_reserve, _) = get_amounts(pool);
-
-        pool.locked = true;
-
         // Store the repay amounts in a Receipt struct
         let receipt = Receipt<C, X, Y> { 
           pool_id: object::id(pool),  
           repay_amount_x: amount_x + ((((amount_x as u256) * FLASH_LOAN_FEE_PERCENT) / PRECISION) as u64),
           repay_amount_y: amount_y + ((((amount_y as u256) * FLASH_LOAN_FEE_PERCENT) / PRECISION) as u64),
-          prev_k: k<C>(coin_x_reserve, coin_y_reserve, pool.decimals_x, pool.decimals_y)
+          prev_k
         };
 
         // Give the coins and receipt to the caller
@@ -732,8 +738,11 @@ module dex::core {
       coin::put(&mut pool.balance_x, coin_x);
       coin::put(&mut pool.balance_y, coin_y);
 
+      // Read values after depositing the coins
       let (coin_x_reserve, coin_y_reserve, _) = get_amounts(pool);
+
       assert!(k<C>(coin_x_reserve, coin_y_reserve, pool.decimals_x, pool.decimals_y) > prev_k, ERROR_INVALID_K);
+      // Unlock the pool
       pool.locked = false;
 
       // Update TWAP
@@ -1084,10 +1093,10 @@ module dex::core {
 
       let time_elapsed = current_timestamp - first_observation.timestamp;
 
+      assert!(WINDOW > time_elapsed, ERROR_MISSING_OBSERVATION);
+
       let first_observation_balance_x_cumulative = first_observation.balance_x_cumulative;
       let first_observation_balance_y_cumulative = first_observation.balance_y_cumulative;
-
-      assert!(WINDOW > time_elapsed, ERROR_MISSING_OBSERVATION);
 
       sync_obervations(pool, clock_object);
 
