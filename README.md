@@ -33,9 +33,14 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 - **ipx:** The governance token of Interest Protocol
 - **sui-dollar:** The stable coin of Interest Protocol
 - **library:** It contains utility functions that are used by other modules
-- **movemate:** It contains updated modules from the [movemate](https://github.com/pentagonxyz/movemate) repository to work with latest Sui version
 - **airdrop:** It contains the module to airdrop the IPX governance token to whitelisted accounts
 - **examples:** A myriad of examples on how to interact with various modules
+
+## Security
+
+Even though the code is tested, please use the code at your own risk. Only the directories below are audited.
+
+- **dex:** Audited by Movebit.
 
 ## Functionality
 
