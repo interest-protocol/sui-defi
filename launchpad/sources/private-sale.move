@@ -93,6 +93,10 @@ module launchpad::presale {
     amount: u64
   }
 
+  struct NewAdmin has copy, drop {
+    new_admin: address
+  }
+
   fun init(ctx: &mut TxContext) {
     
     transfer::share_object(
@@ -263,12 +267,12 @@ module launchpad::presale {
 
   // Admin Only
 
-  entry public fun set_fee_value(_: &PresaleAdminCap, storage: &mut Storage, value: u64) {
+  entry public fun update_fee_value(_: &PresaleAdminCap, storage: &mut Storage, value: u64) {
     storage.fee_amount = value;
     emit(FeeValueUpdated {new_value: value });
   }
 
-  entry public fun set_treasury(_: &PresaleAdminCap, storage: &mut Storage, treasury: address) {
+  entry public fun update_treasury(_: &PresaleAdminCap, storage: &mut Storage, treasury: address) {
     storage.treasury = treasury;
     emit(TreasuryUpdated { new_treasury: treasury });
   }
@@ -276,5 +280,6 @@ module launchpad::presale {
   entry public fun transfer_admin(admin_cap: PresaleAdminCap, recipient: address) {
     assert!(recipient != @0x0, ERROR_INVALID_ADMIN);
     transfer::transfer(admin_cap, recipient);
+    emit(NewAdmin { new_admin: recipient });
   }
 }
