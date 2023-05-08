@@ -508,6 +508,46 @@ module dex::master_chef_tests {
   }
 
   #[test]
+  #[expected_failure(abort_code = master_chef::ERROR_NO_ZERO_ALLOCATION_POINTS)]
+  fun test_add_pool_zero_allocation_points_error() {
+    let scenario = scenario();
+    let test = &mut scenario;
+    let (owner, _) = people();
+
+    let clock_object = clock::create_for_testing(ctx(test));  
+
+    next_tx(test, owner);
+    {
+      master_chef::init_for_testing(ctx(test));
+      ipx::init_for_testing(ctx(test));
+    };
+
+    next_tx(test, owner);
+    {
+      let master_chef_storage = test::take_shared<MasterChefStorage>(test);
+      let admin_cap = test::take_from_sender<MasterChefAdmin>(test);
+      let account_storage = test::take_shared<AccountStorage>(test);
+
+      master_chef::add_pool<LPCoin>(
+        &admin_cap, 
+        &mut master_chef_storage, 
+        &mut account_storage, 
+        &clock_object,
+        0, 
+        false, 
+        ctx(test)
+      );
+
+      test::return_shared(master_chef_storage);
+      test::return_to_sender(test, admin_cap);
+      test::return_shared(account_storage);
+    };
+
+    clock::destroy_for_testing(clock_object);
+    test::end(scenario);
+  }
+
+  #[test]
   #[expected_failure(abort_code = master_chef::ERROR_NOT_ENOUGH_BALANCE)]
   fun test_unstake_balance_error() {
     let scenario = scenario();

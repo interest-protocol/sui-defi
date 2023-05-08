@@ -301,7 +301,7 @@ module dex::interface {
 
       if (are_coins_sorted<X, Y>()) {
         transfer::public_transfer(
-          router::add_liquidity<C, X, Y>(
+          core::add_liquidity<C, X, Y>(
           storage,
           clock_object,
           coin_x,
@@ -313,7 +313,7 @@ module dex::interface {
       )  
       } else {
         transfer::public_transfer(
-          router::add_liquidity<C, Y, X>(
+          core::add_liquidity<C, Y, X>(
           storage,
           clock_object,
           coin_y,
