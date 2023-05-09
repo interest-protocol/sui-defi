@@ -9,6 +9,7 @@ module library::utils {
     use sui::pay;
 
     use library::comparator;
+    use library::math::{mul_div};
 
     const MS_PER_YEAR: u64 = 31536000000; 
     const EQUAL: u8 = 0;
@@ -63,7 +64,7 @@ module library::utils {
     }
 
     public fun quote_liquidity(amount_a: u64, reserves_a: u64, reserves_b: u64): u64 {
-      amount_a * reserves_b / reserves_a
+      mul_div(amount_a, reserves_b, reserves_a)
     }
 
     public fun get_ms_per_year(): u64 {
