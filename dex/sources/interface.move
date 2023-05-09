@@ -527,9 +527,9 @@ module dex::interface {
   * @param storage The MasterChefStorage shared object
   * @param accounts_storage the MasterChefAccountStorage shared object of the masterchef contract
   * @param account The account of the user that has Coin<X> in the farm
-  * @param num_of_farms The number of farms we wish to collect data from for a maximum of 5
+  * @param num_of_farms The number of farms we wish to collect data from for a maximum of 3
   */
-  public fun get_farms<A, B, C, D, E>(
+  public fun get_farms<A, B, C>(
     storage: &MasterChefStorage,
     accounts_storage: &MasterChefAccountStorage,
     account: address,
@@ -546,16 +546,6 @@ module dex::interface {
     if (num_of_farms == 2) return farm_vector;
 
     get_farm<C>(storage, accounts_storage, account, &mut farm_vector);
-
-    if (num_of_farms == 3) return farm_vector;
-
-    get_farm<D>(storage, accounts_storage, account, &mut farm_vector);
-
-    if (num_of_farms == 4) return farm_vector;
-
-    get_farm<E>(storage, accounts_storage, account, &mut farm_vector);
-
-    if (num_of_farms == 5) return farm_vector;
 
     farm_vector
   }
