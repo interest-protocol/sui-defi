@@ -51,20 +51,9 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 
 ## Functionality
 
-### Whirlpool
-
-The Interest Protocol Lending Protocol allows users to borrow and lend cryptocurrencies.
-
-The lending protocol providers the following core functions
-
-- **deposit:** it allows users to put collateral to start earning interest rate + rewards
-- **withdraw:** it allows users to remove their collateral
-- **borrow:** it allows users to borrow crypto using their deposits as collateral. This allows them to open short/long positions
-- **repay:** it allows users to repay their loans
-
 ### DEX
 
-**This code has been audited by Movebit**
+> This code has been [audited](https://github.com/interest-protocol/sui-defi/blob/main/audits/Interest%20Protocol%20DEX%20Smart%20Contract%20Audit%20Report.pdf) by [MoveBit](https://movebit.xyz/)
 
 The Interest Protocol DEX allows users to create pools, add/remove liquidity and trade.
 
@@ -88,6 +77,17 @@ The DEX supports two types of pools denoted as:
 ### IPX Coin
 
 It is the governance coin of the protocol and it is minted as rewards by the Masterchef and lending modules. This coin will power the DAO in the future.
+
+### Whirlpool
+
+The Interest Protocol Lending Protocol allows users to borrow and lend cryptocurrencies.
+
+The lending protocol providers the following core functions
+
+- **deposit:** it allows users to put collateral to start earning interest rate + rewards
+- **withdraw:** it allows users to remove their collateral
+- **borrow:** it allows users to borrow crypto using their deposits as collateral. This allows them to open short/long positions
+- **repay:** it allows users to repay their loans
 
 ### SUID Coin
 
