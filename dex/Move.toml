@@ -3,11 +3,13 @@ name = "DEX"
 version = "0.0.1"
 
 [dependencies]
-Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "testnet" }
-Library = { git = "https://github.com/interest-protocol/sui-defi", subdir = "library", rev = "main" }
-IPX = { git = "https://github.com/interest-protocol/sui-defi", subdir = "ipx", rev = "main" }
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/mainnet" }
+Library = { local = "../library" }
+IPX = { local = "../ipx" }
 
 [addresses]
 dex =  "0x0"
 sui =  "0x2"
-treasury = "0xCAFE"
+treasury = "0x0"
+library = "bd8d525f659483420b2da568b924c63973240b2ddfd148e3909e17c43d189764"
+ipx =  "49d87b9af35c4fef28def2cd65884aa9c49bb4eedbcee647f4dafb5c8f36ba57"

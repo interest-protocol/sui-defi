@@ -18,10 +18,8 @@ module dex::master_chef {
   use library::utils::{get_coin_info_string};
   use library::math::{fdiv_u256, fmul_u256};
 
-  // TODO needs to be updated based on real time before mainnet
-  const START_TIMESTAMP: u64 = 0;
-  // TODO need to be updated to match the tokenomics
-  const IPX_PER_MS: u64 = 1268391; // 40M IPX per year
+  const START_TIMESTAMP: u64 = 2288541374;
+  const IPX_PER_MS: u64 = 0; // 40M IPX per year
   const IPX_POOL_KEY: u64 = 0;
 
   const ERROR_POOL_ADDED_ALREADY: u64 = 1;

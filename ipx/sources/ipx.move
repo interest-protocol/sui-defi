@@ -63,7 +63,7 @@ module ipx::ipx {
         coin::from_balance(
           balance::increase_supply(&mut supply, IPX_PRE_MINT_AMOUNT), ctx
         ),
-        tx_context::sender(ctx)
+        @admin
       );
 
       transfer::transfer(
