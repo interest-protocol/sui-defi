@@ -33,7 +33,6 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 - **ipx:** The governance token of Interest Protocol
 - **sui-dollar:** The stable coin of Interest Protocol
 - **library:** It contains utility functions that are used by other modules
-- **movemate:** It contains updated modules from the [movemate](https://github.com/pentagonxyz/movemate) repository to work with latest Sui version
 - **airdrop:** It contains the module to airdrop the IPX governance token to whitelisted accounts
 - **examples:** A myriad of examples on how to interact with various modules
 
@@ -64,6 +63,8 @@ The lending protocol providers the following core functions
 - **repay:** it allows users to repay their loans
 
 ### DEX
+
+**This code has been audited by Movebit**
 
 The Interest Protocol DEX allows users to create pools, add/remove liquidity and trade.
 
