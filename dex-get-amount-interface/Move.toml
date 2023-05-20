@@ -1,0 +1,14 @@
+[package]
+name = "dex_get_amount_interface"
+version = "0.0.1"
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/mainnet" }
+Library = { local = "../library" }
+DEX = { local = "../dex" }
+
+[addresses]
+dex_get_amount_interface = "0x0"
+sui =  "0x2"
+dex =  "5c45d10c26c5fb53bfaff819666da6bc7053d2190dfa29fec311cc666ff1f4b0"
+library = "bd8d525f659483420b2da568b924c63973240b2ddfd148e3909e17c43d189764"
