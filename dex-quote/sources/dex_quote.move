@@ -1,50 +1,52 @@
-module dex_get_amount_interface::dex_get_amount_interface {
+module dex_quote::dex_quote {
+  use sui::math;
 
   use dex::core::{Self, DEXStorage};
   use dex::curve::{Volatile, Stable};
   
   use library::utils;
+  use library::math::{mul_div};
 
-   public fun get_swap_token_x_amount_out<X, Y>(
-      storage: &DEXStorage,
-      amount: u64
-      ): u64 {
-      get_best_amount<X, Y>(storage, amount, 0)
+  public fun quote_swap_x<X, Y>(
+    storage: &DEXStorage,
+    amount: u64
+    ): u64 {
+      quote_swap<X, Y>(storage, amount, 0)
   }
 
-  public fun get_swap_token_y_amount_out<X, Y>(
-      storage: &DEXStorage,
-      amount: u64
-      ): u64 {
-      get_best_amount<X, Y>(storage, 0, amount)
+  public fun quote_swap_y<X, Y>(
+    storage: &DEXStorage,
+    amount: u64
+    ): u64 {
+      quote_swap<X, Y>(storage, 0, amount)
   }
 
-  public fun get_one_hop_swap_amount_out<X, B, Y>(
+  public fun quote_one_hop_swap<X, B, Y>(
     storage: &DEXStorage,
     amount: u64
   ): u64 {
 
     if (utils::are_coins_sorted<X, B>()) {
-        let amount_b = get_swap_token_x_amount_out<X, B>(
+        let amount_b = quote_swap_x<X, B>(
             storage,
             amount, 
           );
 
         if (utils::are_coins_sorted<B, Y>()) {
-            get_swap_token_x_amount_out<B, Y>(
+            quote_swap_x<B, Y>(
               storage,
               amount_b
             )
             } else {
             // We sell Coin<Z> -> Coin<Y>
             // In the Pool<Z, Y> we are selling the first token
-            get_swap_token_y_amount_out<Y, B>(
+            quote_swap_y<Y, B>(
               storage,
               amount_b
             )
             }
            } else {
-            let amount_b = get_swap_token_y_amount_out<B, X>(
+            let amount_b = quote_swap_y<B, X>(
               storage,
               amount
             );
@@ -53,7 +55,7 @@ module dex_get_amount_interface::dex_get_amount_interface {
 
             // We sell Coin<Z> -> Coin<Y>
             // In the Pool<Y, Z> we are selling the second token
-            get_swap_token_x_amount_out<B, Y>(
+            quote_swap_x<B, Y>(
               storage,
               amount_b
             )
@@ -61,7 +63,7 @@ module dex_get_amount_interface::dex_get_amount_interface {
 
             // We sell Coin<Z> -> Coin<Y>
             // In the Pool<Z, Y> we are selling the first token
-            get_swap_token_y_amount_out<Y, B>(
+            quote_swap_y<Y, B>(
               storage,
               amount_b
             )
@@ -69,7 +71,7 @@ module dex_get_amount_interface::dex_get_amount_interface {
       }
   }
 
-  public fun get_two_hop_swap_amount_out<X, B1, B2, Y>(
+  public fun quote_two_hop_swap<X, B1, B2, Y>(
     storage: &DEXStorage,
     amount: u64
   ): u64 {
@@ -77,30 +79,65 @@ module dex_get_amount_interface::dex_get_amount_interface {
       // Swap function requires the tokens to be sorted
       if (utils::are_coins_sorted<X, B1>()) {
         // Sell X -> B1
-        let amount_b1 = get_swap_token_x_amount_out<X, B1>(
+        let amount_b1 = quote_swap_x<X, B1>(
           storage,
           amount
         );  
 
-        get_one_hop_swap_amount_out<B1, B2, Y>(
+        quote_one_hop_swap<B1, B2, Y>(
               storage,
               amount_b1
           )
       } else {
         // Sell X -> B1
-        let coin_b1 = get_swap_token_y_amount_out<B1, X>(
+        let coin_b1 = quote_swap_y<B1, X>(
           storage,
           amount
         );
 
-        get_one_hop_swap_amount_out<B1, B2, Y>(
+        quote_one_hop_swap<B1, B2, Y>(
         storage,
         coin_b1
       )
       }
   }
 
-  public fun get_best_amount<X, Y>(
+  public fun quote_add_liquidity<C, X, Y>(
+    storage: &DEXStorage,
+    amount_x: u64,
+    amount_y: u64
+  ): (u64, u64, u64) {
+    let pool = core::borrow_pool<C, X, Y>(storage);
+    let (coin_x_reserve, coin_y_reserve, supply) = core::get_amounts(pool);
+    
+    let (optimal_x_amount, optimal_y_amount) = calculate_optimal_add_liquidity(
+          amount_x,
+          amount_y,
+          coin_x_reserve,
+          coin_y_reserve
+    );
+
+    let share_to_mint = math::min(
+          mul_div(optimal_x_amount, supply, coin_x_reserve),
+          mul_div(optimal_y_amount, supply, coin_y_reserve)
+    );
+
+    (share_to_mint, optimal_x_amount, optimal_y_amount)
+  }
+
+  public fun quote_remove_liquidity<C, X, Y>(
+    storage: &DEXStorage,
+    amount: u64
+  ): (u64, u64) {
+    let pool = core::borrow_pool<C, X, Y>(storage);
+    let (coin_x_reserve, coin_y_reserve, supply) = core::get_amounts(pool);
+    (
+      mul_div(amount, coin_x_reserve, supply),
+      mul_div(amount, coin_y_reserve, supply)
+    )
+  }
+
+  fun quote_swap<X, Y>(
     storage: &DEXStorage,
     coin_x_value: u64,
     coin_y_value: u64
@@ -156,5 +193,21 @@ module dex_get_amount_interface::dex_get_amount_interface {
 
     // Volatile pools consumes less gas and is more profitable for the protocol :) 
     if (v_amount_out >= s_amount_out) { v_amount_out } else { s_amount_out }
+  }
+
+  fun calculate_optimal_add_liquidity(
+    desired_amount_x: u64,
+    desired_amount_y: u64,
+    reserve_x: u64,
+    reserve_y: u64
+  ): (u64, u64) {
+
+    if (reserve_x == 0 && reserve_y == 0) return (desired_amount_x, desired_amount_y);
+
+    let optimal_y_amount = utils::quote_liquidity(desired_amount_x, reserve_x, reserve_y);
+    if (desired_amount_y >= optimal_y_amount) return (desired_amount_x, optimal_y_amount);
+
+    let optimal_x_amount = utils::quote_liquidity(desired_amount_y, reserve_y, reserve_x);
+    (optimal_x_amount, desired_amount_y)
   }
 }

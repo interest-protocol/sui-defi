@@ -1,16 +1,16 @@
 [package]
 name = "DEX"
 version = "0.0.1"
-published-at = "5c45d10c26c5fb53bfaff819666da6bc7053d2190dfa29fec311cc666ff1f4b0"
+published-at = "0xd15fcc9307dcf822a6ec40950b8b8331ae2367c4455c568296ed4e1eb8527a75"
 
 [dependencies]
-Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/mainnet" }
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
 Library = { local = "../library" }
 IPX = { local = "../ipx" }
 
 [addresses]
-dex =  "5c45d10c26c5fb53bfaff819666da6bc7053d2190dfa29fec311cc666ff1f4b0"
+dex =  "0xd15fcc9307dcf822a6ec40950b8b8331ae2367c4455c568296ed4e1eb8527a75"
 sui =  "0x2"
 treasury = "0x0"
-library = "bd8d525f659483420b2da568b924c63973240b2ddfd148e3909e17c43d189764"
-ipx =  "49d87b9af35c4fef28def2cd65884aa9c49bb4eedbcee647f4dafb5c8f36ba57"
+library = "a72b0e1f18895230b7645619823ca8252ad93e1d668be69df3f3b1b41bd32c59"
+ipx =  "57e5622e674c7fd98303516920ac4250a0667e486e3617f71c8b448f1b032aed"

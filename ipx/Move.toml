@@ -1,14 +1,14 @@
 [package]
 name = "IPX"
 version = "0.0.1"
-published-at = "49d87b9af35c4fef28def2cd65884aa9c49bb4eedbcee647f4dafb5c8f36ba57"
+published-at = "57e5622e674c7fd98303516920ac4250a0667e486e3617f71c8b448f1b032aed"
 
 [dependencies]
-Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/mainnet" }
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
 Library = { local = "../library" }
 
 [addresses]
-ipx =  "49d87b9af35c4fef28def2cd65884aa9c49bb4eedbcee647f4dafb5c8f36ba57"
+ipx =  "57e5622e674c7fd98303516920ac4250a0667e486e3617f71c8b448f1b032aed"
 sui =  "0x2"
-library = "bd8d525f659483420b2da568b924c63973240b2ddfd148e3909e17c43d189764"
+library =  "a72b0e1f18895230b7645619823ca8252ad93e1d668be69df3f3b1b41bd32c59"
 admin = "3f2bbe286241f23ceba46d2a62a8c2ca6a75bb51c7d4991e6c568f6cee0cf910"
