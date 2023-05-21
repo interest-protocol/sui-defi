@@ -3,12 +3,12 @@ name = "dex_quote"
 version = "0.0.1"
 
 [dependencies]
-Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/mainnet" }
 Library = { local = "../library" }
 DEX = { local = "../dex" }
 
 [addresses]
 dex_quote = "0x0"
 sui =  "0x2"
-dex =  "0xd15fcc9307dcf822a6ec40950b8b8331ae2367c4455c568296ed4e1eb8527a75"
-library = "a72b0e1f18895230b7645619823ca8252ad93e1d668be69df3f3b1b41bd32c59"
+dex =  "5c45d10c26c5fb53bfaff819666da6bc7053d2190dfa29fec311cc666ff1f4b0"
+library =  "bd8d525f659483420b2da568b924c63973240b2ddfd148e3909e17c43d189764"
