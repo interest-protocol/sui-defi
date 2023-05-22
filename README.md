@@ -23,7 +23,7 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 
 ```bash
   cd dex
-  sui client publish --gas-budget 50000
+  sui client publish --gas-budget 500000000
 ```
 
 ## Repo Structure
@@ -35,6 +35,8 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 - **library:** It contains utility functions that are used by other modules
 - **airdrop:** It contains the module to airdrop the IPX governance token to whitelisted accounts
 - **examples:** A myriad of examples on how to interact with various modules
+- **audits** It contains code audits
+- **dex-quote** A package that includes view functions to quote swap, add and remove liquidity values
 
 ## Mainnet Objects
 
@@ -65,12 +67,12 @@ The DEX supports two types of pools denoted as:
 > The DEX will route the trade to the most profitable pool (volatile vs
 > stable).
 
+- Create Pool: Users can only create volatile & stable pools
 - Add/Remove Liquidity
 - Swap: Pool<BTC, Ether> | Ether -> BTC | BTC -> Ether
-- Create Pool: Users can only create volatile pools
 - One Hop Swap: Pool<BTC, Ether> & Pool<Ether, USDC> | BTC -> Ether -> USDC | USDC -> Ether -> BTC
 - Two Hop Swap: Pool<BTC, Ether> & Pool<Ether, USDC> & Pool<Sui, USDC> | BTC -> Ether -> USDC -> Sui | Sui -> USDC -> Ether -> BTC
-- Farms to deposit VLPCoins and SLPCoins to farm IPX tokens
+- Farms to deposit LPCoins to farm IPX tokens
 - Flash loans
 - TWAP Oracle
 
