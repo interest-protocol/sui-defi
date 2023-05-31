@@ -1,4 +1,4 @@
-/// @notice Signed 256-bit integers in Move.
+#[test_only]
 module i256::i256_tests {
 
     use sui::test_utils::{assert_eq};
