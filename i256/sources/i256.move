@@ -1,3 +1,4 @@
+/// Inspired from https://github.com/pentagonxyz/movemate/blob/main/sui/sources/i64.move
 /// @notice Signed 256-bit integers in Move.
 /// Uses 2's complement for negative numbers to follow solidity
 /// Uses arithmatic shr and shl for negative numbers
@@ -64,7 +65,7 @@ module i256::i256 {
         U256_WITH_FIRST_BIT_SET > x.bits
     }
 
-    public fun neg(x: &I256): I256 {
+    public fun flip(x: &I256): I256 {
         if (x.bits == 0) return *x;
         if (is_neg(x)) { abs(x) } else { neg_from(x.bits) } 
     }

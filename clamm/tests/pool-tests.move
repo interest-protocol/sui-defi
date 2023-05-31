@@ -7,7 +7,8 @@ module clamm::ipx_pool_tests {
   
   use clamm::ipx_pool::{Self as pool, Storage};
   use clamm::test_utils::{people, scenario, create_sqrt_price};
-  use clamm::i256;
+  
+  use i256::i256;
 
   struct ETH {}
 

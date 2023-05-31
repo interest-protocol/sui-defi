@@ -5,6 +5,7 @@ version = "0.0.1"
 [dependencies]
 MoveStdlib = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "framework/testnet" }
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+i256 = { local = "../i256" }
 
 [addresses]
 clamm = "0x0"

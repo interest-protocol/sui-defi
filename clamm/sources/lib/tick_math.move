@@ -1,7 +1,7 @@
 // Translated from https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/TickMath.sol
 module clamm::tick_math {
 
-  use clamm::i256::{Self, I256};
+  use i256::i256::{Self, I256};
 
   const RESOLUTION: u8 = 96;
   const MAXIMUM_TICK: u256 = 887272; 
@@ -212,10 +212,12 @@ module clamm::tick_math {
     let log_sqrt10001 = i256::mul(&log_2, &i256::from(255738958999603826347141));
 
     let tick_low = i256::shr(&i256::sub(&log_sqrt10001, &i256::from(3402992956809132418596140100660247210)), 128);
+
     let min_compare = i256::compare(&i256::neg_from(MIN_I24), &tick_low);
     assert!(min_compare == I256_EQUAL || min_compare == I256_LESS_THAN, ERROR_TICK_OUT_OF_BOUNDS);
 
     let tick_high = i256::shr(&i256::add(&log_sqrt10001, &i256::from(291339464771989622907027621153398088495)), 128);
+    
     let max_compare = i256::compare(&i256::from(MAX_I24), &tick_high);
     assert!(max_compare == I256_EQUAL || max_compare == I256_GREATER_THAN, ERROR_TICK_OUT_OF_BOUNDS);
 

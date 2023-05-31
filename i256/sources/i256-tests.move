@@ -3,7 +3,7 @@ module i256::i256_tests {
 
     use sui::test_utils::{assert_eq};
     
-    use i256::i256::{compare, from, neg_from, add, sub, zero, div, mul, shl, shr, abs, bits, or, and, is_neg, neg, is_positive};
+    use i256::i256::{compare, from, neg_from, add, sub, zero, div, mul, shl, shr, abs, bits, or, and, is_neg, flip, is_positive};
 
     const MAX_I256_AS_U256: u256 = (1 << 255) - 1;
 
@@ -127,10 +127,10 @@ module i256::i256_tests {
     }
 
     #[test]
-    fun test_neg() {
-      assert_eq(neg(&zero()), zero());
-      assert_eq(neg(&neg_from(5)), from(5));
-      assert_eq(neg(&from(172)), neg_from(172));
+    fun test_flip() {
+      assert_eq(flip(&zero()), zero());
+      assert_eq(flip(&neg_from(5)), from(5));
+      assert_eq(flip(&from(172)), neg_from(172));
     }
 
     #[test]
