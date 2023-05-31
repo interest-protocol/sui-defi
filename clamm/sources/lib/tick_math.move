@@ -9,6 +9,9 @@ module clamm::tick_math {
   const MAX_SQRT_RATIO: u256 = 1461446703485210103287273052203988822378723970342;
   const Q96: u256 = 0x1000000000000000000000000;
   const MAX_U256: u256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+  const MIN_I24: u256 = 8388608;
+  const MAX_I24: u256 = 8388607;
+
     /// When both `U256` equal.
   const I256_EQUAL: u8 = 0;
 
@@ -209,11 +212,11 @@ module clamm::tick_math {
     let log_sqrt10001 = i256::mul(&log_2, &i256::from(255738958999603826347141));
 
     let tick_low = i256::shr(&i256::sub(&log_sqrt10001, &i256::from(3402992956809132418596140100660247210)), 128);
-    let min_compare = i256::compare(&i256::neg_from(8388608), &tick_low);
+    let min_compare = i256::compare(&i256::neg_from(MIN_I24), &tick_low);
     assert!(min_compare == I256_EQUAL || min_compare == I256_LESS_THAN, ERROR_TICK_OUT_OF_BOUNDS);
 
     let tick_high = i256::shr(&i256::add(&log_sqrt10001, &i256::from(291339464771989622907027621153398088495)), 128);
-    let max_compare = i256::compare(&i256::from(8388607), &tick_high);
+    let max_compare = i256::compare(&i256::from(MAX_I24), &tick_high);
     assert!(max_compare == I256_EQUAL || max_compare == I256_GREATER_THAN, ERROR_TICK_OUT_OF_BOUNDS);
 
    if (i256::compare(&tick_low, &tick_high) == I256_EQUAL) 
