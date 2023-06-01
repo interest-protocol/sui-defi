@@ -5,10 +5,6 @@ module i256::i256_tests {
     
     use i256::i256::{compare, from, neg_from, add, sub, zero, div, mul, shl, shr, abs, bits, or, and, is_neg, flip, is_positive};
 
-    const MAX_I256_AS_U256: u256 = (1 << 255) - 1;
-
-    const U256_WITH_FIRST_BIT_SET: u256 = 1 << 255;
-
     const EQUAL: u8 = 0;
 
     const LESS_THAN: u8 = 1;
