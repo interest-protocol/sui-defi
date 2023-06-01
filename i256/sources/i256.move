@@ -9,11 +9,15 @@ module i256::i256 {
 
     const U256_WITH_FIRST_BIT_SET: u256 = 1 << 255;
 
+    // Compare Results
+
     const EQUAL: u8 = 0;
 
     const LESS_THAN: u8 = 1;
 
     const GREATER_THAN: u8 = 2;
+
+    // ERRORS
 
     const ERROR_CONVERSION_FROM_U256_OVERFLOW: u64 = 0;
     const ERR0R_CONVERSION_TO_U256_UNDERFLOW: u64 = 1;
@@ -26,9 +30,33 @@ module i256::i256 {
       I256 { bits: x }
     }
 
+    public fun from(x: u256): I256 {
+        assert!(x <= MAX_I256_AS_U256, ERROR_CONVERSION_FROM_U256_OVERFLOW);
+        I256 { bits: x }
+    }
+
+    public fun neg_from(x: u256): I256 {
+        let ret = from(x);
+        if (ret.bits > 0) *&mut ret.bits = MAX_U256 - ret.bits + 1;
+        ret
+    }
 
     public fun bits(x: &I256): u256 {
         x.bits
+    }
+
+    public fun as_u256(x: &I256): u256 {
+        assert!(is_positive(x), ERR0R_CONVERSION_TO_U256_UNDERFLOW);
+        x.bits
+    }
+
+    public fun as_u64(x: &I256): u64 {
+        assert!(is_positive(x), ERR0R_CONVERSION_TO_U256_UNDERFLOW);
+        (x.bits as u64)
+    }
+
+    public fun zero(): I256 {
+        I256 { bits: 0 }
     }
 
     public fun one(): I256 {
@@ -39,26 +67,12 @@ module i256::i256 {
         I256 { bits: MAX_I256_AS_U256 }
     }
 
-    public fun from(x: u256): I256 {
-        assert!(x <= MAX_I256_AS_U256, ERROR_CONVERSION_FROM_U256_OVERFLOW);
-        I256 { bits: x }
-    }
-
-    public fun zero(): I256 {
-        I256 { bits: 0 }
-    }
-
-    public fun as_u256(x: &I256): u256 {
-        assert!(x.bits < U256_WITH_FIRST_BIT_SET, ERR0R_CONVERSION_TO_U256_UNDERFLOW);
-        x.bits
+    public fun is_neg(x: &I256): bool {
+        (x.bits & U256_WITH_FIRST_BIT_SET) != 0
     }
 
     public fun is_zero(x: &I256): bool {
         x.bits == 0
-    }
-
-    public fun is_neg(x: &I256): bool {
-        (x.bits & U256_WITH_FIRST_BIT_SET) != 0
     }
 
     public fun is_positive(x: &I256): bool {
@@ -66,14 +80,7 @@ module i256::i256 {
     }
 
     public fun flip(x: &I256): I256 {
-        if (x.bits == 0) return *x;
         if (is_neg(x)) { abs(x) } else { neg_from(x.bits) } 
-    }
-
-    public fun neg_from(x: u256): I256 {
-        let ret = from(x);
-        if (ret.bits > 0) *&mut ret.bits = MAX_U256 - ret.bits + 1;
-        ret
     }
 
     public fun abs(x: &I256): I256 {
@@ -125,9 +132,7 @@ module i256::i256 {
                 return neg_from(a_abs.bits - b.bits)
             } else {
                 // A and B are negative
-                let sum = abs(a).bits + abs(b).bits;
-                assert!(sum <= MAX_I256_AS_U256, ERROR_CONVERSION_FROM_U256_OVERFLOW);
-                neg_from(sum)
+                neg_from(abs(a).bits + abs(b).bits)
             }
         }
     }
@@ -218,25 +223,20 @@ module i256::i256 {
     }     
 
     public fun shl(a: &I256, rhs: u8): I256 {
-    
-      I256 {
-        bits: if (is_positive(a)) {
-        a.bits << rhs
-       } else {
-         (a.bits << rhs) | (1 << 255)
-        }
-     } 
+        I256 {
+            bits: a.bits << rhs
+        } 
     }
 
     public fun or(a: &I256, b: &I256): I256 {
       I256 {
-      bits: a.bits | b.bits
+        bits: a.bits | b.bits
       } 
     }
 
      public fun and(a: &I256, b: &I256): I256 {
       I256 {
-      bits: a.bits & b.bits
+        bits: a.bits & b.bits
       } 
     }
 }
