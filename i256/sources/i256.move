@@ -210,6 +210,15 @@ module i256::i256 {
         }    
     }
 
+    public fun mod(a: &I256, b: &I256): I256 {
+        let a_abs = abs(a);
+        let b_abs = abs(b);
+
+        let result = a_abs.bits % b_abs.bits;
+
+       if (is_neg(a) && result != 0)   neg_from(result) else from(result)
+    }
+
     public fun shr(a: &I256, rhs: u8): I256 { 
 
      I256 {
