@@ -23,10 +23,10 @@ module clamm::tick_math {
   const ERROR_INVALID_TICK: u64 = 1;
   const ERROR_TICK_OUT_OF_BOUNDS: u64 = 2;
 
-  public fun get_sqrt_ratio_at_tick(tick: I256): u256 {
+  public fun get_sqrt_ratio_at_tick(tick: &I256): u256 {
     let zero = i256::zero();
-
-    let abs_tick = if (i256::compare(&tick, &zero) == LESS_THAN) { i256::abs(&tick) } else { tick };
+    let abs_tick = i256::abs(tick);
+    
     let pred = i256::compare(&i256::from(MAXIMUM_TICK), &abs_tick);
     assert!(pred == GREATER_THAN || pred == EQUAL, ERROR_INVALID_TICK);
 
@@ -90,13 +90,13 @@ module clamm::tick_math {
     if (!(i256::compare(&i256::and(&abs_tick, &i256::from(0x80000)), &zero) == EQUAL))
       r = (r * 0x48a170391f7dc42444e8fa2) >> 128;    
 
-    if (i256::compare(&tick, &zero) == GREATER_THAN) r = MAX_U256 / r;
+    if (i256::compare(tick, &zero) == GREATER_THAN) r = MAX_U256 / r;
 
-    (r >> 32) + (r % (if ((1 << 32) == 0) { 0 } else { 1 }) ) 
+    (r >> 32) + (if (r % (1 << 32) == 0) { 0 } else { 1 }) 
   }
 
 
-  public fun get_tick_at_sqrt_ratio(sqrt_price_q96: u256):I256 {
+  public fun get_tick_at_sqrt_ratio(sqrt_price_q96: u256): I256 {
     assert!(sqrt_price_q96 >= MIN_SQRT_RATIO && sqrt_price_q96 < MAX_SQRT_RATIO, ERROR_INVALID_SQRT_PRICE_Q96);
 
     let ratio: u256 = sqrt_price_q96 << 32;
@@ -140,72 +140,72 @@ module clamm::tick_math {
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 63) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 63)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 62) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 62)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 61) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 61)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 60) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 60)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 59) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 59)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 58) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 58)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 57) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 57)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 56) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 56)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 55) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 55)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 54) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 54)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 53) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 53)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 52) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 52)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 51) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 51)));
     r = r >> f;
 
     r = (r * r) >> 127;
     f = ((r >> 128) as u8);
-    log_2 = i256::or(&log_2, &i256::from(((f << 50) as u256)));
+    log_2 = i256::or(&log_2, &i256::from(((f as u256) << 50)));
 
     let log_sqrt10001 = i256::mul(&log_2, &i256::from(255738958999603826347141));
 
@@ -225,7 +225,7 @@ module clamm::tick_math {
     } 
       else
     {
-      if (get_sqrt_ratio_at_tick(tick_high) <= sqrt_price_q96) { tick_high } else { tick_low }
+      if (get_sqrt_ratio_at_tick(&tick_high) <= sqrt_price_q96) { tick_high } else { tick_low }
     }
   }
 }

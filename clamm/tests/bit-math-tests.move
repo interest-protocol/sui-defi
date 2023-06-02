@@ -3,6 +3,7 @@ module clamm::bit_math_tests {
   use sui::test_utils::{assert_eq};
 
   use clamm::bit_math::{most_significant_bit, least_significant_bit};
+  use clamm::test_utils::{pow};
 
   const MAX_U256: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
@@ -46,21 +47,4 @@ module clamm::bit_math_tests {
   fun test_error_least_significant_bit() {
     assert_eq(least_significant_bit(0), 0);
   }
-
-      /// @dev Returns a to the power of b.
-    /// Return the value of a base raised to a power
-    public fun pow(base: u256, exponent: u8): u256 {
-        let res = 1;
-        while (exponent >= 1) {
-            if (exponent % 2 == 0) {
-                base = base * base;
-                exponent = exponent / 2;
-            } else {
-                res = res * base;
-                exponent = exponent - 1;
-            }
-        };
-
-        res
-    }
 }

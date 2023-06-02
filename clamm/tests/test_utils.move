@@ -17,5 +17,20 @@ module clamm::test_utils {
     sqrt(value << Q96_RESOLUTION)
   }
 
-  public fun price_to_tick() {}
+  /// @dev Returns a to the power of b.
+  /// Return the value of a base raised to a power
+  public fun pow(base: u256, exponent: u8): u256 {
+        let res = 1;
+        while (exponent >= 1) {
+            if (exponent % 2 == 0) {
+                base = base * base;
+                exponent = exponent / 2;
+            } else {
+                res = res * base;
+                exponent = exponent - 1;
+            }
+        };
+
+        res
+    }
 }

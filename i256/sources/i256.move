@@ -55,6 +55,10 @@ module i256::i256 {
         (x.bits as u64)
     }
 
+    public fun truncate_to_u8(x: &I256): u8 {
+        ((x.bits & 0xFF) as u8)
+    }
+
     public fun zero(): I256 {
         I256 { bits: 0 }
     }
