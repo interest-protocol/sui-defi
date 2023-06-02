@@ -3,13 +3,23 @@ module i256::i256_tests {
 
     use sui::test_utils::{assert_eq};
     
-    use i256::i256::{compare, from, neg_from, add, sub, zero, div, mul, shl, shr, abs, bits, or, and, is_neg, flip, is_positive};
+    use i256::i256::{compare, from, neg_from, add, sub, zero, div, mul, shl, shr, abs, bits, or, and, is_neg, flip, is_positive, mod, truncate_to_u8, from_raw};
 
     const EQUAL: u8 = 0;
 
     const LESS_THAN: u8 = 1;
 
     const GREATER_THAN: u8 = 2;
+
+    #[test]
+    fun test_truncate_to_u8() {
+      assert_eq(truncate_to_u8(&from(0x1234567890)), 0x90);
+      assert_eq(truncate_to_u8(&from(0xABCDEF)), 0xEF);
+      assert_eq(truncate_to_u8(&from_raw(115792089237316195423570985008687907853269984665640564039457584007913129639935)), 255);
+      assert_eq(truncate_to_u8(&from_raw(256)), 0);
+      assert_eq(truncate_to_u8(&from_raw(511)), 255);
+      assert_eq(truncate_to_u8(&neg_from(230)), 26);
+    }
 
     #[test]
     fun test_compare() {
@@ -144,5 +154,18 @@ module i256::i256_tests {
        assert_eq(and(&neg_from(1), &from(1)), from(1));
        assert_eq(and(&from(10), &from(5)), zero());
        assert_eq(and(&neg_from(10), &neg_from(5)), neg_from(14));
+    }
+
+    #[test]
+    fun test_mod() {
+      assert_eq(mod(&neg_from(100), &neg_from(30)), neg_from(10));
+      assert_eq(mod(&neg_from(100), &from(30)), neg_from(10));
+      assert_eq(mod(&from(100), &neg_from(30)), from(10));
+      assert_eq(mod(&from(100), &from(30)), from(10));
+      assert_eq(mod(
+        &from(1234567890123456789012345678901234567890), 
+        &from(987654321)),
+        from(792341811)
+      );
     }
 }

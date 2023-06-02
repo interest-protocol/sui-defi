@@ -37,6 +37,7 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 - **examples:** A myriad of examples on how to interact with various modules
 - **audits** It contains code audits
 - **dex-quote** A package that includes view functions to quote swap, add and remove liquidity values
+- **i256** A library to 
 
 ## Mainnet Objects
 

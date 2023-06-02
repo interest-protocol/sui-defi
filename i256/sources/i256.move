@@ -55,6 +55,10 @@ module i256::i256 {
         (x.bits as u64)
     }
 
+    public fun truncate_to_u8(x: &I256): u8 {
+        ((x.bits & 0xFF) as u8)
+    }
+
     public fun zero(): I256 {
         I256 { bits: 0 }
     }
@@ -208,6 +212,15 @@ module i256::i256 {
                 return from(abs(a).bits / abs(b).bits ) // Return positive
             }
         }    
+    }
+
+    public fun mod(a: &I256, b: &I256): I256 {
+        let a_abs = abs(a);
+        let b_abs = abs(b);
+
+        let result = a_abs.bits % b_abs.bits;
+
+       if (is_neg(a) && result != 0)   neg_from(result) else from(result)
     }
 
     public fun shr(a: &I256, rhs: u8): I256 { 
