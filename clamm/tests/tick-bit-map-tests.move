@@ -6,7 +6,7 @@ module clamm::tick_bit_map_tests {
 
   use i256::i256::{I256, from, neg_from, one};
 
-  use clamm::tick_bit_map::{test_is_initialized as is_initialized, test_flip_tick as flip_tick, test_next_initialized_tick_within_one_word as next_initialized_tick_within_one_word, State};
+  use clamm::tick_bit_map::{test_is_initialized as is_initialized, test_flip_tick as flip_tick, test_next_initialized_tick_within_one_word as next_initialized_tick_within_one_word, TicksState};
   use clamm::test_utils::{scenario};
 
 
@@ -16,7 +16,7 @@ module clamm::tick_bit_map_tests {
     let test = &mut scenario;
 
     {
-    let bit_map = table::new<I256, State>(ctx(test));
+    let bit_map = table::new<I256, TicksState>(ctx(test));
 
     assert_eq(is_initialized(&mut bit_map, &one()), false);
 
@@ -24,7 +24,7 @@ module clamm::tick_bit_map_tests {
     };
 
     {
-    let bit_map = table::new<I256, State>(ctx(test));
+    let bit_map = table::new<I256, TicksState>(ctx(test));
 
     flip_tick(&mut bit_map, &one());
     assert_eq(is_initialized(&mut bit_map, &one()), true);
@@ -33,7 +33,7 @@ module clamm::tick_bit_map_tests {
     };
 
     {
-    let bit_map = table::new<I256, State>(ctx(test));
+    let bit_map = table::new<I256, TicksState>(ctx(test));
 
     flip_tick(&mut bit_map, &one());
     flip_tick(&mut bit_map, &one());
@@ -43,7 +43,7 @@ module clamm::tick_bit_map_tests {
     };
 
     {
-    let bit_map = table::new<I256, State>(ctx(test));
+    let bit_map = table::new<I256, TicksState>(ctx(test));
 
     flip_tick(&mut bit_map, &from(257));
     assert_eq(is_initialized(&mut bit_map, &one()), false);
@@ -61,7 +61,7 @@ module clamm::tick_bit_map_tests {
     let test = &mut scenario;
 
     {
-    let bit_map = table::new<I256, State>(ctx(test));
+    let bit_map = table::new<I256, TicksState>(ctx(test));
 
     flip_tick(&mut bit_map, &neg_from(230));
 
@@ -83,7 +83,7 @@ module clamm::tick_bit_map_tests {
     };
 
     {
-      let bit_map = table::new<I256, State>(ctx(test));
+      let bit_map = table::new<I256, TicksState>(ctx(test));
 
       flip_tick(&mut bit_map, &neg_from(230));
       flip_tick(&mut bit_map, &neg_from(259));
@@ -107,7 +107,7 @@ module clamm::tick_bit_map_tests {
   fun test_next_initialized_tick_within_one_word() {
     let scenario = scenario();
     let test = &mut scenario;
-    let bit_map = table::new<I256, State>(ctx(test));
+    let bit_map = table::new<I256, TicksState>(ctx(test));
     
     {
       flip_tick(&mut bit_map, &neg_from(200));

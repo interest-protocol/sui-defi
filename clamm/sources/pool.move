@@ -1,6 +1,7 @@
 module clamm::ipx_pool {
   use std::hash::{sha3_256};
   use std::vector;
+  // use std::debug;
 
   use sui::bcs::{to_bytes};
   use sui::coin::{Self, Coin};
@@ -12,7 +13,11 @@ module clamm::ipx_pool {
   use sui::transfer;
   use sui::event::{emit};
 
-  use clamm::i256::{Self, I256};
+  use i256::i256::{Self, I256};
+  
+  use clamm::tick_bit_map::{Self, TicksState};
+  use clamm::sqrt_price_math::{calc_amount_x_delta, calc_amount_y_delta};
+  use clamm::tick_math::{get_sqrt_ratio_at_tick};
   use clamm::utils::{are_coins_sorted, get_struct_string_name};
 
   const MAXIMUM_TICK: u256 = 887272; 
@@ -51,7 +56,8 @@ module clamm::ipx_pool {
     balance_x: Balance<X>,
     balance_y: Balance<Y>,
     current_tick: I256,
-    current_sqrt_price_q96: u256
+    current_sqrt_price_q96: u256,
+    tick_bit_map: Table<I256, TicksState>
   }
 
   struct Storage has key {
@@ -127,7 +133,8 @@ module clamm::ipx_pool {
       balance_x: balance::zero<X>(),
       balance_y: balance::zero<Y>(),
       current_tick,
-      current_sqrt_price_q96: sqrt_price
+      current_sqrt_price_q96: sqrt_price,
+      tick_bit_map: table::new(ctx)
     };
 
     emit(
@@ -165,8 +172,13 @@ module clamm::ipx_pool {
     assert!(liquidity != 0, ERROR_ZERO_LIQUIDITY);
     let pool = pool_borrow_mut<X, Y>(storage);
 
-    update_tick(pool, lower_tick, liquidity);
-    update_tick(pool, upper_tick, liquidity);
+    let flipped_lower_tick =  update_tick(pool, lower_tick, liquidity);
+    let flipped_upper_tick = update_tick(pool, upper_tick, liquidity);
+
+    let tick_spacing = i256::from(1);
+
+    if (flipped_lower_tick) tick_bit_map::flip_tick(&mut pool.tick_bit_map, &lower_tick, &tick_spacing);
+    if (flipped_upper_tick) tick_bit_map::flip_tick(&mut pool.tick_bit_map, &upper_tick, &tick_spacing);
 
     let sender = tx_context::sender(ctx);
 
@@ -178,8 +190,8 @@ module clamm::ipx_pool {
 
     pool.liquidity = pool.liquidity + liquidity;
 
-    let amount_x = 998976618;
-    let amount_y = 5000000000000;
+    let amount_x = (calc_amount_x_delta(get_sqrt_ratio_at_tick(&pool.current_tick), get_sqrt_ratio_at_tick(&upper_tick), liquidity, true) as u64);
+    let amount_y = (calc_amount_y_delta(get_sqrt_ratio_at_tick(&pool.current_tick), get_sqrt_ratio_at_tick(&lower_tick), liquidity, true) as u64);
 
     let coin_x_value = coin::value(&coin_x);
     let coin_y_value = coin::value(&coin_y);
@@ -270,7 +282,7 @@ module clamm::ipx_pool {
     pool: &mut Pool<X, Y>,
     tick: I256,
     liquidity_delta: u128
-    ) {
+    ): bool {
       if (!table::contains(&pool.tick_table, tick))
         table::add(
           &mut pool.tick_table, 
@@ -289,6 +301,8 @@ module clamm::ipx_pool {
       if (liquidity_before == 0) tick_liquidity.intialized = true;
 
       tick_liquidity.liquidity = liquidity_after;
+
+      (liquidity_after == 0) != (liquidity_before == 0)
     }
 
   fun update_position<X, Y>(

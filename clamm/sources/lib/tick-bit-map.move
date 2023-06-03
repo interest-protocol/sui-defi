@@ -14,7 +14,7 @@ module clamm::tick_bit_map {
 
   const ERROR_FLIPPING: u64 = 0;
 
-  struct State has store {
+  struct TicksState has store {
     bits: u256
   }
 
@@ -22,7 +22,7 @@ module clamm::tick_bit_map {
     (shr(tick, 8), truncate_to_u8(&mod(tick, &from(256))))
   }
 
-  public fun flip_tick(bit_map: &mut Table<I256, State>, tick: &I256, tick_spacing: &I256) {
+  public fun flip_tick(bit_map: &mut Table<I256, TicksState>, tick: &I256, tick_spacing: &I256) {
     assert!(is_zero(&mod(tick, tick_spacing)), ERROR_FLIPPING);
     let (word, bit) = position(&div(tick, tick_spacing));
     let mask: u256 = 1 << bit;
@@ -31,7 +31,7 @@ module clamm::tick_bit_map {
   }
 
   public fun next_initialized_tick_within_one_word(
-    bit_map: &mut Table<I256, State>,
+    bit_map: &mut Table<I256, TicksState>,
     tick: &I256,
     tick_spacing: &I256,
     lte: bool
@@ -65,21 +65,21 @@ module clamm::tick_bit_map {
     }
   }
 
-  fun borrow_mut_state(bit_map: &mut Table<I256, State>, word: I256): &mut State {
+  fun borrow_mut_state(bit_map: &mut Table<I256, TicksState>, word: I256): &mut TicksState {
     if (!table::contains(bit_map, word)) {
-      table::add(bit_map, word, State { bits: 0 });
+      table::add(bit_map, word, TicksState { bits: 0 });
     };
     table::borrow_mut(bit_map, word)
   }
 
   #[test_only]
-  public fun test_flip_tick(bit_map: &mut Table<I256, State>, tick: &I256) {
+  public fun test_flip_tick(bit_map: &mut Table<I256, TicksState>, tick: &I256) {
     flip_tick(bit_map, tick, &one());
   }
 
   #[test_only]
   public fun test_next_initialized_tick_within_one_word(
-    bit_map: &mut Table<I256, State>,
+    bit_map: &mut Table<I256, TicksState>,
     tick: &I256,
     lte: bool
   ): (I256, bool) {
@@ -87,7 +87,7 @@ module clamm::tick_bit_map {
   }
   
   #[test_only]
-  public fun test_is_initialized(bit_map: &mut Table<I256, State>, tick: &I256): bool {
+  public fun test_is_initialized(bit_map: &mut Table<I256, TicksState>, tick: &I256): bool {
     let (next, initialized) = next_initialized_tick_within_one_word(bit_map, tick, &one(), true);
     if (compare(&next, tick) == 0) { initialized } else { false }
   }
