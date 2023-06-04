@@ -1,7 +1,7 @@
 #[test_only]
 module clamm::ipx_pool_tests {
 
-  use sui::coin::{mint_for_testing as mint};
+  use sui::coin::{mint_for_testing as mint, burn_for_testing as burn};
   use sui::test_scenario::{Self, Scenario, next_tx, ctx};
   use sui::test_utils::{assert_eq};
   
@@ -100,66 +100,70 @@ module clamm::ipx_pool_tests {
     test_scenario::end(scenario);
   }
 
-  // #[test]
-  // fun test_swap() {
-  //   let scenario = scenario();
-  //   let test = &mut scenario;
+  #[test]
+  fun test_swap_buy_eth() {
+    let scenario = scenario();
+    let test = &mut scenario;
 
-  //   let (alice, _) = people();
+    let (alice, _) = people();
 
-  //   create_pool(test);
+    create_pool(test);
 
-  //   next_tx(test, alice);
-  //   {
-  //     let storage = test_scenario::take_shared<Storage>(test);
+      let sqrt_price_low = 5341294542274603406682713227264;
+      let sqrt_price_current = 5602277097478614198912276234240;
+      let sqrt_price_high = 5875717789736564987741329162240;
 
-  //     let sqrt_price_low = 5341294542274603406682713227264;
-  //     let sqrt_price_current = 5602277097478614198912276234240;
-  //     let sqrt_price_high = 5875717789736564987741329162240;
+      let liq0 = liquidity0((INITIAL_ETH_AMOUNT as u256), sqrt_price_current, sqrt_price_high);
+      let liq1 = liquidity1((INITIAL_USDC_AMOUNT as u256), sqrt_price_current, sqrt_price_low);
 
-  //     let liq0 = liquidity0((INITIAL_ETH_AMOUNT as u256), sqrt_price_current, sqrt_price_high);
-  //     let liq1 = liquidity1((INITIAL_USDC_AMOUNT as u256), sqrt_price_current, sqrt_price_low);
+      let initial_liquidity = (min(liq0, liq1) as u128);
 
-  //     let initial_liquidity = (min(liq0, liq1) as u128);
+    next_tx(test, alice);
+    {
+      let storage = test_scenario::take_shared<Storage>(test);
 
-  //     pool::add_liquidity<ETH, USDC>(
-  //       &mut storage,
-  //       mint<ETH>(INITIAL_ETH_AMOUNT, ctx(test)),
-  //       mint<USDC>(INITIAL_USDC_AMOUNT, ctx(test)),
-  //       initial_liquidity,
-  //       84222,
-  //       false,
-  //       86129,
-  //       false,
-  //       ctx(test)
-  //     );
+      pool::add_liquidity<ETH, USDC>(
+        &mut storage,
+        mint<ETH>(INITIAL_ETH_AMOUNT, ctx(test)),
+        mint<USDC>(INITIAL_USDC_AMOUNT, ctx(test)),
+        initial_liquidity,
+        84222,
+        false,
+        86129,
+        false,
+        ctx(test)
+      );
 
-  //     test_scenario::return_shared(storage);
-  //   };
+      test_scenario::return_shared(storage);
+    };
 
-  //   next_tx(test, alice);
-  //   {
-  //     let storage = test_scenario::take_shared<Storage>(test);
+    next_tx(test, alice);
+    {
+      let storage = test_scenario::take_shared<Storage>(test);
 
-  //     assert_eq(burn(pool::swap_y<ETH, USDC>(
-  //       &mut storage,
-  //       mint<USDC>(42000000000, ctx(test)),
-  //       ctx(test)
-  //     )), 8396714);
+      let (eth, usdc) = pool::swap_y<ETH, USDC>(
+        &mut storage,
+        mint<USDC>(42000000000, ctx(test)),
+        ctx(test)
+      );
 
-  //     let (balance_x, balance_y, pool_liquidity, raw_current_tick, is_current_tick_neg, current_sqrt_price) = pool::get_pool_info<ETH, USDC>(&storage);
+      assert_eq(burn(eth), 8396714);
+      assert_eq(burn(usdc), 0);
 
-  //     assert_eq(balance_x, INITIAL_ETH_AMOUNT - 8396714);
-  //     assert_eq(balance_y, INITIAL_USDC_AMOUNT + 42000000000);
-  //     assert_eq(current_sqrt_price, 5604469350942327889444743441197);
-  //     assert_eq(raw_current_tick, 85184);
-  //     assert_eq(is_current_tick_neg, false);
-  //     assert_eq(pool_liquidity, 1517882343751509868544);
+      let (balance_x, balance_y, pool_liquidity, raw_current_tick, is_current_tick_neg, current_sqrt_price) = pool::get_pool_info<ETH, USDC>(&storage);
 
-  //     test_scenario::return_shared(storage);
-  //   };
+      assert_eq(balance_x, INITIAL_ETH_AMOUNT - 8396714);
+      assert_eq(balance_y, INITIAL_USDC_AMOUNT + 42000000000);
+      assert_eq(current_sqrt_price, 5604469350942433018861899589734);
+      assert_eq(raw_current_tick, 85184);
+      assert_eq(is_current_tick_neg, false);
+      // Nof fees atm
+      assert_eq(pool_liquidity, initial_liquidity);
 
-  //   test_scenario::end(scenario);
-  // }
+      test_scenario::return_shared(storage);
+    };
+
+    test_scenario::end(scenario);
+  }
 }
 
