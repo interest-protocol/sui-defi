@@ -46,10 +46,8 @@ module clamm::sqrt_price_math {
 
     let (lower_price, higher_price) = if (safe_price_a > safe_price_b) (safe_price_b, safe_price_a) else (safe_price_a, safe_price_b);
 
-    let numerator_1 = (liquidity as u256) << 64;
-
-    if (round_up) mul_div_round_up(numerator_1, higher_price -  lower_price, Q64) else
-      mul_div(numerator_1, higher_price -  lower_price, Q64)
+    if (round_up) mul_div_round_up((liquidity as u256), higher_price -  lower_price, Q64) else
+      mul_div((liquidity as u256), higher_price -  lower_price, Q64)
   }
 
 }
