@@ -3,7 +3,7 @@ module clamm::sqrt_price_math_tests {
 
   use sui::test_utils::{assert_eq};
 
-  use clamm::sqrt_price_math ::{calc_amount_x_delta, calc_amount_y_delta};
+  use clamm::sqrt_price_math::{calc_amount_x_delta, calc_amount_y_delta, get_next_sqrt_price_from_input};
 
   #[test]
   fun test_calc_amount_x_delta() {
@@ -28,4 +28,23 @@ module clamm::sqrt_price_math_tests {
     assert_eq(amount_up, 100000000000000000);
     assert_eq(amount_up - 1, amount_down);
   }
+
+  #[test]
+  #[expected_failure(abort_code = clamm::sqrt_price_math::ERROR_INVALID_PRICE)]
+  fun test_get_next_sqrt_price_from_input_error_price() {
+    get_next_sqrt_price_from_input(0, 0, 1000000000, false);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = clamm::sqrt_price_math::ERROR_INVALID_LIQUIDITY)]
+  fun test_get_next_sqrt_price_from_input_error_liquidity() {
+    get_next_sqrt_price_from_input(1, 0, 1000000000, false);
+  }
+
+  #[test]
+  #[expected_failure(abort_code = clamm::sqrt_price_math::ERROR_PRICE_OVERFLOW)]
+  fun test_get_next_sqrt_price_from_input_error_price_overflows() {
+    get_next_sqrt_price_from_input(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, 1024, 1024, false);
+  }
+
 }

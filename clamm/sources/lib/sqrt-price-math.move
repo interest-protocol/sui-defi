@@ -7,8 +7,104 @@ module clamm::sqrt_price_math {
 
   const Q64: u256 = 0xFFFFFFFFFFFFFFFF;
 
+  const MAX_U160: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+
   // Errors
   const ERROR_INVALID_PRICE: u64 = 0;
+  const ERROR_INVALID_LIQUIDITY: u64 = 3;
+  const ERROR_PRICE_OVERFLOW: u64 = 4;
+
+  fun assert_u160(x: u256): u256 {
+    assert!(MAX_U160 >= x, ERROR_PRICE_OVERFLOW);
+    x
+  }
+
+  public fun get_next_sqrt_price_from_amount_x_round_up(
+    sqrt_price_q96: u256,
+    liquidity: u256,
+    amount: u256,
+    add: bool
+  ): u256 {
+    if (amount == 0) return sqrt_price_q96;
+
+    let (numerator_1, price) = (
+      liquidity << 64,
+      sqrt_price_q96 >> 32
+    );
+
+    let product = amount * price;
+
+    if (add) {
+
+      if ((product / amount) ==  price) {
+        let denominator = numerator_1 + product;
+        if (denominator >= numerator_1) {
+          return assert_u160(mul_div_round_up(numerator_1, price, denominator) << 32)
+        }
+      };
+
+      return (div_round_up(numerator_1, (numerator_1 / price)) + amount) << 32
+    } else {
+      assert!((product / amount == price && numerator_1 > product), ERROR_INVALID_PRICE);
+      let denominator = numerator_1 - product;
+      assert_u160(mul_div_round_up(numerator_1, price, denominator) << 32)
+    }
+  } 
+
+  public fun get_next_sqrt_price_from_amount_y_round_down(
+    sqrt_price_q96: u256,
+    liquidity: u256,
+    amount: u256,
+    add: bool
+  ): u256 {
+    
+    if (add) {
+      let quotient = if (MAX_U160 >= amount) {
+        (amount << 96) / liquidity
+      } else {
+        mul_div(amount, Q64, liquidity) << 32
+      };
+
+      assert_u160(sqrt_price_q96 + quotient)
+    } else {
+      let quotient = mul_div_round_up(amount, Q64, liquidity) << 32;
+      assert!(sqrt_price_q96 > quotient, ERROR_INVALID_PRICE);
+
+      assert_u160(sqrt_price_q96 - quotient)
+    }
+  }
+
+  public fun get_next_sqrt_price_from_input(
+    sqrt_price_q96: u256,
+    liquidity: u128,
+    amount: u64,
+    sell_x_to_y: bool
+  ): u256 {
+    assert!(sqrt_price_q96 != 0, ERROR_INVALID_PRICE);
+    assert!(liquidity != 0, ERROR_INVALID_LIQUIDITY);
+
+    if (sell_x_to_y) { 
+      get_next_sqrt_price_from_amount_x_round_up(sqrt_price_q96, (liquidity as u256), (amount as u256), true) 
+      } else {
+      get_next_sqrt_price_from_amount_y_round_down(sqrt_price_q96, (liquidity as u256), (amount as u256), true)
+      }
+  }
+
+  public fun get_next_sqrt_price_from_output(
+    sqrt_price_q96: u256,
+    liquidity: u128,
+    amount: u64,
+    sell_x_to_y: bool
+  ): u256 {
+    assert!(sqrt_price_q96 != 0, ERROR_INVALID_PRICE);
+    assert!(liquidity != 0, ERROR_INVALID_LIQUIDITY);
+
+    if (sell_x_to_y) {
+      get_next_sqrt_price_from_amount_y_round_down(sqrt_price_q96, (liquidity as u256), (amount as u256), false)
+    } else {
+      get_next_sqrt_price_from_amount_x_round_up(sqrt_price_q96, (liquidity as u256), (amount as u256), false) 
+    }
+  }
 
   public fun calc_amount_x_delta(
     sqrt_price_a_q96: u256, 

@@ -3,22 +3,26 @@ module clamm::test_utils {
   
   use sui::test_scenario::{Self as test, Scenario};
 
-  const Q96: u256 = 0x1000000000000000000000000;
-  const Q128: u256 = 0x100000000000000000000000000000000;
-  const Q96_RESOLUTION: u8 = 96;
+  const Q64: u256 = 0xFFFFFFFFFFFFFFFF;
 
   public fun scenario(): Scenario { test::begin(@0x1) }
 
   public fun people():(address, address) { (@0xBEEF, @0x1337)}
   
   public fun liquidity0(amount: u256, pa: u256, pb: u256): u256 {
-    let (low, high) = if (pa > pb) (pb, pa) else (pa, pb);
-    ((amount * (low * high)) / Q96) / (high - low)
+    let safe_pa = pa >> 32;
+    let safe_pb = pb >> 32;
+
+    let (low, high) = if (safe_pa > safe_pb) (safe_pb, safe_pa) else (safe_pa, safe_pb);
+    (amount * (low * high) / Q64) / (high - low)
   }
 
   public fun liquidity1(amount: u256, pa: u256, pb: u256): u256 {
-    let (low, high) = if (pa > pb) (pb, pa) else (pa, pb);
-    (amount * Q96) / (high - low)
+    let safe_pa = pa >> 32;
+    let safe_pb = pb >> 32;
+
+    let (low, high) = if (safe_pa > safe_pb) (safe_pb, safe_pa) else (safe_pa, safe_pb);
+    (amount * Q64) / (high - low)
   }  
 
   public fun min(a: u256, b: u256): u256 {

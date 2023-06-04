@@ -1,7 +1,6 @@
 module clamm::ipx_pool {
   use std::hash::{sha3_256};
   use std::vector;
-  // use std::debug;
 
   use sui::bcs::{to_bytes};
   use sui::coin::{Self, Coin};
@@ -15,7 +14,7 @@ module clamm::ipx_pool {
 
   use i256::i256::{Self, I256};
   
-  use clamm::tick_bit_map::{Self, TicksState};
+  use clamm::tick_bit_map::{Self, next_initialized_tick_within_one_word, TicksState};
   use clamm::sqrt_price_math::{calc_amount_x_delta, calc_amount_y_delta};
   use clamm::tick_math::{get_sqrt_ratio_at_tick};
   use clamm::utils::{are_coins_sorted, get_struct_string_name};
@@ -63,6 +62,23 @@ module clamm::ipx_pool {
   struct Storage has key {
     id: UID,
     pools: ObjectBag
+  }
+
+  // Just to keep code cleaner
+  struct SwapState has drop {
+    amount_remaining: u64,
+    amount_calculated: u64,
+    sqrt_price_q96: u256,
+    tick: I256
+  }
+
+  // Just to keep code cleaner
+  struct StepState has drop {
+    sqrt_price_q96_start: u256,
+    sqrt_price_q96_next: u256,
+    next_tick: I256,
+    amount_in: u64,
+    amount_out: u64
   }
 
   // Events
@@ -190,8 +206,8 @@ module clamm::ipx_pool {
 
     pool.liquidity = pool.liquidity + liquidity;
 
-    let amount_x = (calc_amount_x_delta(get_sqrt_ratio_at_tick(&pool.current_tick), get_sqrt_ratio_at_tick(&upper_tick), liquidity, true) as u64);
-    let amount_y = (calc_amount_y_delta(get_sqrt_ratio_at_tick(&pool.current_tick), get_sqrt_ratio_at_tick(&lower_tick), liquidity, true) as u64);
+    let amount_x = (calc_amount_x_delta(get_sqrt_ratio_at_tick(&pool.current_tick), get_sqrt_ratio_at_tick(&upper_tick), liquidity, false) as u64);
+    let amount_y = (calc_amount_y_delta(get_sqrt_ratio_at_tick(&pool.current_tick), get_sqrt_ratio_at_tick(&lower_tick), liquidity, false) as u64);
 
     let coin_x_value = coin::value(&coin_x);
     let coin_y_value = coin::value(&coin_y);
@@ -221,32 +237,61 @@ module clamm::ipx_pool {
   ): Coin<X> {
     let pool = pool_borrow_mut<X, Y>(storage);
 
-    let next_tick = 85184;
-    let next_price: u256 = 5604469350942327889444743441197;
+    let coin_y_value = coin::value(&coin_y);
 
-    let amount_0 = 8396714;
-    let amount_1 = 42000000000;
+    let swap_state = SwapState {
+      amount_remaining: coin_y_value,
+      amount_calculated: 0,
+      sqrt_price_q96: pool.current_sqrt_price_q96,
+      tick: pool.current_tick
+    };
 
-    pool.current_tick = i256::from(next_tick);
-    pool.current_sqrt_price_q96 = next_price;
+    while (swap_state.amount_remaining != 0) {
+      let step = StepState {
+        sqrt_price_q96_start: swap_state.sqrt_price_q96,
+        sqrt_price_q96_next: 0,
+        next_tick: i256::zero(),
+        amount_in: 0,
+        amount_out: 0
+      };
 
-    assert!(coin::value(&coin_y) >= amount_1, ERROR_INSUFFICIENT_INPUT_AMOUNT);
+      let (next_tick, _) = next_initialized_tick_within_one_word(
+        &mut pool.tick_bit_map,
+        &swap_state.tick,
+        &i256::one(),
+        false
+      );
+
+      step.next_tick = next_tick;
+      step.sqrt_price_q96_next = get_sqrt_ratio_at_tick(&next_tick);
+    };
+
+  //   let next_tick = 85184;
+  //   let next_price: u256 = 5604469350942327889444743441197;
+
+  //   let amount_0 = 8396714;
+  //   let amount_1 = 42000000000;
+
+  //   pool.current_tick = i256::from(next_tick);
+  //   pool.current_sqrt_price_q96 = next_price;
+
+  //   assert!(coin_y_value >= amount_1, ERROR_INSUFFICIENT_INPUT_AMOUNT);
     balance::join(&mut pool.balance_y, coin::into_balance(coin_y));
 
-  let sender = tx_context::sender(ctx);
+  //  let sender = tx_context::sender(ctx);
 
-    emit(SwapY<X, Y> { 
-      pool_id: object::uid_to_inner(&pool.id),
-      sender,
-      amount_in: amount_1,
-      amount_out: amount_0,
-      current_price: next_price,
-      raw_current_tick: i256::as_u256(&i256::abs(&pool.current_tick)),
-      is_tick_negative: i256::is_neg(&pool.current_tick),
-      liquidity: pool.liquidity
-     });
+  //   emit(SwapY<X, Y> { 
+  //     pool_id: object::uid_to_inner(&pool.id),
+  //     sender,
+  //     amount_in: amount_1,
+  //     amount_out: amount_0,
+  //     current_price: next_price,
+  //     raw_current_tick: i256::as_u256(&i256::abs(&pool.current_tick)),
+  //     is_tick_negative: i256::is_neg(&pool.current_tick),
+  //     liquidity: pool.liquidity
+  //    });
 
-    coin::take(&mut pool.balance_x, amount_0, ctx)
+    coin::take(&mut pool.balance_x, 8396714, ctx)
   }
 
   fun get_min_max_ticks(): (I256, I256) {
