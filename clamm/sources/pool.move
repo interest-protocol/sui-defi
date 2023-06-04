@@ -15,8 +15,9 @@ module clamm::ipx_pool {
   use i256::i256::{Self, I256};
   
   use clamm::tick_bit_map::{Self, next_initialized_tick_within_one_word, TicksState};
+  use clamm::swap_math::{compute_swap_step};
   use clamm::sqrt_price_math::{calc_amount_x_delta, calc_amount_y_delta};
-  use clamm::tick_math::{get_sqrt_ratio_at_tick};
+  use clamm::tick_math::{get_sqrt_ratio_at_tick, get_tick_at_sqrt_ratio};
   use clamm::utils::{are_coins_sorted, get_struct_string_name};
 
   const MAXIMUM_TICK: u256 = 887272; 
@@ -64,23 +65,6 @@ module clamm::ipx_pool {
     pools: ObjectBag
   }
 
-  // Just to keep code cleaner
-  struct SwapState has drop {
-    amount_remaining: u64,
-    amount_calculated: u64,
-    sqrt_price_q96: u256,
-    tick: I256
-  }
-
-  // Just to keep code cleaner
-  struct StepState has drop {
-    sqrt_price_q96_start: u256,
-    sqrt_price_q96_next: u256,
-    next_tick: I256,
-    amount_in: u64,
-    amount_out: u64
-  }
-
   // Events
 
   struct CreatePool<phantom X, phantom Y> has drop, copy {
@@ -98,6 +82,17 @@ module clamm::ipx_pool {
     is_upper_tick_negative: bool,
     amount_x: u64,
     amount_y: u64
+  }
+
+  struct SwapX<phantom X, phantom Y> has drop, copy {
+    pool_id: ID,
+    sender: address,
+    amount_in: u64,
+    amount_out: u64,
+    current_price: u256,
+    raw_current_tick: u256,
+    is_tick_negative: bool,
+    liquidity: u128,
   }
 
   struct SwapY<phantom X, phantom Y> has drop, copy {
@@ -230,68 +225,116 @@ module clamm::ipx_pool {
     });
   }
 
+  public fun swap_x<X, Y>(
+    storage: &mut Storage,
+    coin_x: Coin<X>,
+    ctx: &mut TxContext
+  ): (Coin<X>, Coin<Y>) {
+    let pool = pool_borrow_mut<X, Y>(storage);
+
+    let coin_x_value = coin::value(&coin_x);
+
+    let (state_amount_in, state_amount_out, state_sqrt_price_q96, state_tick) = ((coin_x_value as u256), 0, pool.current_sqrt_price_q96, pool.current_tick);
+
+    while (state_amount_in != 0) {
+
+      let (next_tick, _) = next_initialized_tick_within_one_word(
+        &mut pool.tick_bit_map,
+        &state_tick,
+        &i256::one(),
+        true
+      );
+
+      let (next_price, next_amout_in, next_amount_out) = compute_swap_step(
+        state_sqrt_price_q96,
+        get_sqrt_ratio_at_tick(&next_tick), 
+        pool.liquidity, 
+        state_amount_in
+      );
+
+      state_sqrt_price_q96 = next_price;
+      state_amount_in = state_amount_in - next_amout_in;
+      state_amount_out = state_amount_out + next_amount_out;
+      state_tick = get_tick_at_sqrt_ratio(state_sqrt_price_q96);
+    };
+
+    pool.current_sqrt_price_q96 = state_sqrt_price_q96;
+    pool.current_tick = state_tick;
+
+    let (amount_to_receive, amount_to_send) = ((coin_x_value - (state_amount_in as u64)), (state_amount_out as u64));
+
+    assert!(coin_x_value >= amount_to_receive, ERROR_INSUFFICIENT_INPUT_AMOUNT);
+
+    balance::join(&mut pool.balance_x, coin::into_balance(coin::split(&mut coin_x, amount_to_receive, ctx)));
+
+    emit(SwapX<X, Y> { 
+      pool_id: object::uid_to_inner(&pool.id),
+      sender: tx_context::sender(ctx),
+      amount_in: amount_to_receive,
+      amount_out: amount_to_send,
+      current_price: state_sqrt_price_q96,
+      raw_current_tick: i256::as_u256(&i256::abs(&state_tick)),
+      is_tick_negative: i256::is_neg(&state_tick),
+      liquidity: pool.liquidity
+     });
+
+    (coin_x, coin::take(&mut pool.balance_y, amount_to_send, ctx))
+  }
+
   public fun swap_y<X, Y>(
     storage: &mut Storage,
     coin_y: Coin<Y>,
     ctx: &mut TxContext
-  ): Coin<X> {
+  ): (Coin<X>, Coin<Y>) {
     let pool = pool_borrow_mut<X, Y>(storage);
 
     let coin_y_value = coin::value(&coin_y);
 
-    let swap_state = SwapState {
-      amount_remaining: coin_y_value,
-      amount_calculated: 0,
-      sqrt_price_q96: pool.current_sqrt_price_q96,
-      tick: pool.current_tick
-    };
+    let (state_amount_in, state_amount_out, state_sqrt_price_q96, state_tick) = ((coin_y_value as u256), 0, pool.current_sqrt_price_q96, pool.current_tick);
 
-    while (swap_state.amount_remaining != 0) {
-      let step = StepState {
-        sqrt_price_q96_start: swap_state.sqrt_price_q96,
-        sqrt_price_q96_next: 0,
-        next_tick: i256::zero(),
-        amount_in: 0,
-        amount_out: 0
-      };
+    while (state_amount_in != 0) {
 
       let (next_tick, _) = next_initialized_tick_within_one_word(
         &mut pool.tick_bit_map,
-        &swap_state.tick,
+        &state_tick,
         &i256::one(),
         false
       );
 
-      step.next_tick = next_tick;
-      step.sqrt_price_q96_next = get_sqrt_ratio_at_tick(&next_tick);
+      let (next_price, next_amout_in, next_amount_out) = compute_swap_step(
+        state_sqrt_price_q96,
+        get_sqrt_ratio_at_tick(&next_tick), 
+        pool.liquidity, 
+        state_amount_in
+      );
+
+      state_sqrt_price_q96 = next_price;
+      state_amount_in = state_amount_in - next_amout_in;
+      state_amount_out = state_amount_out + next_amount_out;
+      state_tick = get_tick_at_sqrt_ratio(state_sqrt_price_q96);
     };
 
-  //   let next_tick = 85184;
-  //   let next_price: u256 = 5604469350942327889444743441197;
+    pool.current_sqrt_price_q96 = state_sqrt_price_q96;
+    pool.current_tick = state_tick;
 
-  //   let amount_0 = 8396714;
-  //   let amount_1 = 42000000000;
+    let (amount_to_receive, amount_to_send) = ((coin_y_value - (state_amount_in as u64)), (state_amount_out as u64));
 
-  //   pool.current_tick = i256::from(next_tick);
-  //   pool.current_sqrt_price_q96 = next_price;
+    assert!(coin_y_value >= amount_to_receive, ERROR_INSUFFICIENT_INPUT_AMOUNT);
 
-  //   assert!(coin_y_value >= amount_1, ERROR_INSUFFICIENT_INPUT_AMOUNT);
-    balance::join(&mut pool.balance_y, coin::into_balance(coin_y));
+    balance::join(&mut pool.balance_y, coin::into_balance(coin::split(&mut coin_y, amount_to_receive, ctx)));
 
-  //  let sender = tx_context::sender(ctx);
+    emit(SwapY<X, Y> { 
+      pool_id: object::uid_to_inner(&pool.id),
+      sender: tx_context::sender(ctx),
+      amount_in: amount_to_receive,
+      amount_out: amount_to_send,
+      current_price: state_sqrt_price_q96,
+      raw_current_tick: i256::as_u256(&i256::abs(&state_tick)),
+      is_tick_negative: i256::is_neg(&state_tick),
+      liquidity: pool.liquidity
+     });
 
-  //   emit(SwapY<X, Y> { 
-  //     pool_id: object::uid_to_inner(&pool.id),
-  //     sender,
-  //     amount_in: amount_1,
-  //     amount_out: amount_0,
-  //     current_price: next_price,
-  //     raw_current_tick: i256::as_u256(&i256::abs(&pool.current_tick)),
-  //     is_tick_negative: i256::is_neg(&pool.current_tick),
-  //     liquidity: pool.liquidity
-  //    });
-
-    coin::take(&mut pool.balance_x, 8396714, ctx)
+    (coin::take(&mut pool.balance_x, 8396714, ctx), coin_y)
   }
 
   fun get_min_max_ticks(): (I256, I256) {

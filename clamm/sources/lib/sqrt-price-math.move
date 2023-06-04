@@ -6,17 +6,22 @@ module clamm::sqrt_price_math {
   use clamm::math_u256::{mul_div, mul_div_round_up, div_round_up};
 
   const Q64: u256 = 0xFFFFFFFFFFFFFFFF;
-
   const MAX_U160: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+  const MAX_U256: u256 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
   // Errors
   const ERROR_INVALID_PRICE: u64 = 0;
   const ERROR_INVALID_LIQUIDITY: u64 = 3;
   const ERROR_PRICE_OVERFLOW: u64 = 4;
+  const ERROR_INVALID_LOW_LIQUIDITY: u64 = 5;
 
   fun assert_u160(x: u256): u256 {
     assert!(MAX_U160 >= x, ERROR_PRICE_OVERFLOW);
     x
+  }
+
+  fun will_overflow(x: u256, y: u256):bool {
+    (MAX_U256 / y) < x
   }
 
   public fun get_next_sqrt_price_from_amount_x_round_up(
@@ -27,27 +32,42 @@ module clamm::sqrt_price_math {
   ): u256 {
     if (amount == 0) return sqrt_price_q96;
 
-    let (numerator_1, price) = (
-      liquidity << 64,
-      sqrt_price_q96 >> 32
-    );
-
-    let product = amount * price;
-
     if (add) {
 
-      if ((product / amount) ==  price) {
-        let denominator = numerator_1 + product;
-        if (denominator >= numerator_1) {
-          return assert_u160(mul_div_round_up(numerator_1, price, denominator) << 32)
+      let (numerator_1_q64, price_q64, numerator_1_q96) = (
+        liquidity << 64,
+        sqrt_price_q96 >> 32,
+        liquidity << 96
+      );
+
+      // price_q64 can underflow to 0
+      if (price_q64 != 0 && !will_overflow(amount, price_q64)) {
+        
+        let product = amount * price_q64;
+        let denominator = numerator_1_q64 + product;
+        
+        if (denominator >= numerator_1_q64) {
+          return assert_u160(mul_div_round_up(numerator_1_q64, price_q64, denominator) << 32)
         }
       };
 
-      return (div_round_up(numerator_1, (numerator_1 / price)) + amount) << 32
+      // If the price is 0, it will throw here
+      return assert_u160((div_round_up(numerator_1_q96, ((numerator_1_q96 / sqrt_price_q96) + amount))))
     } else {
-      assert!((product / amount == price && numerator_1 > product), ERROR_INVALID_PRICE);
+
+    let (numerator_1, price) = (
+      liquidity << 96,
+      sqrt_price_q96
+      );
+
+      assert!(!will_overflow(amount, price), ERROR_INVALID_PRICE);
+
+      let product = amount * price;
+      
+      assert!(numerator_1 > product, ERROR_INVALID_LOW_LIQUIDITY);
+      
       let denominator = numerator_1 - product;
-      assert_u160(mul_div_round_up(numerator_1, price, denominator) << 32)
+      assert_u160(mul_div_round_up(numerator_1, price, denominator))
     }
   } 
 
@@ -77,32 +97,32 @@ module clamm::sqrt_price_math {
   public fun get_next_sqrt_price_from_input(
     sqrt_price_q96: u256,
     liquidity: u128,
-    amount: u64,
+    amount: u256,
     sell_x_to_y: bool
   ): u256 {
     assert!(sqrt_price_q96 != 0, ERROR_INVALID_PRICE);
     assert!(liquidity != 0, ERROR_INVALID_LIQUIDITY);
 
     if (sell_x_to_y) { 
-      get_next_sqrt_price_from_amount_x_round_up(sqrt_price_q96, (liquidity as u256), (amount as u256), true) 
+      get_next_sqrt_price_from_amount_x_round_up(sqrt_price_q96, (liquidity as u256), amount, true) 
       } else {
-      get_next_sqrt_price_from_amount_y_round_down(sqrt_price_q96, (liquidity as u256), (amount as u256), true)
+      get_next_sqrt_price_from_amount_y_round_down(sqrt_price_q96, (liquidity as u256), amount, true)
       }
   }
 
   public fun get_next_sqrt_price_from_output(
     sqrt_price_q96: u256,
     liquidity: u128,
-    amount: u64,
+    amount: u256,
     sell_x_to_y: bool
   ): u256 {
     assert!(sqrt_price_q96 != 0, ERROR_INVALID_PRICE);
     assert!(liquidity != 0, ERROR_INVALID_LIQUIDITY);
 
     if (sell_x_to_y) {
-      get_next_sqrt_price_from_amount_y_round_down(sqrt_price_q96, (liquidity as u256), (amount as u256), false)
+      get_next_sqrt_price_from_amount_y_round_down(sqrt_price_q96, (liquidity as u256), amount, false)
     } else {
-      get_next_sqrt_price_from_amount_x_round_up(sqrt_price_q96, (liquidity as u256), (amount as u256), false) 
+      get_next_sqrt_price_from_amount_x_round_up(sqrt_price_q96, (liquidity as u256), amount, false) 
     }
   }
 
@@ -118,6 +138,7 @@ module clamm::sqrt_price_math {
 
     let (lower_price, higher_price) = if (safe_price_a > safe_price_b) (safe_price_b, safe_price_a) else (safe_price_a, safe_price_b);
 
+    // Check here for underflow because of the shr 32
     assert!(lower_price != 0, ERROR_INVALID_PRICE);
 
     let numerator_1 = (liquidity as u256) << 64;
@@ -142,8 +163,9 @@ module clamm::sqrt_price_math {
 
     let (lower_price, higher_price) = if (safe_price_a > safe_price_b) (safe_price_b, safe_price_a) else (safe_price_a, safe_price_b);
 
+    // Price of 0 will return a 0 amount, so we do not cae about underflows
     if (round_up) mul_div_round_up((liquidity as u256), higher_price -  lower_price, Q64) else
-      mul_div((liquidity as u256), higher_price -  lower_price, Q64)
+      mul_div((liquidity as u256), higher_price - lower_price, Q64)
   }
 
 }
