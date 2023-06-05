@@ -235,36 +235,23 @@ module clamm::ipx_pool {
 
     let coin_x_value = coin::value(&coin_x);
 
-    let (state_amount_in, state_amount_out, state_sqrt_price_q96, state_tick) = ((coin_x_value as u256), 0, pool.current_sqrt_price_q96, pool.current_tick);
-
-    while (state_amount_in != 0) {
-
-      let (next_tick, _) = next_initialized_tick_within_one_word(
-        &mut pool.tick_bit_map,
-        &state_tick,
-        &i256::one(),
+    let (state_amount_in, state_amount_out, state_sqrt_price_q96, state_tick) = 
+      calculate_amounts(
+        &mut pool.tick_bit_map, 
+        coin_x_value, 
+        pool.current_sqrt_price_q96, 
+        pool.liquidity, 
+        pool.current_tick, 
+        &i256::one(), 
         true
       );
-
-      let (next_price, next_amount_in, next_amount_out) = compute_swap_step(
-        state_sqrt_price_q96,
-        get_sqrt_ratio_at_tick(&next_tick), 
-        pool.liquidity, 
-        state_amount_in
-      );
-
-      state_sqrt_price_q96 = next_price;
-      state_amount_in = state_amount_in - next_amount_in;
-      state_amount_out = state_amount_out + next_amount_out;
-      state_tick = get_tick_at_sqrt_ratio(state_sqrt_price_q96);
-    };
 
     pool.current_sqrt_price_q96 = state_sqrt_price_q96;
     pool.current_tick = state_tick;
 
-    let (amount_to_receive, amount_to_send) = ((coin_x_value - (state_amount_in as u64)), (state_amount_out as u64));
+    assert!(coin_x_value >= (state_amount_in as u64), ERROR_INSUFFICIENT_INPUT_AMOUNT);
 
-    assert!(coin_x_value >= amount_to_receive, ERROR_INSUFFICIENT_INPUT_AMOUNT);
+    let (amount_to_receive, amount_to_send) = ((coin_x_value - (state_amount_in as u64)), (state_amount_out as u64));
 
     balance::join(&mut pool.balance_x, coin::into_balance(coin::split(&mut coin_x, amount_to_receive, ctx)));
 
@@ -291,36 +278,23 @@ module clamm::ipx_pool {
 
     let coin_y_value = coin::value(&coin_y);
 
-    let (state_amount_in, state_amount_out, state_sqrt_price_q96, state_tick) = ((coin_y_value as u256), 0, pool.current_sqrt_price_q96, pool.current_tick);
-
-    while (state_amount_in != 0) {
-
-      let (next_tick, _) = next_initialized_tick_within_one_word(
-        &mut pool.tick_bit_map,
-        &state_tick,
-        &i256::one(),
-        false
-      );
-
-      let (next_price, next_amount_in, next_amount_out) = compute_swap_step(
-        state_sqrt_price_q96,
-        get_sqrt_ratio_at_tick(&next_tick), 
-        pool.liquidity, 
-        state_amount_in
-      );
-
-      state_sqrt_price_q96 = next_price;
-      state_amount_in = state_amount_in - next_amount_in;
-      state_amount_out = state_amount_out + next_amount_out;
-      state_tick = get_tick_at_sqrt_ratio(state_sqrt_price_q96);
-    };
+   let (state_amount_in, state_amount_out, state_sqrt_price_q96, state_tick) = 
+    calculate_amounts(
+      &mut pool.tick_bit_map, 
+      coin_y_value, 
+      pool.current_sqrt_price_q96, 
+      pool.liquidity, 
+      pool.current_tick, 
+      &i256::one(), 
+      false
+    );
 
     pool.current_sqrt_price_q96 = state_sqrt_price_q96;
     pool.current_tick = state_tick;
 
-    let (amount_to_receive, amount_to_send) = ((coin_y_value - (state_amount_in as u64)), (state_amount_out as u64));
+    assert!(coin_y_value >= (state_amount_in as u64), ERROR_INSUFFICIENT_INPUT_AMOUNT);
 
-    assert!(coin_y_value >= amount_to_receive, ERROR_INSUFFICIENT_INPUT_AMOUNT);
+    let (amount_to_receive, amount_to_send) = ((coin_y_value - (state_amount_in as u64)), (state_amount_out as u64));
 
     balance::join(&mut pool.balance_y, coin::into_balance(coin::split(&mut coin_y, amount_to_receive, ctx)));
 
@@ -336,6 +310,43 @@ module clamm::ipx_pool {
      });
 
     (coin::take(&mut pool.balance_x, amount_to_send, ctx), coin_y)
+  }
+
+  public fun calculate_amounts(
+    bit_map: &mut Table<I256, TicksState>,
+    coin_value: u64,
+    current_sqrt_price_q96: u256,
+    liquidity: u128,
+    current_tick: I256,
+    spacing: &I256,
+    sell_x_to_y: bool
+  ): (u256, u256, u256, I256) {
+
+      let (state_amount_in, state_amount_out, state_sqrt_price_q96, state_tick) = ((coin_value as u256), 0, current_sqrt_price_q96, current_tick);
+
+      while (state_amount_in != 0) {
+
+      let (next_tick, _) = next_initialized_tick_within_one_word(
+        bit_map,
+        &state_tick,
+        spacing,
+        sell_x_to_y
+      );
+
+      let (next_price, next_amount_in, next_amount_out) = compute_swap_step(
+        state_sqrt_price_q96,
+        get_sqrt_ratio_at_tick(&next_tick), 
+        liquidity, 
+        state_amount_in
+      );
+
+      state_sqrt_price_q96 = next_price;
+      state_amount_in = state_amount_in - next_amount_in;
+      state_amount_out = state_amount_out + next_amount_out;
+      state_tick = get_tick_at_sqrt_ratio(state_sqrt_price_q96);
+    };
+    
+    (state_amount_in, state_amount_out, state_sqrt_price_q96, state_tick)
   }
 
   fun get_min_max_ticks(): (I256, I256) {

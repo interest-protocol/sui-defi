@@ -1,6 +1,5 @@
 #[test_only]
 module clamm::ipx_pool_tests {
-  use std::debug;
 
   use sui::coin::{mint_for_testing as mint, burn_for_testing as burn};
   use sui::test_scenario::{Self, Scenario, next_tx, ctx};
@@ -417,9 +416,6 @@ module clamm::ipx_pool_tests {
         mint<USDC>(5300000000000, ctx(test)),
         ctx(test)
       );
-
-      debug::print(&eth);
-      debug::print(&usdc);
 
       burn(eth);
       burn(usdc);
