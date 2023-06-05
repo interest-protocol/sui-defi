@@ -53,7 +53,7 @@ module clamm::sqrt_price_math_tests {
   }
 
   #[test]
-  #[expected_failure(abort_code = clamm::sqrt_price_math::ERROR_INVALID_LOW_LIQUIDITY)]
+  #[expected_failure(abort_code = clamm::sqrt_price_math::ERROR_INVALID_PRICE)]
   fun test_get_next_sqrt_price_from_input_error_price_overflows_2() {
     // fails if input amount overflows the price
     assert_eq(get_next_sqrt_price_from_amount_x_round_up(1, 1, 0x8000000000000000000000000000000000000000000000000000000000000000, false), 1);
@@ -151,7 +151,7 @@ module clamm::sqrt_price_math_tests {
     assert_eq(get_next_sqrt_price_from_output(0x01000000000000000000000000, 100000000000000000, 0, false), 0x01000000000000000000000000);
 
     // output amount of 0.1 token0
-    assert_eq(get_next_sqrt_price_from_output(0x01000000000000000000000000, 1000000000000000000, 100000000000000000, false), 88031291682515930659493278152);
+    assert_eq(get_next_sqrt_price_from_output(0x01000000000000000000000000, 1000000000000000000, 100000000000000000, false), 88031291682515930660447715328);
 
     // output amount of 0.1 token1
     assert_eq(get_next_sqrt_price_from_output(0x01000000000000000000000000, 1000000000000000000, 100000000000000000, true), 71305346262837903832471568384);

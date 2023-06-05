@@ -20,7 +20,7 @@ module clamm::swap_math {
       sell_x_to_y
     );
 
-    let amount_in = calc_amount_x_delta(sqrt_price_current_q96, next_sqrt_price_q96, liquidity, sell_x_to_y );
+    let amount_in = calc_amount_x_delta(sqrt_price_current_q96, next_sqrt_price_q96, liquidity, sell_x_to_y);
 
     let amount_out = calc_amount_y_delta(sqrt_price_current_q96, next_sqrt_price_q96, liquidity, sell_x_to_y);
 

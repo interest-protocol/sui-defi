@@ -1,4 +1,5 @@
 module clamm::ipx_pool {
+
   use std::hash::{sha3_256};
   use std::vector;
 
@@ -245,7 +246,7 @@ module clamm::ipx_pool {
         true
       );
 
-      let (next_price, next_amout_in, next_amount_out) = compute_swap_step(
+      let (next_price, next_amount_in, next_amount_out) = compute_swap_step(
         state_sqrt_price_q96,
         get_sqrt_ratio_at_tick(&next_tick), 
         pool.liquidity, 
@@ -253,7 +254,7 @@ module clamm::ipx_pool {
       );
 
       state_sqrt_price_q96 = next_price;
-      state_amount_in = state_amount_in - next_amout_in;
+      state_amount_in = state_amount_in - next_amount_in;
       state_amount_out = state_amount_out + next_amount_out;
       state_tick = get_tick_at_sqrt_ratio(state_sqrt_price_q96);
     };
@@ -301,7 +302,7 @@ module clamm::ipx_pool {
         false
       );
 
-      let (next_price, next_amout_in, next_amount_out) = compute_swap_step(
+      let (next_price, next_amount_in, next_amount_out) = compute_swap_step(
         state_sqrt_price_q96,
         get_sqrt_ratio_at_tick(&next_tick), 
         pool.liquidity, 
@@ -309,7 +310,7 @@ module clamm::ipx_pool {
       );
 
       state_sqrt_price_q96 = next_price;
-      state_amount_in = state_amount_in - next_amout_in;
+      state_amount_in = state_amount_in - next_amount_in;
       state_amount_out = state_amount_out + next_amount_out;
       state_tick = get_tick_at_sqrt_ratio(state_sqrt_price_q96);
     };
@@ -334,7 +335,7 @@ module clamm::ipx_pool {
       liquidity: pool.liquidity
      });
 
-    (coin::take(&mut pool.balance_x, 8396714, ctx), coin_y)
+    (coin::take(&mut pool.balance_x, amount_to_send, ctx), coin_y)
   }
 
   fun get_min_max_ticks(): (I256, I256) {

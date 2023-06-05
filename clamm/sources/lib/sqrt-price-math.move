@@ -15,13 +15,14 @@ module clamm::sqrt_price_math {
   const ERROR_PRICE_OVERFLOW: u64 = 4;
   const ERROR_INVALID_LOW_LIQUIDITY: u64 = 5;
 
-  fun assert_u160(x: u256): u256 {
-    assert!(MAX_U160 >= x, ERROR_PRICE_OVERFLOW);
-    x
-  }
 
   fun will_overflow(x: u256, y: u256):bool {
     (MAX_U256 / y) < x
+  }
+
+  fun assert_u160(x: u256): u256 {
+    assert!(MAX_U160 >= x, ERROR_PRICE_OVERFLOW);
+    x
   }
 
   public fun get_next_sqrt_price_from_amount_x_round_up(
@@ -47,27 +48,27 @@ module clamm::sqrt_price_math {
         let denominator = numerator_1_q64 + product;
         
         if (denominator >= numerator_1_q64) {
-          return assert_u160(mul_div_round_up(numerator_1_q64, price_q64, denominator) << 32)
+          return mul_div_round_up(numerator_1_q64, price_q64, denominator) << 32
         }
       };
 
       // If the price is 0, it will throw here
-      return assert_u160((div_round_up(numerator_1_q96, ((numerator_1_q96 / sqrt_price_q96) + amount))))
+      return (div_round_up(numerator_1_q96, ((numerator_1_q96 / sqrt_price_q96) + amount)))
     } else {
 
     let (numerator_1, price) = (
-      liquidity << 96,
-      sqrt_price_q96
+      liquidity << 64,
+      sqrt_price_q96 >> 32
       );
 
-      assert!(!will_overflow(amount, price), ERROR_INVALID_PRICE);
+      assert!(price != 0 && !will_overflow(amount, price), ERROR_INVALID_PRICE);
 
       let product = amount * price;
       
       assert!(numerator_1 > product, ERROR_INVALID_LOW_LIQUIDITY);
       
       let denominator = numerator_1 - product;
-      assert_u160(mul_div_round_up(numerator_1, price, denominator))
+      mul_div_round_up(numerator_1, price, denominator) << 32
     }
   } 
 
@@ -79,18 +80,17 @@ module clamm::sqrt_price_math {
   ): u256 {
     
     if (add) {
-      let quotient = if (MAX_U160 >= amount) {
-        (amount << 96) / liquidity
+      if (MAX_U160 >= amount) {
+        ((amount << 96) / liquidity) + sqrt_price_q96
       } else {
-        mul_div(amount, Q64, liquidity) << 32
-      };
-
-      assert_u160(sqrt_price_q96 + quotient)
+        (mul_div(amount, Q64, liquidity) + (sqrt_price_q96 >> 32)) << 32
+      }
     } else {
-      let quotient = mul_div_round_up(amount, Q64, liquidity) << 32;
-      assert!(sqrt_price_q96 > quotient, ERROR_INVALID_PRICE);
+      let quotient = mul_div_round_up(amount, Q64, liquidity);
+      let safe_price = sqrt_price_q96 >> 32;
+      assert!(safe_price > quotient, ERROR_INVALID_PRICE);
 
-      assert_u160(sqrt_price_q96 - quotient)
+      (safe_price - quotient) << 32
     }
   }
 
@@ -104,9 +104,9 @@ module clamm::sqrt_price_math {
     assert!(liquidity != 0, ERROR_INVALID_LIQUIDITY);
 
     if (sell_x_to_y) { 
-      get_next_sqrt_price_from_amount_x_round_up(sqrt_price_q96, (liquidity as u256), amount, true) 
+      assert_u160(get_next_sqrt_price_from_amount_x_round_up(sqrt_price_q96, (liquidity as u256), amount, true)) 
       } else {
-      get_next_sqrt_price_from_amount_y_round_down(sqrt_price_q96, (liquidity as u256), amount, true)
+      assert_u160(get_next_sqrt_price_from_amount_y_round_down(sqrt_price_q96, (liquidity as u256), amount, true))
       }
   }
 
@@ -120,9 +120,9 @@ module clamm::sqrt_price_math {
     assert!(liquidity != 0, ERROR_INVALID_LIQUIDITY);
 
     if (sell_x_to_y) {
-      get_next_sqrt_price_from_amount_y_round_down(sqrt_price_q96, (liquidity as u256), amount, false)
+      assert_u160(get_next_sqrt_price_from_amount_y_round_down(sqrt_price_q96, (liquidity as u256), amount, false))
     } else {
-      get_next_sqrt_price_from_amount_x_round_up(sqrt_price_q96, (liquidity as u256), amount, false) 
+      assert_u160(get_next_sqrt_price_from_amount_x_round_up(sqrt_price_q96, (liquidity as u256), amount, false)) 
     }
   }
 
