@@ -8,6 +8,7 @@ dependencies = [
   { name = "Pyth" },
   { name = "Sui" },
   { name = "SwitchboardStdLib" },
+  { name = "Wormhole" },
 ]
 
 [[move.package]]

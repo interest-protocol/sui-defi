@@ -1,6 +1,7 @@
 module oracle::oracle {
 
   use std::ascii::{String};
+  use std::vector;
   
   use sui::clock::{Self, Clock};
   use sui::object::{Self, UID, ID};
@@ -9,14 +10,20 @@ module oracle::oracle {
   use sui::transfer;
   use sui::event::{emit};
   use sui::math::{pow};
+  use sui::coin::{Self, Coin};
+  use sui::sui::{SUI};
 
   use oracle::lib::{get_struct_name_string, mul_div, average};
 
-  use pyth::pyth::{get_price as pyth_get_price};
+  use pyth::pyth::{get_price as pyth_get_price, create_price_infos_hot_potato, update_single_price_feed};
   use pyth::state::{State as PythState};
   use pyth::price_info::{Self, PriceInfoObject};
   use pyth::price::{Self as pyth_price};
+  use pyth::hot_potato_vector::{destroy};
   use pyth::i64;
+
+  use wormhole::state::{State as WormholeState};
+  use wormhole::vaa::{parse_and_verify};
 
   use switchboard_std::aggregator::{Self, Aggregator};
   use switchboard_std::math;
@@ -31,6 +38,7 @@ module oracle::oracle {
   const ERROR_INVALID_SWITCHBOARD_FEED: u64 = 5;
   const ERROR_INVALID_TIME: u64 = 6;
   const ERROR_BAD_PRICES: u64 = 7;
+  const ERROR_INVALID_PRICE_INFO_OBJECT_ID : u64 = 8;
 
   struct AdminCap has key {
     id: UID
@@ -66,6 +74,7 @@ module oracle::oracle {
     switchboard_timestamp: u64,
     pyth_timestamp: u64,
     pyth_result: u256,
+    pyth_fee_value: u64
   }
 
   // Hot Potato to be passed
@@ -98,22 +107,35 @@ module oracle::oracle {
 
   public fun get_price<T>(
     storage: &mut OracleStorage, 
-    state: &PythState,
-    price_info_object: &PriceInfoObject,
+    wormhole_state: &WormholeState,
+    pyth_state: &PythState,
+    buf: vector<u8>,
+    price_info_object: &mut PriceInfoObject,
+    pyth_fee: Coin<SUI>,
     clock_object: &Clock,
     switchboard_feed: &Aggregator, 
     ctx: &mut TxContext
   ): Price {
+
     let coin_name = get_struct_name_string<T>();
+    let pyth_fee_value = coin::value(&pyth_fee);
 
     let (switchboard_result, switchboard_timestamp) = get_switchboard_data(&storage.switchboard_feed, switchboard_feed, coin_name);
-    let (pyth_result, pyth_timestamp) = get_pyth_network_data(state, price_info_object, clock_object);
+    let (pyth_result, pyth_timestamp) = get_pyth_network_data(
+      &storage.pyth_price_info,
+      wormhole_state,pyth_state,
+      buf,
+      price_info_object,
+      pyth_fee,
+      clock_object,
+      coin_name
+    );
 
     let average = get_safe_average(switchboard_result, pyth_result);
 
     assert!(average != 0, ERROR_IMPOSSIBLE_PRICE);
 
-    emit(GetPrice<T> { sender: tx_context::sender(ctx), switchboard_result, switchboard_timestamp, pyth_result, pyth_timestamp });
+    emit(GetPrice<T> { sender: tx_context::sender(ctx), switchboard_result, switchboard_timestamp, pyth_result, pyth_timestamp, pyth_fee_value });
 
     Price {
       switchboard_result,
@@ -181,11 +203,31 @@ module oracle::oracle {
   }
 
   fun get_pyth_network_data(
-    state: &PythState,
-    price_info_object: &PriceInfoObject,
-    clock_object: &Clock,    
+    price_info_map: &VecMap<String, PythPriceInfoObjectId>, 
+    wormhole_state: &WormholeState,
+    pyth_state: &PythState,
+    buf: vector<u8>,
+    price_info_object: &mut PriceInfoObject,
+    pyth_fee: Coin<SUI>,
+    clock_object: &Clock,
+    coin_name: String  
   ): (u256, u64) {
-    let pyth_price = pyth_get_price(state, price_info_object, clock_object);
+    let vaa = parse_and_verify(wormhole_state, buf, clock_object);
+    let authorized_price_info_object_id = vec_map::get(price_info_map, &coin_name);
+
+    assert!(authorized_price_info_object_id.value == price_info::uid_to_inner(price_info_object), ERROR_INVALID_PRICE_INFO_OBJECT_ID);
+
+    let hot_potato_vector = update_single_price_feed(
+      pyth_state,
+      create_price_infos_hot_potato(pyth_state, vector::singleton(vaa), clock_object),
+      price_info_object,
+      pyth_fee,
+      clock_object
+    );
+
+    destroy(hot_potato_vector);
+
+    let pyth_price = pyth_get_price(pyth_state, price_info_object, clock_object);
     let pyth_price_value = pyth_price::get_price(&pyth_price);
     let pyth_price_expo = pyth_price::get_expo(&pyth_price);
     let pyth_price_timestamp = pyth_price::get_timestamp(&pyth_price);
