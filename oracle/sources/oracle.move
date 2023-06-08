@@ -348,6 +348,9 @@ module oracle::ipx_oracle {
   * @notice it calculates the average between x and y. It makes sures that there is a diff of 2% or it will throw
   */
   public fun get_safe_average(x: u256, y:u256): u256 {
+    // If they are equal we do not need to do anything
+    if (x == y) return x;
+
     // If x is larger than y
     if (x > y) {
       // calculate the difference
@@ -364,8 +367,7 @@ module oracle::ipx_oracle {
       assert!(PRICE_MARGIN >= (diff * SCALAR) / y, ERROR_BAD_PRICES);
     };
 
-    // If they are equal we do not need to do anything
-    if (x == y) { x } else { average(x, y) }
+    average(x, y) 
   }
 
   /**
