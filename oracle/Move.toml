@@ -1,0 +1,34 @@
+[package]
+name = "Oracle"
+version = "0.0.1"
+
+[dependencies.Sui]
+git = "https://github.com/MystenLabs/sui.git"
+subdir = "crates/sui-framework/packages/sui-framework"
+rev = "testnet"
+override = true
+
+[dependencies.MoveStdlib]
+git = "https://github.com/MystenLabs/sui.git"
+subdir = "crates/sui-framework/packages/move-stdlib"
+rev = "testnet"
+override = true
+
+[dependencies.SwitchboardStdLib]
+git = "https://github.com/switchboard-xyz/sbv2-sui.git"
+subdir = "move/testnet/switchboard_std/"
+rev = "main" 
+
+[dependencies.Pyth]
+local = "./dependencies/pyth"
+
+[dependencies.Wormhole]
+local = "./dependencies/wormhole"
+
+[addresses]
+oracle = "0x0"
+std = "0x1"
+sui =  "0x2"
+switchboard_std = "0x98670585b87e06628ef2d7f7cb1e7bee8ada65b43b82997935225a7e6e21d18e"
+pyth = "0x975e063f398f720af4f33ec06a927f14ea76ca24f7f8dd544aa62ab9d5d15f44"
+wormhole = "0xcc029e2810f17f9f43f52262f40026a71fbdca40ed3803ad2884994361910b7e"
