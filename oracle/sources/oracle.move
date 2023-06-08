@@ -3,7 +3,7 @@ module oracle::oracle {
   use std::ascii::{String};
   
   use sui::clock::{Self, Clock};
-  use sui::object::{Self, UID};
+  use sui::object::{Self, UID, ID};
   use sui::vec_map::{Self, VecMap};
   use sui::tx_context::{Self, TxContext};
   use sui::transfer;
@@ -14,7 +14,7 @@ module oracle::oracle {
 
   use pyth::pyth::{get_price as pyth_get_price};
   use pyth::state::{State as PythState};
-  use pyth::price_info::{PriceInfoObject};
+  use pyth::price_info::{Self, PriceInfoObject};
   use pyth::price::{Self as pyth_price};
   use pyth::i64;
 
@@ -40,17 +40,23 @@ module oracle::oracle {
     value: address
   }
 
+  struct PythPriceInfoObjectId has store {
+    value: ID
+  }
+
   struct OracleStorage has key {
      id: UID,
-     switchboard_feed: VecMap<String, SwitchboardFeedAddress>
+     switchboard_feed: VecMap<String, SwitchboardFeedAddress>,
+     pyth_price_info: VecMap<String, PythPriceInfoObjectId>
   }
 
   struct NewAdmin has drop, copy {
     admin: address
   }
 
-  struct NewSwitchboardFeed has drop, copy {
-    feed: address,
+  struct NewFeed has drop, copy {
+    switchboard_feed: address,
+    pyth_price_info_id: ID,
     coin_name: String
   }
 
@@ -84,7 +90,8 @@ module oracle::oracle {
     transfer::share_object(
       OracleStorage {
         id: object::new(ctx),
-        switchboard_feed: vec_map::empty()
+        switchboard_feed: vec_map::empty(),
+        pyth_price_info: vec_map::empty()
       }
     );
   }
@@ -99,44 +106,22 @@ module oracle::oracle {
   ): Price {
     let coin_name = get_struct_name_string<T>();
 
-    let authorized_switchboard_feed = vec_map::get(&mut storage.switchboard_feed, &coin_name);
-    assert!(authorized_switchboard_feed.value == aggregator::aggregator_address(switchboard_feed), ERROR_INVALID_SWITCHBOARD_FEED);
-
-    let (switchboard_result, switchboard_timestamp) = aggregator::latest_value(switchboard_feed);
-    let (switchboard_value, switchboard_scaling_factor, _neg) = math::unpack(switchboard_result);
-
-    assert!(switchboard_value > 0 && !_neg, ERROR_IMPOSSIBLE_PRICE);
-
-    let pyth_price = pyth_get_price(state, price_info_object, clock_object);
-
-    let pyth_price_value = pyth_price::get_price(&pyth_price);
-    let pyth_price_expo = pyth_price::get_expo(&pyth_price);
-    let pyth_price_timestamp = pyth_price::get_timestamp(&pyth_price);
-
-    assert!(clock::timestamp_ms(clock_object) == pyth_price_timestamp, ERROR_INVALID_TIME);
-    
-    // will throw if negative
-    let pyth_price_u64 = i64::get_magnitude_if_positive(&pyth_price_value);
-    assert!(pyth_price_u64 > 0 && !_neg, ERROR_IMPOSSIBLE_PRICE);
-    
-    let pyth_exp_u64 = i64::get_magnitude_if_negative(&pyth_price_expo);
-
-    let switchboard_result = mul_div((switchboard_value as u256), SCALAR, (pow(10, switchboard_scaling_factor) as u256));
-    let pyth_result = mul_div((pyth_price_u64 as u256), SCALAR, (pow(10, (pyth_exp_u64 as u8)) as u256));
+    let (switchboard_result, switchboard_timestamp) = get_switchboard_data(&storage.switchboard_feed, switchboard_feed, coin_name);
+    let (pyth_result, pyth_timestamp) = get_pyth_network_data(state, price_info_object, clock_object);
 
     let average = get_safe_average(switchboard_result, pyth_result);
 
-    assert!(average > 0 && !_neg, ERROR_IMPOSSIBLE_PRICE);
+    assert!(average != 0, ERROR_IMPOSSIBLE_PRICE);
 
-    emit(GetPrice<T> { sender: tx_context::sender(ctx), switchboard_result, switchboard_timestamp, pyth_result, pyth_timestamp: pyth_price_timestamp });
+    emit(GetPrice<T> { sender: tx_context::sender(ctx), switchboard_result, switchboard_timestamp, pyth_result, pyth_timestamp });
 
     Price {
       switchboard_result,
       switchboard_timestamp,
       scalar: SCALAR,
-      pyth_timestamp: pyth_price_timestamp,
+      pyth_timestamp,
       pyth_result,
-      average: 0,
+      average,
       coin_name
     }
   }
@@ -146,40 +131,76 @@ module oracle::oracle {
     (switchboard_result, pyth_result, scalar, average, pyth_timestamp, switchboard_timestamp, coin_name)
   }
 
-  entry fun set_switchboard_feed<T>(_:& AdminCap, storage: &mut OracleStorage, feed: &Aggregator) {
+  entry fun set_feed<T>(
+    _:& AdminCap, 
+    storage: &mut OracleStorage, 
+    switchboard_aggregator: &Aggregator,
+    price_info_object: &PriceInfoObject
+  ) {
     let coin_name = get_struct_name_string<T>();
-
-    let feed_address = aggregator::aggregator_address(feed);
+    let pyth_price_info_id = price_info::uid_to_inner(price_info_object);
+    let aggregator_address = aggregator::aggregator_address(switchboard_aggregator);
 
     if (vec_map::contains(&storage.switchboard_feed, &coin_name)) {
       let switchboard_feed_address = vec_map::get_mut(&mut storage.switchboard_feed, &coin_name);
-      switchboard_feed_address.value = feed_address;
+      switchboard_feed_address.value = aggregator_address ;
     } else {
-      vec_map::insert(&mut storage.switchboard_feed, coin_name, SwitchboardFeedAddress { value: feed_address });
+      vec_map::insert(&mut storage.switchboard_feed, coin_name, SwitchboardFeedAddress { value: aggregator_address });
     };
 
-    emit(NewSwitchboardFeed {
-      feed: feed_address,
+    if (vec_map::contains(&storage.pyth_price_info, &coin_name)) {
+      let pyth_price_info_struct = vec_map::get_mut(&mut storage.pyth_price_info, &coin_name);
+      pyth_price_info_struct.value = pyth_price_info_id;
+    } else {
+      vec_map::insert(&mut storage.pyth_price_info, coin_name, PythPriceInfoObjectId { value: pyth_price_info_id });
+    };
+
+    emit(NewFeed {
+      switchboard_feed: aggregator_address,
+      pyth_price_info_id,
       coin_name
     });
   }
 
-  entry fun set_switchboard_feed<T>(_:& AdminCap, storage: &mut OracleStorage, feed: &Aggregator) {
-    let coin_name = get_struct_name_string<T>();
+  fun get_switchboard_data(
+    feed_map: &VecMap<String, SwitchboardFeedAddress>,
+    switchboard_feed: &Aggregator,
+    coin_name: String
+  ): (u256, u64) {
+    
+    let authorized_switchboard_feed = vec_map::get(feed_map, &coin_name);
 
-    let feed_address = aggregator::aggregator_address(feed);
+    assert!(authorized_switchboard_feed.value == aggregator::aggregator_address(switchboard_feed), ERROR_INVALID_SWITCHBOARD_FEED);
 
-    if (vec_map::contains(&storage.switchboard_feed, &coin_name)) {
-      let switchboard_feed_address = vec_map::get_mut(&mut storage.switchboard_feed, &coin_name);
-      switchboard_feed_address.value = feed_address;
-    } else {
-      vec_map::insert(&mut storage.switchboard_feed, coin_name, SwitchboardFeedAddress { value: feed_address });
-    };
+    let (switchboard_result, switchboard_timestamp) = aggregator::latest_value(switchboard_feed);
+    let (switchboard_value, switchboard_scaling_factor, _neg) = math::unpack(switchboard_result);
 
-    emit(NewSwitchboardFeed {
-      feed: feed_address,
-      coin_name
-    });
+    assert!(switchboard_value > 0 && !_neg, ERROR_IMPOSSIBLE_PRICE);
+
+    (mul_div((switchboard_value as u256), SCALAR, (pow(10, switchboard_scaling_factor) as u256)), switchboard_timestamp)
+  }
+
+  fun get_pyth_network_data(
+    state: &PythState,
+    price_info_object: &PriceInfoObject,
+    clock_object: &Clock,    
+  ): (u256, u64) {
+    let pyth_price = pyth_get_price(state, price_info_object, clock_object);
+    let pyth_price_value = pyth_price::get_price(&pyth_price);
+    let pyth_price_expo = pyth_price::get_expo(&pyth_price);
+    let pyth_price_timestamp = pyth_price::get_timestamp(&pyth_price);
+
+    assert!(clock::timestamp_ms(clock_object) == pyth_price_timestamp, ERROR_INVALID_TIME);
+    
+    // will throw if negative
+    let pyth_price_u64 = i64::get_magnitude_if_positive(&pyth_price_value);
+    assert!(pyth_price_u64 != 0, ERROR_IMPOSSIBLE_PRICE);
+    
+    let pyth_exp_u64 = i64::get_magnitude_if_negative(&pyth_price_expo);
+
+    let pyth_result = mul_div((pyth_price_u64 as u256), SCALAR, (pow(10, (pyth_exp_u64 as u8)) as u256));
+    
+    (pyth_result, pyth_price_timestamp)
   }
 
   fun get_safe_average(x: u256, y:u256): u256 {
