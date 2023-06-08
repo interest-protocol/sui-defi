@@ -1,4 +1,4 @@
-module oracle::oracle {
+module oracle::ipx_oracle {
 
   use std::ascii::{String};
   use std::vector;
@@ -347,7 +347,7 @@ module oracle::oracle {
   /**
   * @notice it calculates the average between x and y. It makes sures that there is a diff of 2% or it will throw
   */
-  fun get_safe_average(x: u256, y:u256): u256 {
+  public fun get_safe_average(x: u256, y:u256): u256 {
     // If x is larger than y
     if (x > y) {
       // calculate the difference
