@@ -31,13 +31,11 @@ module oracle::ipx_oracle {
   const SCALAR: u256 = 1000000000000000000; // 1e18
   const PRICE_MARGIN: u256 = 20000000000000000; // 0.02e18 It represents 2%
 
-  const ERROR_SWITCHBOARD_ORACLE_OUTDATED: u64 = 1;
-  const ERROR_PYTH_ORACLE_OUTDATED: u64 = 2;
-  const ERROR_IMPOSSIBLE_PRICE: u64 = 3;
-  const ERROR_INVALID_ADMIN: u64 = 4;
-  const ERROR_INVALID_SWITCHBOARD_FEED: u64 = 5;
-  const ERROR_BAD_PRICES: u64 = 6;
-  const ERROR_INVALID_PRICE_INFO_OBJECT_ID : u64 = 7;
+  const ERROR_IMPOSSIBLE_PRICE: u64 = 1;
+  const ERROR_INVALID_ADMIN: u64 = 2;
+  const ERROR_INVALID_SWITCHBOARD_FEED: u64 = 3;
+  const ERROR_BAD_PRICES: u64 = 4;
+  const ERROR_INVALID_PRICE_INFO_OBJECT_ID : u64 = 5;
 
   // Allows the admin to set authorized feeds for coins
   struct AdminCap has key {
