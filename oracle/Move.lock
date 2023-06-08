@@ -17,7 +17,7 @@ source = { git = "https://github.com/MystenLabs/sui.git", rev = "testnet", subdi
 
 [[move.package]]
 name = "Pyth"
-source = { local = "vendors/pyth/contracts" }
+source = { local = "dependencies/pyth" }
 
 dependencies = [
   { name = "Sui" },
@@ -43,7 +43,7 @@ dependencies = [
 
 [[move.package]]
 name = "Wormhole"
-source = { local = "vendors/wormhole" }
+source = { local = "dependencies/wormhole" }
 
 dependencies = [
   { name = "Sui" },

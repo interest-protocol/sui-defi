@@ -20,10 +20,10 @@ subdir = "move/testnet/switchboard_std/"
 rev = "main" 
 
 [dependencies.Pyth]
-local = "./vendors/pyth/contracts"
+local = "./dependencies/pyth"
 
 [dependencies.Wormhole]
-local = "./vendors/wormhole"
+local = "./dependencies/wormhole"
 
 [addresses]
 oracle = "0x0"
