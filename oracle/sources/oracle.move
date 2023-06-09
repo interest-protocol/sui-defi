@@ -43,20 +43,16 @@ module oracle::ipx_oracle {
   }
 
   // Stores the allows address for a Switchboard Fee
-  struct SwitchboardFeedAddress has store {
-    value: address
-  }
-
   // Stores the ID for a valid Pyth Price info Id
-  struct PythPriceInfoObjectId has store {
-    value: ID
+  struct AuthorizedFeed has store {
+    switchboard: address,
+    pyth_network: ID
   }
 
   // Storage for this module
   struct OracleStorage has key {
      id: UID,
-     switchboard_feed: VecMap<String, SwitchboardFeedAddress>,
-     pyth_price_info: VecMap<String, PythPriceInfoObjectId>
+     authorized_feeds: VecMap<String, AuthorizedFeed>
   }
 
   // Events
@@ -109,8 +105,7 @@ module oracle::ipx_oracle {
     transfer::share_object(
       OracleStorage {
         id: object::new(ctx),
-        switchboard_feed: vec_map::empty(),
-        pyth_price_info: vec_map::empty()
+        authorized_feeds: vec_map::empty()
       }
     );
   }
@@ -147,11 +142,11 @@ module oracle::ipx_oracle {
     let pyth_fee_value = coin::value(&pyth_fee);
     
     // Calculate the price from switchboard on a scalar of 1e18. One dollar is 1e18
-    let (switchboard_result, switchboard_timestamp) = get_switchboard_data(&storage.switchboard_feed, switchboard_feed, coin_name);
+    let (switchboard_result, switchboard_timestamp) = get_switchboard_data(&storage.authorized_feeds, switchboard_feed, coin_name);
 
     // Calculate the price from Pyth Network on a scalar of 1e18. One dollar is 1e18
     let (pyth_result, pyth_timestamp) = get_pyth_network_data(
-      &storage.pyth_price_info,
+      &storage.authorized_feeds,
       wormhole_state,pyth_state,
       buf,
       price_info_object,
@@ -211,23 +206,18 @@ module oracle::ipx_oracle {
     let aggregator_address = aggregator::aggregator_address(switchboard_aggregator);
 
     // We need to create a new Value if it does not exist
-    if (vec_map::contains(&storage.switchboard_feed, &coin_name)) {
+    if (vec_map::contains(&storage.authorized_feeds, &coin_name)) {
       // If the Value already exists, we get it and mutate it
-      let switchboard_feed_address = vec_map::get_mut(&mut storage.switchboard_feed, &coin_name);
-      switchboard_feed_address.value = aggregator_address ;
+      let authorized_feed = vec_map::get_mut(&mut storage.authorized_feeds, &coin_name);
+      authorized_feed.switchboard = aggregator_address;
+      authorized_feed.pyth_network = pyth_price_info_id;
     } else {
       // If it already exists, we just update it
-      vec_map::insert(&mut storage.switchboard_feed, coin_name, SwitchboardFeedAddress { value: aggregator_address });
-    };
-
-    // We need to create a new Value if it does not exist
-    if (vec_map::contains(&storage.pyth_price_info, &coin_name)) {
-      // If the Value already exists, we get it and mutate it
-      let pyth_price_info_struct = vec_map::get_mut(&mut storage.pyth_price_info, &coin_name);
-      pyth_price_info_struct.value = pyth_price_info_id;
-    } else {
-      // If it already exists, we just update it
-      vec_map::insert(&mut storage.pyth_price_info, coin_name, PythPriceInfoObjectId { value: pyth_price_info_id });
+      vec_map::insert(
+        &mut storage.authorized_feeds, 
+        coin_name, 
+        AuthorizedFeed { switchboard: aggregator_address, pyth_network: pyth_price_info_id }
+      );
     };
 
     // Emit the event
@@ -246,16 +236,16 @@ module oracle::ipx_oracle {
   * @return (price, timestamp)
   */
   fun get_switchboard_data(
-    feed_map: &VecMap<String, SwitchboardFeedAddress>,
+    feed_map: &VecMap<String, AuthorizedFeed>,
     switchboard_feed: &Aggregator,
     coin_name: String
   ): (u256, u64) {
     
     // Save the authorized feed address locally
-    let authorized_switchboard_feed = vec_map::get(feed_map, &coin_name);
+    let authorized_feed = vec_map::get(feed_map, &coin_name);
 
     // Ensure that the switchboard_feed is authorized for coin_name
-    assert!(authorized_switchboard_feed.value == aggregator::aggregator_address(switchboard_feed), ERROR_INVALID_SWITCHBOARD_FEED);
+    assert!(authorized_feed.switchboard == aggregator::aggregator_address(switchboard_feed), ERROR_INVALID_SWITCHBOARD_FEED);
 
     // The logic was based on https://github.com/switchboard-xyz/sbv2-sui/tree/main/move/testnet/switchboard_std
     // First get the values
@@ -273,7 +263,7 @@ module oracle::ipx_oracle {
   /**
   * @notice We update the Pyth Network Price Feed and then fetch it
   * @dev All logic can be found https://docs.pyth.network/pythnet-price-feeds/sui
-  * @price_info_map: A map coin_name => authorized price info object ID
+  * @feed_map: A map coin_name => authorized price info object ID
   * @wormhole_state The state of the Wormhole module on Sui
   * @pyth_state The state of the Pyth module on Sui
   * @buf Price attestations in bytes
@@ -284,7 +274,7 @@ module oracle::ipx_oracle {
   * @return (price, timestamp)
   */
   fun get_pyth_network_data(
-    price_info_map: &VecMap<String, PythPriceInfoObjectId>, 
+    feed_map: &VecMap<String, AuthorizedFeed>,
     wormhole_state: &WormholeState,
     pyth_state: &PythState,
     buf: vector<u8>,
@@ -295,10 +285,10 @@ module oracle::ipx_oracle {
   ): (u256, u64) {
 
     // Save the authorized feed address locally
-    let authorized_price_info_object_id = vec_map::get(price_info_map, &coin_name);
+    let authorized_feed = vec_map::get(feed_map, &coin_name);
 
     // We need to make sure this price info object is authorized for type T (coin_name)
-    assert!(authorized_price_info_object_id.value == price_info::uid_to_inner(price_info_object), ERROR_INVALID_PRICE_INFO_OBJECT_ID);
+    assert!(authorized_feed.pyth_network == price_info::uid_to_inner(price_info_object), ERROR_INVALID_PRICE_INFO_OBJECT_ID);
     
     // Make sure the the attestations are real
     let vaa = parse_and_verify(wormhole_state, buf, clock_object);
