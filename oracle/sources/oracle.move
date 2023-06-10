@@ -182,7 +182,7 @@ module oracle::ipx_oracle {
   */
   public fun read_price(price: Price): (u256, u256, u256, u256, u64, u64, String) {
     let Price { switchboard_result, pyth_result, scalar, pyth_timestamp, switchboard_timestamp, average, coin_name } = price;
-    (switchboard_result, pyth_result, scalar, average, pyth_timestamp, switchboard_timestamp, coin_name)
+    (average, switchboard_result, pyth_result, scalar, pyth_timestamp, switchboard_timestamp, coin_name)
   }
 
   /**

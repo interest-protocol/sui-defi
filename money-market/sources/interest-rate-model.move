@@ -1,5 +1,5 @@
 // Package that calculates the borrow or supply interest rate for a market
-module whirlpool::interest_rate_model {
+module money_market::interest_rate_model {
 
   use std::ascii::{String}; 
 
@@ -10,9 +10,9 @@ module whirlpool::interest_rate_model {
   use sui::event;
 
   use library::math::{d_fdiv, d_fmul_u256, double_scalar};
-  use library::utils::{get_coin_info_string, get_ms_per_year};
+  use library::utils::{get_type_name_string, get_ms_per_year};
 
-  friend whirlpool::core;
+  friend money_market::ipx_money_market;
 
   struct InterestRateData has key, store {
     id: UID,
@@ -148,7 +148,7 @@ module whirlpool::interest_rate_model {
     kink: u256,
     ctx: &mut TxContext
   ) {
-    let key = get_coin_info_string<T>();
+    let key = get_type_name_string<T>();
 
     let ms_per_year = (get_ms_per_year() as u256);
 
@@ -207,7 +207,7 @@ module whirlpool::interest_rate_model {
 
   #[test_only]
   public fun get_interest_rate_data<T>(storage: &InterestRateModelStorage): (u256, u256, u256, u256) {
-    let data = object_table::borrow(&storage.interest_rate_object_table, get_coin_info_string<T>());
+    let data = object_table::borrow(&storage.interest_rate_object_table, get_type_name_string<T>());
     (data.base_rate_per_ms, data.multiplier_per_ms, data.jump_multiplier_per_ms, data.kink)
   }
 }
