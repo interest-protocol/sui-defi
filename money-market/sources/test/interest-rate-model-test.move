@@ -1,11 +1,11 @@
 #[test_only]
-module whirlpool::interest_rate_model_test {
+module money_market::interest_rate_model_test {
 
   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
 
-  use whirlpool::interest_rate_model::{Self as model, InterestRateModelStorage};
+  use money_market::interest_rate_model::{Self as model, InterestRateModelStorage};
   use library::test_utils::{people, scenario};
-  use library::utils::{get_coin_info_string};
+  use library::utils::{get_type_name_string};
   use library::math::{d_fdiv, d_fmul_u256, double_scalar};
 
   const ONE_PERCENT: u256 = 10000000000000000;
@@ -66,7 +66,7 @@ module whirlpool::interest_rate_model_test {
 
       let borrow_rate_per_ms = model::get_borrow_rate_per_ms(
         &mut storage,
-        get_coin_info_string<BTC>(),
+        get_type_name_string<BTC>(),
         cash,
         total_borrows,
         reserves
@@ -101,7 +101,7 @@ module whirlpool::interest_rate_model_test {
 
       let borrow_rate_per_ms = model::get_borrow_rate_per_ms(
         &mut storage,
-        get_coin_info_string<BTC>(),
+        get_type_name_string<BTC>(),
         cash,
         total_borrows,
         reserves
@@ -147,7 +147,7 @@ module whirlpool::interest_rate_model_test {
 
       let supply_rate_per_ms = model::get_supply_rate_per_ms(
         &mut storage,
-        get_coin_info_string<BTC>(),
+        get_type_name_string<BTC>(),
         cash,
         total_borrows,
         reserves,
@@ -183,7 +183,7 @@ module whirlpool::interest_rate_model_test {
 
       let supply_rate_per_ms = model::get_supply_rate_per_ms(
         &mut storage,
-        get_coin_info_string<BTC>(),
+        get_type_name_string<BTC>(),
         cash,
         total_borrows,
         reserves,

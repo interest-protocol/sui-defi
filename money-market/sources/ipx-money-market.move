@@ -58,7 +58,6 @@ module money_market::ipx_money_market {
   const ERROR_MAX_COLLATERAL_REACHED: u64 = 20;
   const ERROR_CAN_NOT_BE_COLLATERAL: u64 = 21;
   const ERROR_INTEREST_RATE_OUT_OF_BOUNDS: u64 = 22;
-  const ERROR_WRONG_PRICE: u64 = 23;
 
   // OTW
   struct IPX_MONEY_MARKET has drop {}
@@ -117,7 +116,7 @@ module money_market::ipx_money_market {
     loan_rewards_paid: u256
   }
 
-  struct CoinPrice has store {
+  struct CoinPrice has store, drop {
     value: u256
   }
 
@@ -351,7 +350,7 @@ module money_market::ipx_money_market {
       let sender = tx_context::sender(ctx);
 
       // We need to register his account on the first deposit call, if it does not exist.
-      init_account(money_market_storage, sender, market_key, ctx);
+      init_account(&mut money_market_storage.accounts_table, sender, market_key, ctx);
 
       // We need to update the market loan and rewards before accepting a deposit
       accrue_internal(
@@ -367,7 +366,7 @@ module money_market::ipx_money_market {
       let pending_rewards = 0;
 
       // Get the caller Account to update
-      let account = borrow_mut_account(money_market_storage, sender, market_key);
+      let account = borrow_mut_account(&mut money_market_storage.accounts_table, sender, market_key);
 
       // If the sender has shares already, we need to calculate his rewards before this deposit.
       if (account.shares > 0) 
@@ -461,7 +460,7 @@ module money_market::ipx_money_market {
     let sender = tx_context::sender(ctx);
 
     // Get the sender account struct
-    let account = borrow_mut_account(money_market_storage, sender, market_key);
+    let account = borrow_mut_account(&mut money_market_storage.accounts_table, sender, market_key);
     // No point to proceed if the sender does not have any shares to withdraw.
     assert!(account.shares >= shares_to_remove, ERROR_NOT_ENOUGH_SHARES_IN_THE_ACCOUNT);
     
@@ -489,10 +488,12 @@ module money_market::ipx_money_market {
     // Remove Coin<T> from the market
     let underlying_coin = coin::take(&mut market_balance.balance, underlying_to_redeem, ctx);
 
+    let price_map = get_price(price_potatoes);
+
      // Defense hook after all mutations
     withdraw_allowed(
       money_market_storage, 
-      &get_price(price_potatoes), 
+      &price_map, 
       interest_rate_model_storage, 
       clock_object,
       suid_interest_rate_per_ms,
@@ -571,13 +572,13 @@ module money_market::ipx_money_market {
     let sender = tx_context::sender(ctx);
 
     // Init the acount if the user never borrowed or deposited in this market
-    init_account(money_market_storage, sender, market_key, ctx);
+    init_account(&mut money_market_storage.accounts_table, sender, market_key, ctx);
 
     // Register market in vector if the user never entered any market before
-    init_markets_in(money_market_storage, sender);
+    init_markets_in(&mut money_market_storage.markets_in_table, sender);
 
     // Get the user account
-    let account = borrow_mut_account(money_market_storage, sender, market_key);
+    let account = borrow_mut_account(&mut money_market_storage.accounts_table, sender, market_key);
 
     let pending_rewards = 0;
     // If the sender has a loan already, we need to calculate his rewards before this loan.
@@ -675,7 +676,7 @@ module money_market::ipx_money_market {
     let sender = tx_context::sender(ctx);
 
     // Get the sender account
-    let account = borrow_mut_account(money_market_storage, sender, market_key);
+    let account = borrow_mut_account(&mut money_market_storage.accounts_table, sender, market_key);
 
     // Calculate the sender rewards before repayment
     // Math: we need to remove the decimals of shares during fixed point multiplication to maintain IPX decimal houses
@@ -816,7 +817,7 @@ module money_market::ipx_money_market {
     let sender = tx_context::sender(ctx);
 
     // Init the markets_in account if he never interacted with this market
-    init_markets_in(money_market_storage, sender);
+    init_markets_in(&mut money_market_storage.markets_in_table, sender);
 
    // Get the user market_in account
    let user_markets_in = borrow_mut_user_markets_in(&mut money_market_storage.markets_in_table, sender);
@@ -849,7 +850,7 @@ module money_market::ipx_money_market {
   ) {
     let market_key = get_type_name_string<T>();
     let sender = tx_context::sender(ctx);
-    let account = borrow_account(money_market_storage, sender, market_key);
+    let account = borrow_account(&money_market_storage.accounts_table, sender, market_key);
 
     let suid_interest_rate_per_ms = money_market_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = money_market_storage.ipx_per_ms;
@@ -912,7 +913,7 @@ module money_market::ipx_money_market {
     // Get the market data
     let market_data = borrow_mut_market_data(&mut money_market_storage.market_data_table, market_key);
     // Get the user account
-    let account = borrow_account(money_market_storage, user, market_key);
+    let account = borrow_account(&money_market_storage.accounts_table, user, market_key);
     
     get_account_balances_internal(
       market_data, 
@@ -1111,12 +1112,12 @@ module money_market::ipx_money_market {
     object_table::borrow_mut(market_data, market_key)
   }
 
-  fun borrow_account(money_market_storage: &MoneyMarketStorage, user: address, market_key: String): &Account {
-    object_table::borrow(object_table::borrow(&money_market_storage.accounts_table, market_key), user)
+  fun borrow_account(accounts_table: &ObjectTable<String, ObjectTable<address, Account>>, user: address, market_key: String): &Account {
+    object_table::borrow(object_table::borrow(accounts_table, market_key), user)
   }
 
-  fun borrow_mut_account(money_market_storage: &mut MoneyMarketStorage, user: address, market_key: String): &mut Account {
-    object_table::borrow_mut(object_table::borrow_mut(&mut money_market_storage.accounts_table, market_key), user)
+  fun borrow_mut_account(accounts_table: &mut ObjectTable<String, ObjectTable<address, Account>>, user: address, market_key: String): &mut Account {
+    object_table::borrow_mut(object_table::borrow_mut(accounts_table, market_key), user)
   }
 
   fun borrow_user_markets_in(markets_in: &Table<address, vector<String>>, user: address): &vector<String> {
@@ -1127,19 +1128,19 @@ module money_market::ipx_money_market {
     table::borrow_mut(markets_in, user)
   }
 
-  fun account_exists(money_market_storage: &MoneyMarketStorage, user: address, market_key: String): bool {
-    object_table::contains(object_table::borrow(&money_market_storage.accounts_table, market_key), user)
+  fun account_exists(accounts_table: &ObjectTable<String, ObjectTable<address, Account>>, user: address, market_key: String): bool {
+    object_table::contains(object_table::borrow(accounts_table, market_key), user)
   }
 
   /**
   * @dev It registers an empty Account for a Market with key if it is not present
-  * @param money_market_storage The shared account storage object of ipx::whirpool 
+  * @param accounts_table The Account Table
   * @param user The address of the user we wish to initiate his account
   */
-  fun init_account(money_market_storage: &mut MoneyMarketStorage, user: address, key: String, ctx: &mut TxContext) {
-    if (!account_exists(money_market_storage, user, key)) {
+  fun init_account(accounts_table: &mut ObjectTable<String, ObjectTable<address, Account>>, user: address, key: String, ctx: &mut TxContext) {
+    if (!account_exists(accounts_table, user, key)) {
           object_table::add(
-            object_table::borrow_mut(&mut money_market_storage.accounts_table, key),
+            object_table::borrow_mut(accounts_table, key),
             user,
             Account {
               id: object::new(ctx),
@@ -1154,13 +1155,13 @@ module money_market::ipx_money_market {
 
    /**
   * @dev It registers an empty markets_in for a user 
-  * @param money_market_storage The shared account storage object of ipx::whirpool 
+  * @param markets_in_table The tables that contains the market, which the user has allowed collateral
   * @param user The address of the user we wish to initiate his markets_in vector
   */
-  fun init_markets_in(money_market_storage: &mut MoneyMarketStorage, user: address) {
-    if (!table::contains(&money_market_storage.markets_in_table, user)) {
+  fun init_markets_in(markets_in_table: &mut Table<address, vector<String>>, user: address) {
+    if (!table::contains(markets_in_table, user)) {
       table::add(
-       &mut money_market_storage.markets_in_table,
+       markets_in_table,
        user,
        vector::empty<String>()
       );
@@ -1198,7 +1199,7 @@ module money_market::ipx_money_market {
       // Fetch the price from the oracle
       let (average, _switchboard_result, _pyth_result, _scalar, _pyth_timestamp, _switchboard_timestamp, coin_name) = read_price(price_potato);
 
-      vec_map::insert(&mut price_map, coin_name, CoinPrice {value: average });
+      vec_map::insert(&mut price_map, coin_name, CoinPrice { value: average });
 
       index = index + 1;
     };
@@ -1836,13 +1837,13 @@ module money_market::ipx_money_market {
     let sender = tx_context::sender(ctx);
 
     // Init the acount if the user never borrowed or deposited in this market
-    init_account(money_market_storage, sender, market_key, ctx);
+    init_account(&mut money_market_storage.accounts_table, sender, market_key, ctx);
 
     // Register market in vector if the user never entered any market before
-    init_markets_in(money_market_storage, sender);
+    init_markets_in(&mut money_market_storage.markets_in_table, sender);
 
     // Get the user account
-    let account = borrow_mut_account(money_market_storage, sender, market_key);
+    let account = borrow_mut_account(&mut money_market_storage.accounts_table, sender, market_key);
 
     let pending_rewards = 0;
     // If the sender has a loan already, we need to calculate his rewards before this loan.
@@ -1935,7 +1936,7 @@ module money_market::ipx_money_market {
     let sender = tx_context::sender(ctx);
 
     // Get the sender account
-    let account = borrow_mut_account(money_market_storage, sender, market_key);
+    let account = borrow_mut_account(&mut money_market_storage.accounts_table, sender, market_key);
 
     // Calculate the sender rewards before repayment
     // Math: we need to remove the decimals of shares during fixed point multiplication to maintain IPX decimal houses
@@ -2174,12 +2175,12 @@ module money_market::ipx_money_market {
     );
 
     // Accounts must exist or there is no point o proceed.
-    assert!(account_exists(money_market_storage, borrower, collateral_market_key), ERROR_ACCOUNT_COLLATERAL_DOES_EXIST);
-    assert!(account_exists(money_market_storage, borrower, loan_market_key), ERROR_ACCOUNT_LOAN_DOES_EXIST);
+    assert!(account_exists(&money_market_storage.accounts_table, borrower, collateral_market_key), ERROR_ACCOUNT_COLLATERAL_DOES_EXIST);
+    assert!(account_exists(&money_market_storage.accounts_table, borrower, loan_market_key), ERROR_ACCOUNT_LOAN_DOES_EXIST);
 
     // If the liquidator does not have an account in the collateral market, we make one. 
     // So he can accept the collateral
-    init_account(money_market_storage, liquidator_address, collateral_market_key, ctx);
+    init_account(&mut money_market_storage.accounts_table, liquidator_address, collateral_market_key, ctx);
 
     let price_map = get_price(price_potatoes);
     
@@ -2196,7 +2197,7 @@ module money_market::ipx_money_market {
      ERROR_USER_IS_SOLVENT);
 
     // Get the borrower loan account information
-    let borrower_loan_account = borrow_mut_account(money_market_storage, borrower, loan_market_key);
+    let borrower_loan_account = borrow_mut_account(&mut money_market_storage.accounts_table, borrower, loan_market_key);
     // Convert the principal to a nominal amount
     let borrower_loan_amount = rebase::to_elastic(
       &borrow_market_data(&money_market_storage.market_data_table, loan_market_key).loan_rebase, 
@@ -2260,7 +2261,7 @@ module money_market::ipx_money_market {
     let liquidator_amount = collateral_seize_amount_with_fee - protocol_amount;
 
     // Get the borrower collateral account
-    let borrower_collateral_account = borrow_mut_account(money_market_storage, borrower, collateral_market_key);
+    let borrower_collateral_account = borrow_mut_account(&mut money_market_storage.accounts_table, borrower, collateral_market_key);
 
     // We need to add the collateral rewards to the user.
     // Math: we need to remove the decimals of shares during fixed point multiplication to maintain IPX decimal houses
@@ -2276,7 +2277,7 @@ module money_market::ipx_money_market {
     borrower_collateral_account.collateral_rewards_paid = (borrower_collateral_account.shares as u256) * collateral_market_data.accrued_collateral_rewards_per_share / (collateral_market_data.decimals_factor as u256);
 
     // Give the shares to the liquidator
-    let liquidator_collateral_account = borrow_mut_account(money_market_storage, liquidator_address, collateral_market_key);
+    let liquidator_collateral_account = borrow_mut_account(&mut money_market_storage.accounts_table, liquidator_address, collateral_market_key);
 
     liquidator_collateral_account.shares = liquidator_collateral_account.shares + rebase::to_base(&collateral_market_data.collateral_rebase, (liquidator_amount as u64), false);
     // Consider the liquidator rewards paid
@@ -2362,12 +2363,12 @@ module money_market::ipx_money_market {
     );
 
     // Accounts must exist or there is no point o proceed.
-    assert!(account_exists(money_market_storage, borrower, collateral_market_key), ERROR_ACCOUNT_COLLATERAL_DOES_EXIST);
-    assert!(account_exists(money_market_storage, borrower, suid_market_key), ERROR_ACCOUNT_LOAN_DOES_EXIST);
+    assert!(account_exists(&money_market_storage.accounts_table, borrower, collateral_market_key), ERROR_ACCOUNT_COLLATERAL_DOES_EXIST);
+    assert!(account_exists(&money_market_storage.accounts_table, borrower, suid_market_key), ERROR_ACCOUNT_LOAN_DOES_EXIST);
 
     // If the liquidator does not have an account in the collateral market, we make one. 
     // So he can accept the collateral
-    init_account(money_market_storage, liquidator_address, collateral_market_key, ctx);
+    init_account(&mut money_market_storage.accounts_table, liquidator_address, collateral_market_key, ctx);
 
     let price_map = get_price(price_potatoes);
     
@@ -2384,7 +2385,7 @@ module money_market::ipx_money_market {
     ERROR_USER_IS_SOLVENT);
 
     // Get the borrower loan account information
-    let borrower_loan_account = borrow_mut_account(money_market_storage, borrower, suid_market_key);
+    let borrower_loan_account = borrow_mut_account(&mut money_market_storage.accounts_table, borrower, suid_market_key);
     // Convert the principal to a nominal amount
     let borrower_loan_amount = rebase::to_elastic(
       &borrow_market_data(&money_market_storage.market_data_table, suid_market_key).loan_rebase, 
@@ -2443,7 +2444,7 @@ module money_market::ipx_money_market {
 
     // Get the borrower collateral account
     let collateral_market_data = borrow_market_data(&mut money_market_storage.market_data_table, collateral_market_key);
-    let borrower_collateral_account = borrow_mut_account(money_market_storage, borrower, collateral_market_key);
+    let borrower_collateral_account = borrow_mut_account(&mut money_market_storage.accounts_table, borrower, collateral_market_key);
 
     // We need to add the collateral rewards to the user.
     // Math: we need to remove the decimals of shares during fixed point multiplication to maintain IPX decimal houses
@@ -2459,7 +2460,7 @@ module money_market::ipx_money_market {
     borrower_collateral_account.collateral_rewards_paid = (borrower_collateral_account.shares as u256) * collateral_market_data.accrued_collateral_rewards_per_share / (collateral_market_data.decimals_factor as u256);
 
     // Give the shares to the liquidator
-    let liquidator_collateral_account = borrow_mut_account(money_market_storage, liquidator_address, collateral_market_key);
+    let liquidator_collateral_account = borrow_mut_account(&mut money_market_storage.accounts_table, liquidator_address, collateral_market_key);
 
     liquidator_collateral_account.shares = liquidator_collateral_account.shares + rebase::to_base(&collateral_market_data.collateral_rebase, (liquidator_amount as u64), false);
     // Consider the liquidator rewards paid
@@ -2489,7 +2490,7 @@ module money_market::ipx_money_market {
   * @return (u64, u64, u256, u256) (shares, principal, collateteral_rewards_paid, loan_rewards_paid)
   */
   public fun get_account_info<T>(money_market_storage: &MoneyMarketStorage, user: address): (u64, u64, u256, u256) {
-    let account = borrow_account(money_market_storage, user, get_type_name_string<T>());
+    let account = borrow_account(&money_market_storage.accounts_table, user, get_type_name_string<T>());
     (account.shares, account.principal, account.collateral_rewards_paid, account.loan_rewards_paid)
   }
 
@@ -2716,7 +2717,7 @@ module money_market::ipx_money_market {
     };
 
       // Get the caller Account to update
-      let account = borrow_mut_account(money_market_storage, user, market_key);
+      let account = borrow_mut_account(&mut money_market_storage.accounts_table, user, market_key);
 
       let pending_collateral_rewards = 0;
       let pending_loan_rewards = 0;
