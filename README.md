@@ -16,14 +16,14 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 **To run the tests on the dex directory**
 
 ```bash
-  cd dex
+  cd money-market
   sui move test
 ```
 
 ### Publish
 
 ```bash
-  cd dex
+  cd money-market
   sui client publish --gas-budget 500000000
 ```
 
