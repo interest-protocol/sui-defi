@@ -3,6 +3,7 @@
  <p> <img width="50px"height="50px" src="./assets/logo.png" /></p> 
  
 A set of experimental Contracts for the [Sui](https://sui.io/) Network.  
+Once these modules go live, they are moved to their own repos.
   
 ## Quick start  
   
@@ -28,46 +29,19 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 
 ## Repo Structure
 
-- **dex:** It contains the logic for users to swap, add/remove liquidity and create pools
-- **whirlpool:** It contains the logic for users to borrow and lend coins
-- **ipx:** The governance token of Interest Protocol
+- **money-market:** It contains the logic for users to borrow and lend coins
 - **sui-dollar:** The stable coin of Interest Protocol
 - **library:** It contains utility functions that are used by other modules
 - **airdrop:** It contains the module to airdrop the IPX governance token to whitelisted accounts
 - **examples:** A myriad of examples on how to interact with various modules
 - **audits** It contains code audits
 - **i256** A library to
+- **clamm** UniswapV3 in Move (WIP)
+- **oracle** An oracle that fetches the prices from Pyth and Switchboard
 
 ## Functionality
 
-### DEX
-
-> This code has been [audited](https://github.com/interest-protocol/sui-defi/blob/main/audits/Interest%20Protocol%20DEX%20Smart%20Contract%20Audit%20Report.pdf) by [MoveBit](https://movebit.xyz/)
-
-The Interest Protocol DEX allows users to create pools, add/remove liquidity and trade.
-
-The DEX supports two types of pools denoted as:
-
-- **Volatile:** `k = x * y` popularized by [Uniswap](https://uniswap.org/whitepaper.pdf)
-- **Stable:** `k = yx^3 + xy^3` inspired by Curve's algorithm.
-
-> The DEX will route the trade to the most profitable pool (volatile vs
-> stable).
-
-- Create Pool: Users can only create volatile & stable pools
-- Add/Remove Liquidity
-- Swap: Pool<BTC, Ether> | Ether -> BTC | BTC -> Ether
-- One Hop Swap: Pool<BTC, Ether> & Pool<Ether, USDC> | BTC -> Ether -> USDC | USDC -> Ether -> BTC
-- Two Hop Swap: Pool<BTC, Ether> & Pool<Ether, USDC> & Pool<Sui, USDC> | BTC -> Ether -> USDC -> Sui | Sui -> USDC -> Ether -> BTC
-- Farms to deposit LPCoins to farm IPX tokens
-- Flash loans
-- TWAP Oracle
-
-### IPX Coin
-
-It is the governance coin of the protocol and it is minted as rewards by the Masterchef and lending modules. This coin will power the DAO in the future.
-
-### Whirlpool
+### Money Market
 
 The Interest Protocol Lending Protocol allows users to borrow and lend cryptocurrencies.
 

@@ -277,16 +277,14 @@ module money_market::ipx_money_market {
     ) {
     // Save storage information before mutation
     let market_key = get_type_name_string<T>(); // Key of the current market being updated
-    let ipx_per_ms = money_market_storage.ipx_per_ms; // IPX mint amount per ms
-    let total_allocation_points = money_market_storage.total_allocation_points; // Total allocation points
 
     accrue_internal(
       borrow_mut_market_data(&mut money_market_storage.market_data_table, market_key), 
       interest_rate_model_storage, 
       clock_object,
       market_key, 
-      ipx_per_ms,
-      total_allocation_points
+      money_market_storage.ipx_per_ms,
+      money_market_storage.total_allocation_points
     );
   }
 
@@ -299,17 +297,12 @@ module money_market::ipx_money_market {
     money_market_storage: &mut MoneyMarketStorage, 
     clock_object: &Clock
   ) {
-    let suid_interest_rate_per_ms = money_market_storage.suid_interest_rate_per_ms;
-    let ipx_per_ms = money_market_storage.ipx_per_ms; // IPX mint amount per ms
-    let total_allocation_points = money_market_storage.total_allocation_points; // Total allocation points
-    let market_key = get_type_name_string<SUID>();
-
     accrue_internal_suid(
-      borrow_mut_market_data(&mut money_market_storage.market_data_table, market_key), 
+      borrow_mut_market_data(&mut money_market_storage.market_data_table, get_type_name_string<SUID>()), 
       clock_object,
-      suid_interest_rate_per_ms,
-      ipx_per_ms,
-      total_allocation_points
+      money_market_storage.suid_interest_rate_per_ms,
+      money_market_storage.ipx_per_ms,
+      money_market_storage.total_allocation_points
     );
   }
 
@@ -337,10 +330,6 @@ module money_market::ipx_money_market {
       let market_key = get_type_name_string<T>();
       // User cannot use SUID as collateral
       assert!(market_key != get_type_name_string<SUID>(), ERROR_SUID_OPERATION_NOT_ALLOWED);
-
-      // Reward information in memory
-      let ipx_per_ms = money_market_storage.ipx_per_ms;
-      let total_allocation_points = money_market_storage.total_allocation_points;
       
       // Get market core information
       let market_data = borrow_mut_market_data(&mut money_market_storage.market_data_table, market_key);
@@ -358,8 +347,8 @@ module money_market::ipx_money_market {
         interest_rate_model_storage, 
         clock_object,
         market_key, 
-        ipx_per_ms,
-        total_allocation_points
+        money_market_storage.ipx_per_ms,
+         money_market_storage.total_allocation_points
       );
 
       // Declare the pending rewards variable that will save the value of Coin<IPX> to mint.
@@ -436,11 +425,6 @@ module money_market::ipx_money_market {
     let market_key = get_type_name_string<T>();
     // User cannot use SUID as collateral
     assert!(market_key != get_type_name_string<SUID>(), ERROR_SUID_OPERATION_NOT_ALLOWED);
-
-    // Reward information in memory
-    let suid_interest_rate_per_ms = money_market_storage.suid_interest_rate_per_ms;
-    let ipx_per_ms = money_market_storage.ipx_per_ms;
-    let total_allocation_points = money_market_storage.total_allocation_points;
       
     // Get market core information
     let market_data = borrow_mut_market_data(&mut money_market_storage.market_data_table, market_key);
@@ -452,8 +436,8 @@ module money_market::ipx_money_market {
       interest_rate_model_storage, 
       clock_object,
       market_key, 
-      ipx_per_ms,
-      total_allocation_points
+      money_market_storage.ipx_per_ms,
+      money_market_storage.total_allocation_points
     );
 
     // Save the sender info in memory
@@ -496,9 +480,6 @@ module money_market::ipx_money_market {
       &price_map, 
       interest_rate_model_storage, 
       clock_object,
-      suid_interest_rate_per_ms,
-      ipx_per_ms,
-      total_allocation_points,
       market_key, 
       sender
      );
@@ -545,11 +526,6 @@ module money_market::ipx_money_market {
     let suid_market_key = get_type_name_string<SUID>();
     // User cannot use SUID as collateral
     assert!(market_key != suid_market_key, ERROR_SUID_OPERATION_NOT_ALLOWED);
-
-    // Reward information in memory
-    let suid_interest_rate_per_ms = money_market_storage.suid_interest_rate_per_ms;
-    let ipx_per_ms = money_market_storage.ipx_per_ms;
-    let total_allocation_points = money_market_storage.total_allocation_points;
       
     // Get market core information
     let market_data = borrow_mut_market_data(&mut money_market_storage.market_data_table, market_key);
@@ -564,8 +540,8 @@ module money_market::ipx_money_market {
       interest_rate_model_storage, 
       clock_object,
       market_key, 
-      ipx_per_ms,
-      total_allocation_points
+      money_market_storage.ipx_per_ms,
+      money_market_storage.total_allocation_points
     );
 
     // Save the sender address in memory
@@ -609,9 +585,6 @@ module money_market::ipx_money_market {
       &get_price(price_potatoes), 
       interest_rate_model_storage, 
       clock_object,
-      suid_interest_rate_per_ms,
-      ipx_per_ms,
-      total_allocation_points, 
       market_key, 
       sender
     );
@@ -653,10 +626,6 @@ module money_market::ipx_money_market {
     let market_key = get_type_name_string<T>();
     // User cannot use SUID as collateral
     assert!(market_key != get_type_name_string<SUID>(), ERROR_SUID_OPERATION_NOT_ALLOWED);
-
-    // Reward information in memory
-    let ipx_per_ms = money_market_storage.ipx_per_ms;
-    let total_allocation_points = money_market_storage.total_allocation_points;
       
     // Get market core information
     let market_data = borrow_mut_market_data(&mut money_market_storage.market_data_table, market_key);
@@ -668,8 +637,8 @@ module money_market::ipx_money_market {
       interest_rate_model_storage, 
       clock_object,
       market_key, 
-      ipx_per_ms,
-      total_allocation_points
+      money_market_storage.ipx_per_ms,
+      money_market_storage.total_allocation_points
     );
     
     // Save the sender in memory
@@ -852,10 +821,6 @@ module money_market::ipx_money_market {
     let sender = tx_context::sender(ctx);
     let account = borrow_account(&money_market_storage.accounts_table, sender, market_key);
 
-    let suid_interest_rate_per_ms = money_market_storage.suid_interest_rate_per_ms;
-    let ipx_per_ms = money_market_storage.ipx_per_ms;
-    let total_allocation_points = money_market_storage.total_allocation_points;
-
     // Sender cannot exist a market if he is currently borrowing from it
     assert!(account.principal == 0, ERROR_MARKET_EXIT_LOAN_OPEN);
    
@@ -877,12 +842,10 @@ module money_market::ipx_money_market {
       &get_price(price_potatoes), 
       interest_rate_model_storage, 
       clock_object,
-      suid_interest_rate_per_ms,
-      ipx_per_ms,
-      total_allocation_points,
       sender
      ), 
-    ERROR_USER_IS_INSOLVENT);
+    ERROR_USER_IS_INSOLVENT
+  );
 
     emit(
       ExitMarket<T> {
@@ -906,9 +869,6 @@ module money_market::ipx_money_market {
     user: address
    ): (u64, u64) {
     let market_key = get_type_name_string<T>();  
-    let total_allocation_points = money_market_storage.total_allocation_points;
-    let ipx_per_ms = money_market_storage.ipx_per_ms;
-    let suid_interest_rate_per_ms = money_market_storage.suid_interest_rate_per_ms;
 
     // Get the market data
     let market_data = borrow_mut_market_data(&mut money_market_storage.market_data_table, market_key);
@@ -921,9 +881,9 @@ module money_market::ipx_money_market {
       interest_rate_model_storage, 
       clock_object,
       market_key, 
-      suid_interest_rate_per_ms,
-      ipx_per_ms,
-      total_allocation_points
+      money_market_storage.suid_interest_rate_per_ms,
+      money_market_storage.ipx_per_ms,
+      money_market_storage.total_allocation_points
     )
   }
 
@@ -1815,11 +1775,6 @@ module money_market::ipx_money_market {
   ): (Coin<SUID>, Coin<IPX>) {
     // Get the type name of the Coin<SUID> of this market.
     let market_key = get_type_name_string<SUID>();
-
-    // Reward information in memory
-    let suid_interest_rate_per_ms = money_market_storage.suid_interest_rate_per_ms;
-    let ipx_per_ms = money_market_storage.ipx_per_ms;
-    let total_allocation_points = money_market_storage.total_allocation_points;
       
     // Get market core information
     let market_data = borrow_mut_market_data(&mut money_market_storage.market_data_table, market_key);
@@ -1828,9 +1783,9 @@ module money_market::ipx_money_market {
     accrue_internal_suid(
       market_data, 
       clock_object,
-      suid_interest_rate_per_ms,
-      ipx_per_ms,
-      total_allocation_points
+      money_market_storage.suid_interest_rate_per_ms,
+      money_market_storage.ipx_per_ms,
+      money_market_storage.total_allocation_points
     );
 
     // Save the sender address in memory
@@ -1869,9 +1824,6 @@ module money_market::ipx_money_market {
       &get_price(price_potatoes), 
       interest_rate_model_storage, 
       clock_object,
-      suid_interest_rate_per_ms,
-      ipx_per_ms,
-      total_allocation_points, 
       market_key, 
       sender
     );
@@ -1914,11 +1866,6 @@ module money_market::ipx_money_market {
   ): Coin<IPX> {
   // Get the type name of the Coin<SUID> of this market.
     let market_key = get_type_name_string<SUID>();
-
-    // Reward information in memory
-    let suid_interest_rate_per_ms = money_market_storage.suid_interest_rate_per_ms;
-    let ipx_per_ms = money_market_storage.ipx_per_ms;
-    let total_allocation_points = money_market_storage.total_allocation_points;
       
     // Get market core information
     let market_data = borrow_mut_market_data(&mut money_market_storage.market_data_table, market_key);
@@ -1927,9 +1874,9 @@ module money_market::ipx_money_market {
     accrue_internal_suid(
       market_data, 
       clock_object,
-      suid_interest_rate_per_ms,
-      ipx_per_ms,
-      total_allocation_points
+      money_market_storage.suid_interest_rate_per_ms,
+      money_market_storage.ipx_per_ms,
+      money_market_storage.total_allocation_points
     );
     
     // Save the sender in memory
@@ -2138,7 +2085,6 @@ module money_market::ipx_money_market {
     let suid_market_key = get_type_name_string<SUID>();
     let liquidator_address = tx_context::sender(ctx);
     
-    let suid_interest_rate_per_ms = money_market_storage.suid_interest_rate_per_ms;
     let ipx_per_ms = money_market_storage.ipx_per_ms;
     let total_allocation_points = money_market_storage.total_allocation_points;
 
@@ -2190,10 +2136,8 @@ module money_market::ipx_money_market {
       &price_map, 
       interest_rate_model_storage, 
       clock_object,
-      suid_interest_rate_per_ms,
-      ipx_per_ms,
-      total_allocation_points,
-      borrower), 
+      borrower
+     ), 
      ERROR_USER_IS_SOLVENT);
 
     // Get the borrower loan account information
@@ -2378,10 +2322,8 @@ module money_market::ipx_money_market {
       &price_map, 
       interest_rate_model_storage, 
       clock_object,
-      suid_interest_rate_per_ms,
-      ipx_per_ms,
-      total_allocation_points,
-      borrower), 
+      borrower
+    ), 
     ERROR_USER_IS_SOLVENT);
 
     // Get the borrower loan account information
@@ -2561,16 +2503,12 @@ module money_market::ipx_money_market {
 
    /**
   * @notice Defensive hook to make sure that the user can withdraw
-  * @param market_table The table that holds the Market structs
   * @param money_market_storage The shared account storage object of ipx::whirpool 
   * @param price_map A VecMap containing the coins prices
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param clock_object The shared Clock object
-  * @param ipx_per_ms The value of Coin<IPX> this module can mint per ms
-  * @param total_allocation_points The total rewards points in the module
   * @param market_key The key of the market the user is trying to withdraw
   * @param user The address of the user that is trying to withdraw
-  * @param coin_value The value he is withdrawing from the market
   * Requirements
   * - The user must be solvent after withdrawing.
   */
@@ -2579,9 +2517,6 @@ module money_market::ipx_money_market {
     price_map: &VecMap<String, CoinPrice>,
     interest_rate_model_storage: &InterestRateModelStorage,
     clock_object: &Clock,
-    suid_interest_rate_per_ms: u64,
-    ipx_per_ms: u64,
-    total_allocation_points: u256, 
     market_key: String,
     user: address
     ) {
@@ -2596,9 +2531,6 @@ module money_market::ipx_money_market {
         price_map, 
         interest_rate_model_storage, 
         clock_object,
-        suid_interest_rate_per_ms,
-        ipx_per_ms,
-        total_allocation_points, 
         user
        ), 
        ERROR_USER_IS_INSOLVENT);
@@ -2607,17 +2539,12 @@ module money_market::ipx_money_market {
 
   /**
   * @notice Defensive hook to make sure that the user can borrow
-  * @param market_table The table that holds the Market structs
   * @param money_market_storage The shared account storage object of ipx::whirpool 
   * @param price_map A VecMap containing the coins prices
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
-  * @param suid_storage The shared ofbject of the module ipx::suid 
   * @param clock_object The shared Clock object
-  * @param ipx_per_ms The value of Coin<IPX> this module can mint per ms
-  * @param total_allocation_points The total rewards points in the module
   * @param market_key The key of the market the user is trying to borrow from
   * @param user The address of the user that is trying to borrow
-  * @param coin_value The value the user is borrowing
   * Requirements
   * - The user must be solvent after withdrawing.
   */
@@ -2626,9 +2553,6 @@ module money_market::ipx_money_market {
     price_map: &VecMap<String, CoinPrice>,
     interest_rate_model_storage: &InterestRateModelStorage,
     clock_object: &Clock,
-    suid_interest_rate_per_ms: u64,
-    ipx_per_ms: u64,
-    total_allocation_points: u256, 
     market_key: String,
     user: address
   ) {
@@ -2653,9 +2577,6 @@ module money_market::ipx_money_market {
         price_map, 
         interest_rate_model_storage, 
         clock_object,
-        suid_interest_rate_per_ms,
-        ipx_per_ms,
-        total_allocation_points,
         user
        ), 
        ERROR_USER_IS_SOLVENT);
@@ -2744,13 +2665,10 @@ module money_market::ipx_money_market {
 
   /**
   * @notice It checks if a user is solvent after withdrawing and borrowing
-  * @param market_table The table that holds the Market structs
   * @param money_market_storage The shared account storage object of ipx::whirpool 
   * @param price_map A VecMap with the prices
   * @param interest_rate_model_storage The shared object of the module ipx::interest_rate_model 
   * @param clock_object The shared clock object
-  * @param ipx_per_ms The value of Coin<IPX> this module can mint per ms
-  * @param total_allocation_points The total rewards points in the module
   * @param user The address of the user that is trying to borrow or withdraw
   * @return bool true if the user can borrow
   */
@@ -2759,11 +2677,12 @@ module money_market::ipx_money_market {
     price_map: &VecMap<String, CoinPrice>,
     interest_rate_model_storage: &InterestRateModelStorage,
     clock_object: &Clock,
-    suid_interest_rate_per_ms: u64,
-    ipx_per_ms: u64,
-    total_allocation_points: u256, 
     user: address
     ): bool {
+    let suid_interest_rate_per_ms = money_market_storage.suid_interest_rate_per_ms;  
+    let ipx_per_ms = money_market_storage.ipx_per_ms;
+    let total_allocation_points = money_market_storage.total_allocation_points;
+
     // Get the list of the markets the user is in. 
     // No point to calculate the data for markets the user is not in.
     let user_markets_in = borrow_mut_user_markets_in(&mut money_market_storage.markets_in_table, user);

@@ -1,258 +1,218 @@
 #[test_only]
 module money_market::ipx_money_market_test {
-//   use std::vector;
+  use std::vector;
 
-//   use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
-//   use sui::test_utils::{assert_eq};
-//   use sui::coin::{burn_for_testing as burn, CoinMetadata};
-//   use sui::math;
-//   use sui::clock;
+  use sui::test_scenario::{Self as test, Scenario, next_tx, ctx};
+  use sui::test_utils::{assert_eq};
+  use sui::coin::{burn_for_testing as burn, CoinMetadata};
+  use sui::math;
+  use sui::clock;
 
-//   use whirlpool::core::{Self as whirlpool, WhirlpoolAdminCap, WhirlpoolStorage, AccountStorage};
-//   use whirlpool::oracle::{Self, OracleStorage, OracleAdminCap};
-//   use whirlpool::interest_rate_model::{Self as model, InterestRateModelStorage};
-//   use ipx::ipx::{Self, IPXStorage, IPXAdminCap};
-//   use sui_dollar::suid::{Self, SUID, SuiDollarStorage, SuiDollarAdminCap};
-//   use library::math::{d_fmul, d_fmul_u256};
-//   use library::utils::{get_coin_info_string};
-//   use library::test_utils::{people,  mint, scenario};
-//   use library::ada::{Self, ADA};
-//   use library::eth::{Self, ETH};
-//   use library::btc::{Self, BTC};
+  use money_market::ipx_money_market::{Self as money_market, MoneyMarketAdminCap, MoneyMarketStorage};
+  use money_market::interest_rate_model::{Self as model, InterestRateModelStorage};
+ 
+  use oracle::ipx_oracle::{get_price_for_testing};
 
-//   const ONE_PERCENT: u256 = 10000000000000000;
-//   const TWO_PERCENT: u256 = 20000000000000000;
-//   const KINK: u256 = 700000000000000000; // 70%
-//   const INITIAL_BTC_PRICE: u256 = 200000000000; // 20k - 7 decimals
-//   const INITIAL_ETH_PRICE: u256 = 140000000000; // 1400 - 8 decimals
-//   const INITIAL_ADA_PRICE: u256 = 300000000; // 30 cents - 9 decimals
-//   const SUID_PRICE: u64 = 1000000000; // 1 USD
-//   const BTC_BORROW_CAP: u64 = 100000000000; // 100 BTC - 9 decimals
-//   const ETH_BORROW_CAP: u64 = 50000000000; // 500 ETH 8 decimals
-//   const ADA_BORROW_CAP: u64 = 100000000000000; // 10M 7 decimals
-//   const SUID_BORROW_CAP: u64 = 150000000000000; // 100k 9 decimals
-//   const BTC_DECIMALS: u8 = 9;
-//   const ETH_DECIMALS: u8 = 8;
-//   const ADA_DECIMALS: u8 = 7;
-//   const SUID_DECIMALS: u8 = 9;
-//   const IPX_DECIMALS_FACTOR: u256 = 1000000000;
-//   const BTC_DECIMALS_FACTOR: u256 = 1000000000;
-//   const ETH_DECIMALS_FACTOR: u256 = 100000000;
-//   const ADA_DECIMALS_FACTOR: u256 = 10000000;
-//   const SUID_DECIMALS_FACTOR: u256 = 1000000000;
-//   const INITIAL_RESERVE_FACTOR_MANTISSA: u64 = 200000000000000000; // 0.2e18 or 20%
-//   const MS_PER_YEAR: u256 = 31536000000; 
-//   // ATTENTION This needs to be updated when the module constant is updated.
-//   const INITIAL_IPX_PER_MS: u256 = 1268391; // 40M IPX per year
+  use ipx::ipx::{Self, IPXStorage, IPXAdminCap};
+ 
+  use sui_dollar::suid::{Self, SUID, SuiDollarStorage, SuiDollarAdminCap};
+ 
+  use library::math::{d_fmul, d_fmul_u256};
+  use library::utils::{get_type_name_string};
+  use library::test_utils::{people,  mint, scenario};
+  use library::ada::{Self, ADA};
+  use library::eth::{Self, ETH};
+  use library::btc::{Self, BTC};
 
-//   public fun init_test(test: &mut Scenario) {
-//     let (alice, _) = people();
+  const ONE_PERCENT: u256 = 10000000000000000;
+  const TWO_PERCENT: u256 = 20000000000000000;
+  const KINK: u256 = 700000000000000000; // 70%
+  const INITIAL_BTC_PRICE: u256 = 200000000000; // 20k - 7 decimals
+  const INITIAL_ETH_PRICE: u256 = 140000000000; // 1400 - 8 decimals
+  const INITIAL_ADA_PRICE: u256 = 300000000; // 30 cents - 9 decimals
+  const SUID_PRICE: u64 = 1000000000; // 1 USD
+  const BTC_BORROW_CAP: u64 = 100000000000; // 100 BTC - 9 decimals
+  const ETH_BORROW_CAP: u64 = 50000000000; // 500 ETH 8 decimals
+  const ADA_BORROW_CAP: u64 = 100000000000000; // 10M 7 decimals
+  const SUID_BORROW_CAP: u64 = 150000000000000; // 100k 9 decimals
+  const BTC_DECIMALS: u8 = 9;
+  const ETH_DECIMALS: u8 = 8;
+  const ADA_DECIMALS: u8 = 7;
+  const SUID_DECIMALS: u8 = 9;
+  const IPX_DECIMALS_FACTOR: u256 = 1000000000;
+  const BTC_DECIMALS_FACTOR: u256 = 1000000000;
+  const ETH_DECIMALS_FACTOR: u256 = 100000000;
+  const ADA_DECIMALS_FACTOR: u256 = 10000000;
+  const SUID_DECIMALS_FACTOR: u256 = 1000000000;
+  const INITIAL_RESERVE_FACTOR_MANTISSA: u64 = 200000000000000000; // 0.2e18 or 20%
+  const MS_PER_YEAR: u256 = 31536000000; 
+  // ATTENTION This needs to be updated when the module constant is updated.
+  const INITIAL_IPX_PER_MS: u256 = 1268391; // 40M IPX per year
 
-//     // Init modules
-//     next_tx(test, alice);
-//     {
-//       whirlpool::init_for_testing(ctx(test));
-//       ipx::init_for_testing(ctx(test));
-//       suid::init_for_testing(ctx(test));
-//       model::init_for_testing(ctx(test));
-//       oracle::init_for_testing(ctx(test));
-//       ada::init_for_testing(ctx(test));
-//       btc::init_for_testing(ctx(test));
-//       eth::init_for_testing(ctx(test));
-//     };
+  public fun init_test(test: &mut Scenario) {
+    let (alice, _) = people();
 
-//     // BTC/ETH/ADA Interest Rate
-//     next_tx(test, alice);
-//     {
-//       let storage = test::take_shared<InterestRateModelStorage>(test);
+    // Init modules
+    next_tx(test, alice);
+    {
+      money_market::init_for_testing(ctx(test));
+      ipx::init_for_testing(ctx(test));
+      suid::init_for_testing(ctx(test));
+      model::init_for_testing(ctx(test));
+      ada::init_for_testing(ctx(test));
+      btc::init_for_testing(ctx(test));
+      eth::init_for_testing(ctx(test));
+    };
 
-//       // BTC
-//       model::set_interest_rate_data_test<BTC>(
-//         &mut storage,
-//         ONE_PERCENT, // base 
-//         TWO_PERCENT, // multiplier
-//         ONE_PERCENT + TWO_PERCENT, // jump
-//         KINK,
-//         ctx(test)
-//       );
+    // BTC/ETH/ADA Interest Rate
+    next_tx(test, alice);
+    {
+      let storage = test::take_shared<InterestRateModelStorage>(test);
 
-//       // ETH
-//       model::set_interest_rate_data_test<ETH>(
-//         &mut storage,
-//         ONE_PERCENT * 2, // base 
-//         TWO_PERCENT, // multiplier
-//         TWO_PERCENT * 3, // jump
-//         KINK,
-//         ctx(test)
-//       );
+      // BTC
+      model::set_interest_rate_data_test<BTC>(
+        &mut storage,
+        ONE_PERCENT, // base 
+        TWO_PERCENT, // multiplier
+        ONE_PERCENT + TWO_PERCENT, // jump
+        KINK,
+        ctx(test)
+      );
 
-//        // ADA
-//       model::set_interest_rate_data_test<ADA>(
-//         &mut storage,
-//         ONE_PERCENT, // base 
-//         TWO_PERCENT + ONE_PERCENT, // multiplier
-//         (TWO_PERCENT + ONE_PERCENT) * 3, // jump
-//         KINK,
-//         ctx(test)
-//       );
-//       test::return_shared(storage);
-//     };
+      // ETH
+      model::set_interest_rate_data_test<ETH>(
+        &mut storage,
+        ONE_PERCENT * 2, // base 
+        TWO_PERCENT, // multiplier
+        TWO_PERCENT * 3, // jump
+        KINK,
+        ctx(test)
+      );
 
-//     // Oracle
-//     next_tx(test, alice);
-//     {
-//       let oracle_admin_cap = test::take_from_address<OracleAdminCap>(test, alice);
-//       let oracle_storage = test::take_shared<OracleStorage>(test);
+       // ADA
+      model::set_interest_rate_data_test<ADA>(
+        &mut storage,
+        ONE_PERCENT, // base 
+        TWO_PERCENT + ONE_PERCENT, // multiplier
+        (TWO_PERCENT + ONE_PERCENT) * 3, // jump
+        KINK,
+        ctx(test)
+      );
+      test::return_shared(storage);
+    };
 
-//       // BTC
-//       oracle::set_price<BTC>(
-//         &oracle_admin_cap,
-//         &mut oracle_storage,
-//         INITIAL_BTC_PRICE,
-//         7,
-//         ctx(test)
-//       );
+    next_tx(test, alice);
+    {
+      let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
+      let ipx_storage = test::take_shared<IPXStorage>(test);
+      let suid_storage = test::take_shared<SuiDollarStorage>(test);      
+      let ipx_admin_cap = test::take_from_address<IPXAdminCap>(test, alice);
+      let suid_admin_cap = test::take_from_address<SuiDollarAdminCap>(test, alice);   
 
-//       // ETH
-//       oracle::set_price<ETH>(
-//         &oracle_admin_cap,
-//         &mut oracle_storage,
-//         INITIAL_ETH_PRICE,
-//         8,
-//         ctx(test)
-//       );
+      let id = money_market::get_publisher_id(&money_market_storage);
 
-//        // ADA
-//       oracle::set_price<ADA>(
-//         &oracle_admin_cap,
-//         &mut oracle_storage,
-//         INITIAL_ADA_PRICE,
-//         9,
-//         ctx(test)
-//       );
+      ipx::add_minter(
+        &ipx_admin_cap,
+        &mut ipx_storage,
+        id
+      );
 
-//       test::return_to_address(alice, oracle_admin_cap);
-//       test::return_shared(oracle_storage);
-//     };
+      suid::add_minter(
+        &suid_admin_cap,
+        &mut suid_storage,
+        id
+      );
 
-//     next_tx(test, alice);
-//     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
-//       let ipx_storage = test::take_shared<IPXStorage>(test);
-//       let suid_storage = test::take_shared<SuiDollarStorage>(test);      
-//       let ipx_admin_cap = test::take_from_address<IPXAdminCap>(test, alice);
-//       let suid_admin_cap = test::take_from_address<SuiDollarAdminCap>(test, alice);   
+      test::return_to_address(alice, ipx_admin_cap);
+      test::return_to_address(alice, suid_admin_cap);
+      test::return_shared(money_market_storage); 
+      test::return_shared(suid_storage);
+      test::return_shared(ipx_storage);   
+    };
 
-//       let id = whirlpool::get_publisher_id(&whirlpool_storage);
+    let clock_object = clock::create_for_testing(ctx(test));
 
-//       ipx::add_minter(
-//         &ipx_admin_cap,
-//         &mut ipx_storage,
-//         id
-//       );
+    // Add Markets
+    next_tx(test, alice);
+    {
+      let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
+      let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
+      let btc_coin_metadata = test::take_shared<CoinMetadata<BTC>>(test);
+      let eth_coin_metadata = test::take_shared<CoinMetadata<ETH>>(test);
+      let ada_coin_metadata = test::take_shared<CoinMetadata<ADA>>(test);
+      let suid_coin_metadata = test::take_immutable<CoinMetadata<SUID>>(test);
 
-//       suid::add_minter(
-//         &suid_admin_cap,
-//         &mut suid_storage,
-//         id
-//       );
+      money_market::create_market<BTC>(
+        &money_market_admin_cap,
+        &mut money_market_storage,
+        &clock_object,
+        &btc_coin_metadata,
+        BTC_BORROW_CAP,
+        BTC_BORROW_CAP * 2,
+        700000000000000000, // 70% ltv
+        500, // allocation points
+        50000000000000000, // 5% penalty fee
+        200000000000000000, // 20% protocol fee
+        true,
+        ctx(test)
+      );
 
-//       test::return_to_address(alice, ipx_admin_cap);
-//       test::return_to_address(alice, suid_admin_cap);
-//       test::return_shared(whirlpool_storage); 
-//       test::return_shared(suid_storage);
-//       test::return_shared(ipx_storage);   
-//     };
-
-//     let clock_object = clock::create_for_testing(ctx(test));
-
-//     // Add Markets
-//     next_tx(test, alice);
-//     {
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
-//       let account_storage = test::take_shared<AccountStorage>(test);
-//       let btc_coin_metadata = test::take_shared<CoinMetadata<BTC>>(test);
-//       let eth_coin_metadata = test::take_shared<CoinMetadata<ETH>>(test);
-//       let ada_coin_metadata = test::take_shared<CoinMetadata<ADA>>(test);
-//       let suid_coin_metadata = test::take_immutable<CoinMetadata<SUID>>(test);
-
-//       whirlpool::create_market<BTC>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
-//         &mut account_storage,
-//         &clock_object,
-//         &btc_coin_metadata,
-//         BTC_BORROW_CAP,
-//         BTC_BORROW_CAP * 2,
-//         700000000000000000, // 70% ltv
-//         500, // allocation points
-//         50000000000000000, // 5% penalty fee
-//         200000000000000000, // 20% protocol fee
-//         true,
-//         ctx(test)
-//       );
-
-//       whirlpool::create_market<ETH>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
-//         &mut account_storage,
-//         &clock_object,
-//         &eth_coin_metadata,
-//         ETH_BORROW_CAP,
-//         ETH_BORROW_CAP * 2,
-//         650000000000000000, // 65% ltv
-//         700, // allocation points
-//         70000000000000000, // 7% penalty fee
-//         100000000000000000, // 10% protocol fee
-//         true,
-//         ctx(test)
-//       );
+      money_market::create_market<ETH>(
+        &money_market_admin_cap,
+        &mut money_market_storage,
+        &clock_object,
+        &eth_coin_metadata,
+        ETH_BORROW_CAP,
+        ETH_BORROW_CAP * 2,
+        650000000000000000, // 65% ltv
+        700, // allocation points
+        70000000000000000, // 7% penalty fee
+        100000000000000000, // 10% protocol fee
+        true,
+        ctx(test)
+      );
 
 
-//       whirlpool::create_market<ADA>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
-//         &mut account_storage,
-//         &clock_object,
-//         &ada_coin_metadata,
-//         ADA_BORROW_CAP,
-//         ADA_BORROW_CAP * 2,
-//         500000000000000000, // 50% ltv
-//         900, // allocation points
-//         100000000000000000, // 10% penalty fee
-//         200000000000000000, // 20% protocol fee
-//         true,
-//         ctx(test)
-//       );
+      money_market::create_market<ADA>(
+        &money_market_admin_cap,
+        &mut money_market_storage,
+        &clock_object,
+        &ada_coin_metadata,
+        ADA_BORROW_CAP,
+        ADA_BORROW_CAP * 2,
+        500000000000000000, // 50% ltv
+        900, // allocation points
+        100000000000000000, // 10% penalty fee
+        200000000000000000, // 20% protocol fee
+        true,
+        ctx(test)
+      );
   
-//       whirlpool::create_market<SUID>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
-//         &mut account_storage,
-//         &clock_object,
-//         &suid_coin_metadata,
-//         SUID_BORROW_CAP,
-//         0, // cannot be as collateral
-//         0, // 50% ltv
-//         500, // allocation points
-//         100000000000000000, // 10% penalty fee
-//         200000000000000000, // 20% protocol fee
-//         false,
-//         ctx(test)
-//       );
+      money_market::create_market<SUID>(
+        &money_market_admin_cap,
+        &mut money_market_storage,
+        &clock_object,
+        &suid_coin_metadata,
+        SUID_BORROW_CAP,
+        0, // cannot be as collateral
+        0, // 50% ltv
+        500, // allocation points
+        100000000000000000, // 10% penalty fee
+        200000000000000000, // 20% protocol fee
+        false,
+        ctx(test)
+      );
       
-//       test::return_to_address(alice, whirlpool_admin_cap);
-//       test::return_shared(btc_coin_metadata);
-//       test::return_shared(eth_coin_metadata);
-//       test::return_shared(ada_coin_metadata);
-//       test::return_immutable(suid_coin_metadata);
-//       test::return_shared(whirlpool_storage);
-//       test::return_shared(account_storage);
-//     };
+      test::return_to_address(alice, money_market_admin_cap);
+      test::return_shared(btc_coin_metadata);
+      test::return_shared(eth_coin_metadata);
+      test::return_shared(ada_coin_metadata);
+      test::return_immutable(suid_coin_metadata);
+      test::return_shared(money_market_storage);
+    };
 
-//     clock::destroy_for_testing(clock_object);
-//   }
+    clock::destroy_for_testing(clock_object);
+  }
 
 //   fun test_deposit_(test: &mut Scenario) {
 //     init_test(test);
@@ -263,13 +223,13 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       let coin_ipx = whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       let coin_ipx = money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -278,7 +238,7 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       );
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<BTC>(&account_storage, alice);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<BTC>(&account_storage, alice);
 
 //       assert_eq(burn(coin_ipx), 0);
 //       assert_eq(collateral, 10 * math::pow(10, BTC_DECIMALS));
@@ -289,20 +249,20 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
 //       clock::increment_for_testing(&mut clock_object, 12000);
 
-//       let coin_ipx = whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       let coin_ipx = money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -311,7 +271,7 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       );
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<BTC>(&account_storage, alice);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<BTC>(&account_storage, alice);
 
 //       let collateral_rewards_per_share = calculate_btc_market_rewards(12000, 10 * BTC_DECIMALS_FACTOR);
 
@@ -324,22 +284,22 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
 //       clock::increment_for_testing(&mut clock_object, 20000);
 
-//       let (_, _, _, _, _, _, _, _, _, prev_collateral_rewards_per_share, _, _, _, _, _, _) = whirlpool::get_market_info<BTC>(&whirlpool_storage);
+//       let (_, _, _, _, _, _, _, _, _, prev_collateral_rewards_per_share, _, _, _, _, _, _) = money_market::get_market_info<BTC>(&money_market_storage);
 
-//       let coin_ipx = whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       let coin_ipx = money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -348,7 +308,7 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       );
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<BTC>(&account_storage, bob);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<BTC>(&account_storage, bob);
 
 //       let collateral_rewards_per_share = calculate_btc_market_rewards(20000, 15 * BTC_DECIMALS_FACTOR) + prev_collateral_rewards_per_share;
 
@@ -361,7 +321,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };    
 
 //     clock::destroy_for_testing(clock_object);
@@ -382,15 +342,15 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//      burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//      burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -399,8 +359,8 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //      ));
 
-//       let (coin_btc, coin_ipx) = whirlpool::withdraw<BTC>(
-//         &mut whirlpool_storage, 
+//       let (coin_btc, coin_ipx) = money_market::withdraw<BTC>(
+//         &mut money_market_storage, 
 //         &mut account_storage,
 //         &interest_rate_model_storage, 
 //         &mut ipx_storage, 
@@ -410,7 +370,7 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       );
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<BTC>(&account_storage, alice);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<BTC>(&account_storage, alice);
 
 //       assert_eq(burn(coin_btc), (3 * BTC_DECIMALS_FACTOR as u64));
 //       assert_eq(burn(coin_ipx), 0);
@@ -423,13 +383,13 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);     
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
@@ -438,8 +398,8 @@ module money_market::ipx_money_market_test {
 
 //       clock::increment_for_testing(&mut clock_object, 35000);
 
-//       let (coin_btc, coin_ipx) = whirlpool::withdraw<BTC>(
-//         &mut whirlpool_storage, 
+//       let (coin_btc, coin_ipx) = money_market::withdraw<BTC>(
+//         &mut money_market_storage, 
 //         &mut account_storage,
 //         &interest_rate_model_storage, 
 //         &mut ipx_storage, 
@@ -449,7 +409,7 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       );
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<BTC>(&account_storage, alice);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<BTC>(&account_storage, alice);
 
 //       let collateral_rewards_per_share = calculate_btc_market_rewards(35000, 7 * BTC_DECIMALS_FACTOR);
 
@@ -464,19 +424,19 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);         
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -488,26 +448,26 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       let (_, _, _, _, _, _, _, _, _, prev_collateral_rewards_per_share, _, _, _, _, _, _) = whirlpool::get_market_info<BTC>(&whirlpool_storage);
+//       let (_, _, _, _, _, _, _, _, _, prev_collateral_rewards_per_share, _, _, _, _, _, _) = money_market::get_market_info<BTC>(&money_market_storage);
 
-//       let (_, _, prev_collateral_rewards_paid, _) = whirlpool::get_account_info<BTC>(&account_storage, bob);
+//       let (_, _, prev_collateral_rewards_paid, _) = money_market::get_account_info<BTC>(&account_storage, bob);
 
 //       clock::increment_for_testing(&mut clock_object, 27000);
 
-//       let (coin_btc, coin_ipx) = whirlpool::withdraw<BTC>(
-//         &mut whirlpool_storage, 
+//       let (coin_btc, coin_ipx) = money_market::withdraw<BTC>(
+//         &mut money_market_storage, 
 //         &mut account_storage,
 //         &interest_rate_model_storage, 
 //         &mut ipx_storage, 
@@ -517,7 +477,7 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       );
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<BTC>(&account_storage, bob);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<BTC>(&account_storage, bob);
 
 //       let collateral_rewards_per_share = calculate_btc_market_rewards(27000, 15 * BTC_DECIMALS_FACTOR) + prev_collateral_rewards_per_share; 
 
@@ -532,7 +492,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);  
 //     };
 
@@ -554,13 +514,13 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -572,19 +532,19 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -593,8 +553,8 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //        ));
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -607,12 +567,12 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
@@ -621,10 +581,10 @@ module money_market::ipx_money_market_test {
 
 //       let borrow_value = (99 * ETH_DECIMALS_FACTOR as u64);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -634,7 +594,7 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //        );
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<ETH>(&account_storage, alice);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<ETH>(&account_storage, alice);
  
 //       assert_eq(burn(coin_eth), borrow_value);
 //       assert_eq(burn(coin_ipx), 0); 
@@ -647,13 +607,13 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
@@ -662,8 +622,8 @@ module money_market::ipx_money_market_test {
 //       clock::increment_for_testing(&mut clock_object, 50000);
 
 //       // So we can borrow more
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -674,12 +634,12 @@ module money_market::ipx_money_market_test {
 
 //       let borrow_value = (10 * ETH_DECIMALS_FACTOR as u64);
 
-//       let interest_rate_per_ms = whirlpool::get_borrow_rate_per_ms<ETH>(
-//         &whirlpool_storage,
+//       let interest_rate_per_ms = money_market::get_borrow_rate_per_ms<ETH>(
+//         &money_market_storage,
 //         &interest_rate_model_storage,
 //       );
 
-//       let (_, _, _, _, _, _, _, _, _, _, _, _, _, total_principal, total_borrows, _) = whirlpool::get_market_info<ETH>(&whirlpool_storage);
+//       let (_, _, _, _, _, _, _, _, _, _, _, _, _, total_principal, total_borrows, _) = money_market::get_market_info<ETH>(&money_market_storage);
 
 //       let accumulated_interest_rate = interest_rate_per_ms * 50000;
 //       let new_total_borrows = total_borrows + (d_fmul(total_borrows, accumulated_interest_rate) as u64);
@@ -687,8 +647,8 @@ module money_market::ipx_money_market_test {
 //       // round up
 //       let added_principal = ((borrow_value * total_principal) / new_total_borrows) + 1;
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -701,7 +661,7 @@ module money_market::ipx_money_market_test {
 //       // 5 epoch rewards
 //       let loan_rewards_per_share = calculate_eth_market_rewards(50000, 99 * ETH_DECIMALS_FACTOR);
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<ETH>(&account_storage, alice);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<ETH>(&account_storage, alice);
 //       let new_principal = 99 * ETH_DECIMALS_FACTOR + (added_principal as u256);
 
 //       assert_eq(burn(coin_eth), borrow_value);  
@@ -714,13 +674,13 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
@@ -729,12 +689,12 @@ module money_market::ipx_money_market_test {
 //       clock::increment_for_testing(&mut clock_object, 4000000);
 //       let borrow_value = (5 * ETH_DECIMALS_FACTOR as u64);
 
-//       let interest_rate_per_ms = whirlpool::get_borrow_rate_per_ms<ETH>(
-//         &whirlpool_storage,
+//       let interest_rate_per_ms = money_market::get_borrow_rate_per_ms<ETH>(
+//         &money_market_storage,
 //         &interest_rate_model_storage
 //       );
 
-//       let (_, _, _, _, _, _, _, _, _, _, prev_loan_rewards_per_share, _, _, total_principal, total_borrows, _) = whirlpool::get_market_info<ETH>(&whirlpool_storage);
+//       let (_, _, _, _, _, _, _, _, _, _, prev_loan_rewards_per_share, _, _, total_principal, total_borrows, _) = money_market::get_market_info<ETH>(&money_market_storage);
 
 //       let accumulated_interest_rate = interest_rate_per_ms * 4000000;
 //       let new_total_borrows = total_borrows + (d_fmul(total_borrows, accumulated_interest_rate) as u64);
@@ -742,10 +702,10 @@ module money_market::ipx_money_market_test {
 //       // round up
 //       let added_principal = ((borrow_value * total_principal) / new_total_borrows) + 1;
 
-//       let (_, prev_loan, _, prev_loan_rewards_paid) = whirlpool::get_account_info<ETH>(&account_storage, alice);
+//       let (_, prev_loan, _, prev_loan_rewards_paid) = money_market::get_account_info<ETH>(&account_storage, alice);
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -758,7 +718,7 @@ module money_market::ipx_money_market_test {
 //       // 5 epoch rewards
 //       let loan_rewards_per_share = calculate_eth_market_rewards(4000000, (total_principal as u256)) + prev_loan_rewards_per_share;
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<ETH>(&account_storage, alice);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<ETH>(&account_storage, alice);
 //       let new_principal = prev_loan + added_principal;
 
 //       assert_eq(burn(coin_eth), borrow_value);  
@@ -771,7 +731,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 
@@ -793,13 +753,13 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -811,18 +771,18 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -831,8 +791,8 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //        ));
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -844,12 +804,12 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
@@ -857,10 +817,10 @@ module money_market::ipx_money_market_test {
 
 //       let borrow_value = (50 * ETH_DECIMALS_FACTOR as u64);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -876,21 +836,21 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
 //       clock::increment_for_testing(&mut clock_object, 350000);
 
-//       let coin_ipx = whirlpool::repay<ETH>(
-//         &mut whirlpool_storage,
+//       let coin_ipx = money_market::repay<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &mut interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -901,7 +861,7 @@ module money_market::ipx_money_market_test {
 //       );
 
 //       let loan_rewards_per_share = calculate_eth_market_rewards(350000, 50 * ETH_DECIMALS_FACTOR);
-//       let (_, loan, _, loan_rewards_paid) = whirlpool::get_account_info<ETH>(&account_storage, alice);
+//       let (_, loan, _, loan_rewards_paid) = money_market::get_account_info<ETH>(&account_storage, alice);
 
 //       assert_eq((burn(coin_ipx) as u256), loan_rewards_per_share * 50);
 //       assert_eq(loan, (25 * ETH_DECIMALS_FACTOR as u64));
@@ -910,24 +870,24 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       let (_, _, _, _, _, _, _, _, _, _, prev_loan_rewards_per_share, _, _, _, _, _) = whirlpool::get_market_info<ETH>(&whirlpool_storage);
+//       let (_, _, _, _, _, _, _, _, _, _, prev_loan_rewards_per_share, _, _, _, _, _) = money_market::get_market_info<ETH>(&money_market_storage);
 
-//       let (_, prev_loan, _, prev_loan_rewards_paid) = whirlpool::get_account_info<ETH>(&account_storage, alice);
+//       let (_, prev_loan, _, prev_loan_rewards_paid) = money_market::get_account_info<ETH>(&account_storage, alice);
 
 //       clock::increment_for_testing(&mut clock_object, 350000);
 
-//       let coin_ipx = whirlpool::repay<ETH>(
-//         &mut whirlpool_storage,
+//       let coin_ipx = money_market::repay<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &mut interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -938,7 +898,7 @@ module money_market::ipx_money_market_test {
 //       );
 
 //       let loan_rewards_per_share = calculate_eth_market_rewards(350000, 25 * ETH_DECIMALS_FACTOR) + prev_loan_rewards_per_share;
-//       let (_, loan, _, loan_rewards_paid) = whirlpool::get_account_info<ETH>(&account_storage, alice);
+//       let (_, loan, _, loan_rewards_paid) = money_market::get_account_info<ETH>(&account_storage, alice);
 
 //       assert_eq((burn(coin_ipx) as u256), (loan_rewards_per_share * (prev_loan as u256) / ETH_DECIMALS_FACTOR) - prev_loan_rewards_paid);
 //       assert_eq(loan, 0);
@@ -947,7 +907,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -961,7 +921,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
 //   fun test_fail_deposit_suid() {
 //     let scenario = scenario();
 
@@ -974,13 +934,13 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<SUID>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<SUID>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -992,7 +952,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //    };
 
 //     clock::destroy_for_testing(clock_object);
@@ -1000,7 +960,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_MARKET_IS_PAUSED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_MARKET_IS_PAUSED)]
 //   fun test_fail_deposit_paused() {
 //     let scenario = scenario();
 
@@ -1012,16 +972,16 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::pause_market<BTC>(&whirlpool_admin_cap, &mut whirlpool_storage);
+//       money_market::pause_market<BTC>(&money_market_admin_cap, &mut money_market_storage);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1033,8 +993,8 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_shared(money_market_storage);
+//       test::return_to_address(alice, money_market_admin_cap);
 //    };
     
 //     clock::destroy_for_testing(clock_object);
@@ -1042,7 +1002,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_MAX_COLLATERAL_REACHED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_MAX_COLLATERAL_REACHED)]
 //   fun test_fail_deposit_borrow_cap_reached() {
 //     let scenario = scenario();
 
@@ -1055,13 +1015,13 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1073,7 +1033,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //    };
 
 //     clock::destroy_for_testing(clock_object);
@@ -1081,7 +1041,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
 //   fun test_fail_withdraw_suid() {
 //     let scenario = scenario();
 
@@ -1094,14 +1054,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       let (coin_btc, coin_ipx) = whirlpool::withdraw<SUID>(
-//         &mut whirlpool_storage, 
+//       let (coin_btc, coin_ipx) = money_market::withdraw<SUID>(
+//         &mut money_market_storage, 
 //         &mut account_storage,
 //         &interest_rate_model_storage, 
 //         &mut ipx_storage, 
@@ -1117,7 +1077,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
     
@@ -1126,7 +1086,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_NOT_ENOUGH_SHARES_IN_THE_ACCOUNT)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_NOT_ENOUGH_SHARES_IN_THE_ACCOUNT)]
 //   fun test_fail_withdraw_not_enough_shares() {
 //     let scenario = scenario();
 
@@ -1139,14 +1099,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//     let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//     let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1156,8 +1116,8 @@ module money_market::ipx_money_market_test {
 //       ));
 
 
-//       let (coin_btc, coin_ipx) = whirlpool::withdraw<BTC>(
-//         &mut whirlpool_storage, 
+//       let (coin_btc, coin_ipx) = money_market::withdraw<BTC>(
+//         &mut money_market_storage, 
 //         &mut account_storage,
 //         &interest_rate_model_storage, 
 //         &mut ipx_storage, 
@@ -1173,7 +1133,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
@@ -1182,7 +1142,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW)]
 //   fun test_fail_withdraw_no_cash() {
 //     let scenario = scenario();
 
@@ -1194,14 +1154,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1213,20 +1173,20 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1235,10 +1195,10 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<ETH>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<ETH>(&money_market_storage, &mut account_storage, ctx(test));
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<BTC>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1254,20 +1214,20 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       let (coin_btc, coin_ipx) = whirlpool::withdraw<BTC>(
-//         &mut whirlpool_storage, 
+//       let (coin_btc, coin_ipx) = money_market::withdraw<BTC>(
+//         &mut money_market_storage, 
 //         &mut account_storage,
 //         &interest_rate_model_storage, 
 //         &mut ipx_storage, 
@@ -1283,7 +1243,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
@@ -1292,7 +1252,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_MARKET_IS_PAUSED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_MARKET_IS_PAUSED)]
 //   fun test_fail_withdraw_paused() {
 //     let scenario = scenario();
 
@@ -1304,15 +1264,15 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1321,10 +1281,10 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::pause_market<BTC>(&whirlpool_admin_cap, &mut whirlpool_storage);
+//       money_market::pause_market<BTC>(&money_market_admin_cap, &mut money_market_storage);
 
-//       let (coin_btc, coin_ipx) = whirlpool::withdraw<BTC>(
-//         &mut whirlpool_storage, 
+//       let (coin_btc, coin_ipx) = money_market::withdraw<BTC>(
+//         &mut money_market_storage, 
 //         &mut account_storage,
 //         &interest_rate_model_storage, 
 //         &mut ipx_storage, 
@@ -1340,9 +1300,9 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -1350,7 +1310,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_USER_IS_INSOLVENT)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_USER_IS_INSOLVENT)]
 //   fun test_fail_withdraw_insolvent() {
 //     let scenario = scenario();
 
@@ -1363,14 +1323,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1379,25 +1339,25 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1406,25 +1366,25 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
 //    next_tx(test, alice);
 //    {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1440,21 +1400,21 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       let (coin_btc, coin_ipx) = whirlpool::withdraw<BTC>(
-//         &mut whirlpool_storage, 
+//       let (coin_btc, coin_ipx) = money_market::withdraw<BTC>(
+//         &mut money_market_storage, 
 //         &mut account_storage,
 //         &interest_rate_model_storage, 
 //         &mut ipx_storage, 
@@ -1470,9 +1430,9 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -1480,7 +1440,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
 //   fun test_fail_borrow() {
 //     let scenario = scenario();
 
@@ -1493,14 +1453,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       let (coin_suid, coin_ipx) = whirlpool::borrow<SUID>(
-//         &mut whirlpool_storage,
+//       let (coin_suid, coin_ipx) = money_market::borrow<SUID>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1516,7 +1476,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
@@ -1525,7 +1485,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_NOT_ENOUGH_CASH_TO_LEND)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_NOT_ENOUGH_CASH_TO_LEND)]
 //   fun test_fail_borrow_not_enough_cash() {
 //     let scenario = scenario();
 
@@ -1538,14 +1498,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1554,25 +1514,25 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);       
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1581,27 +1541,27 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);    
 //     };
 
 //     next_tx(test, alice);
 //    {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1617,7 +1577,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
@@ -1626,7 +1586,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_MARKET_IS_PAUSED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_MARKET_IS_PAUSED)]
 //   fun test_fail_borrow_paused() {
 //     let scenario = scenario();
 
@@ -1638,14 +1598,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1654,25 +1614,25 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage ,&mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage ,&mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);       
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1681,29 +1641,29 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage ,&mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage ,&mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);    
 //     };
 
 //     next_tx(test, alice);
 //    {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage ,&mut account_storage, ctx(test));
-//       whirlpool::pause_market<ETH>(&whirlpool_admin_cap, &mut whirlpool_storage);
+//       money_market::enter_market<BTC>(&money_market_storage ,&mut account_storage, ctx(test));
+//       money_market::pause_market<ETH>(&money_market_admin_cap, &mut money_market_storage);
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1716,11 +1676,11 @@ module money_market::ipx_money_market_test {
 //       burn(coin_eth);
 //       burn(coin_ipx);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
@@ -1729,7 +1689,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_BORROW_CAP_LIMIT_REACHED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_BORROW_CAP_LIMIT_REACHED)]
 //   fun test_fail_borrow_cap_reached() {
 //     let scenario = scenario();
 
@@ -1742,14 +1702,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1758,25 +1718,25 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage ,&mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage ,&mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);       
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1785,29 +1745,29 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);    
 //     };
 
 //     next_tx(test, alice);
 //    {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage ,&mut account_storage, ctx(test));
-//       whirlpool::set_borrow_cap<ETH>(&whirlpool_admin_cap, &mut whirlpool_storage, (ETH_DECIMALS_FACTOR as u64));
+//       money_market::enter_market<BTC>(&money_market_storage ,&mut account_storage, ctx(test));
+//       money_market::set_borrow_cap<ETH>(&money_market_admin_cap, &mut money_market_storage, (ETH_DECIMALS_FACTOR as u64));
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1820,11 +1780,11 @@ module money_market::ipx_money_market_test {
 //        burn(coin_eth);
 //        burn(coin_ipx);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
@@ -1833,7 +1793,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_USER_IS_SOLVENT)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_USER_IS_SOLVENT)]
 //   fun test_fail_borrow_insolvent() {
 //     let scenario = scenario();
 
@@ -1846,14 +1806,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1862,25 +1822,25 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);       
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1889,28 +1849,28 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);    
 //     };
 
 //     next_tx(test, alice);
 //    {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1923,11 +1883,11 @@ module money_market::ipx_money_market_test {
 //       burn(coin_eth);
 //       burn(coin_ipx);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
@@ -1936,7 +1896,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
 //   fun test_fail_repay_suid() {
 //     let scenario = scenario();
 
@@ -1949,13 +1909,13 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::repay<SUID>(
-//         &mut whirlpool_storage,
+//       burn(money_market::repay<SUID>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &mut interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -1968,7 +1928,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //    };
 
 //     clock::destroy_for_testing(clock_object);
@@ -1976,7 +1936,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_MARKET_IS_PAUSED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_MARKET_IS_PAUSED)]
 //   fun test_fail_repay_paused() {
 //     let scenario = scenario();
 
@@ -1989,13 +1949,13 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2007,18 +1967,18 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2030,21 +1990,21 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2060,21 +2020,21 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::pause_market<ETH>(&whirlpool_admin_cap, &mut whirlpool_storage);
+//       money_market::pause_market<ETH>(&money_market_admin_cap, &mut money_market_storage);
 
-//       burn(whirlpool::repay<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::repay<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &mut interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2084,11 +2044,11 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //    };
     
 //     clock::destroy_for_testing(clock_object);
@@ -2107,13 +2067,13 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2122,8 +2082,8 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       burn(whirlpool::deposit<ADA>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ADA>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2132,10 +2092,10 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage ,&mut account_storage, ctx(test));
-//       whirlpool::enter_market<ADA>(&whirlpool_storage ,&mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage ,&mut account_storage, ctx(test));
+//       money_market::enter_market<ADA>(&money_market_storage ,&mut account_storage, ctx(test));
 
-//       let user_markets_in = whirlpool::get_user_markets_in(&account_storage, alice);
+//       let user_markets_in = money_market::get_user_markets_in(&account_storage, alice);
 
 //       assert_eq(vector::contains(user_markets_in, &get_coin_info_string<BTC>()), true);
 //       assert_eq(vector::contains(user_markets_in, &get_coin_info_string<ADA>()), true);
@@ -2143,19 +2103,19 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       let (coin_btc, coin_ipx) = whirlpool::borrow<BTC>(
-//         &mut whirlpool_storage,
+//       let (coin_btc, coin_ipx) = money_market::borrow<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2168,8 +2128,8 @@ module money_market::ipx_money_market_test {
 //       burn(coin_btc);
 //       burn(coin_ipx);
 
-//       whirlpool::exit_market<ADA>(
-//         &mut whirlpool_storage,
+//       money_market::exit_market<ADA>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &oracle_storage,
@@ -2177,7 +2137,7 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       );
 
-//       let user_markets_in = whirlpool::get_user_markets_in(&account_storage, alice);
+//       let user_markets_in = money_market::get_user_markets_in(&account_storage, alice);
 
 //       assert_eq(vector::contains(user_markets_in, &get_coin_info_string<BTC>()), true);
 //       assert_eq(vector::contains(user_markets_in, &get_coin_info_string<ADA>()), false);
@@ -2185,7 +2145,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 
@@ -2194,7 +2154,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_MARKET_EXIT_LOAN_OPEN)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_MARKET_EXIT_LOAN_OPEN)]
 //   fun test_fail_exit_market_open_loan() {
 //     let scenario = scenario();
 
@@ -2207,13 +2167,13 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2222,28 +2182,28 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage ,&mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage ,&mut account_storage, ctx(test));
 
-//       let user_markets_in = whirlpool::get_user_markets_in(&account_storage, alice);
+//       let user_markets_in = money_market::get_user_markets_in(&account_storage, alice);
 
 //       assert_eq(vector::contains(user_markets_in, &get_coin_info_string<BTC>()), true);
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       let (coin_btc, coin_ipx) = whirlpool::borrow<BTC>(
-//         &mut whirlpool_storage,
+//       let (coin_btc, coin_ipx) = money_market::borrow<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2256,8 +2216,8 @@ module money_market::ipx_money_market_test {
 //       burn(coin_btc);
 //       burn(coin_ipx);
 
-//       whirlpool::exit_market<BTC>(
-//         &mut whirlpool_storage,
+//       money_market::exit_market<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &oracle_storage,
@@ -2268,7 +2228,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 
@@ -2278,7 +2238,7 @@ module money_market::ipx_money_market_test {
 
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_USER_IS_INSOLVENT)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_USER_IS_INSOLVENT)]
 //   fun test_fail_exit_market_insolvent() {
 //     let scenario = scenario();
 
@@ -2291,13 +2251,13 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2306,8 +2266,8 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       burn(whirlpool::deposit<ADA>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ADA>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2316,10 +2276,10 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage ,&mut account_storage, ctx(test));
-//       whirlpool::enter_market<ADA>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage ,&mut account_storage, ctx(test));
+//       money_market::enter_market<ADA>(&money_market_storage, &mut account_storage, ctx(test));
 
-//       let user_markets_in = whirlpool::get_user_markets_in(&account_storage, alice);
+//       let user_markets_in = money_market::get_user_markets_in(&account_storage, alice);
 
 //       assert_eq(vector::contains(user_markets_in, &get_coin_info_string<BTC>()), true);
 //       assert_eq(vector::contains(user_markets_in, &get_coin_info_string<ADA>()), true);
@@ -2327,19 +2287,19 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       let (coin_btc, coin_ipx) = whirlpool::borrow<BTC>(
-//         &mut whirlpool_storage,
+//       let (coin_btc, coin_ipx) = money_market::borrow<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2352,8 +2312,8 @@ module money_market::ipx_money_market_test {
 //       burn(coin_btc);
 //       burn(coin_ipx);
 
-//       whirlpool::exit_market<ADA>(
-//         &mut whirlpool_storage,
+//       money_market::exit_market<ADA>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &oracle_storage,
@@ -2364,7 +2324,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 
@@ -2374,7 +2334,7 @@ module money_market::ipx_money_market_test {
 
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_CAN_NOT_BE_COLLATERAL)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_CAN_NOT_BE_COLLATERAL)]
 //   fun test_fail_enter_market() {
 //     let scenario = scenario();
 
@@ -2385,17 +2345,17 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::update_can_be_collateral<BTC>(&whirlpool_admin_cap, &mut whirlpool_storage, false);
+//       money_market::update_can_be_collateral<BTC>(&money_market_admin_cap, &mut money_market_storage, false);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
-//       test::return_to_address(alice, whirlpool_admin_cap);    
+//       test::return_to_address(alice, money_market_admin_cap);    
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     test::end(scenario);
@@ -2414,13 +2374,13 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2429,23 +2389,23 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);      
+//       test::return_shared(money_market_storage);      
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2457,19 +2417,19 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2485,19 +2445,19 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 
-//       let borrow_rate_per_ms = whirlpool::get_borrow_rate_per_ms<ETH>(
-//         &whirlpool_storage,
+//       let borrow_rate_per_ms = money_market::get_borrow_rate_per_ms<ETH>(
+//         &money_market_storage,
 //         &interest_rate_model_storage
 //       );
 
@@ -2511,16 +2471,16 @@ module money_market::ipx_money_market_test {
 
 //       let reserve_amount = d_fmul_u256(interest_rate_amount, (INITIAL_RESERVE_FACTOR_MANTISSA as u256));
 
-//       let (alice_collateral, alice_borrows) = whirlpool::get_account_balances<ETH>(
-//         &mut whirlpool_storage,
+//       let (alice_collateral, alice_borrows) = money_market::get_account_balances<ETH>(
+//         &mut money_market_storage,
 //         &account_storage,
 //         &interest_rate_model_storage,
 //         &clock_object,
 //         alice
 //       );
 
-//       let (bob_collateral, bob_borrows) = whirlpool::get_account_balances<ETH>(
-//         &mut whirlpool_storage,
+//       let (bob_collateral, bob_borrows) = money_market::get_account_balances<ETH>(
+//         &mut money_market_storage,
 //         &account_storage,
 //         &interest_rate_model_storage,
 //         &clock_object,
@@ -2537,7 +2497,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(suid_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -2545,7 +2505,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
 //   fun test_fail_set_interest_rate_data_suid() {
 //     let scenario = scenario();
 
@@ -2557,14 +2517,14 @@ module money_market::ipx_money_market_test {
 //     let (alice, _) = people();
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::set_interest_rate_data<SUID>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::set_interest_rate_data<SUID>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         &mut interest_rate_model_storage,
 //         &clock_object,
 //         1000000000,
@@ -2574,10 +2534,10 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       );
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -2596,14 +2556,14 @@ module money_market::ipx_money_market_test {
 //     let (alice, _) = people();
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::set_interest_rate_data<BTC>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::set_interest_rate_data<BTC>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         &mut interest_rate_model_storage,
 //         &clock_object,
 //         10000000000000000,
@@ -2620,10 +2580,10 @@ module money_market::ipx_money_market_test {
 //       assert_eq(jump, 30000000000000000 / MS_PER_YEAR);
 //       assert_eq(kink, 500000000000000000);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -2641,23 +2601,23 @@ module money_market::ipx_money_market_test {
 //     let (alice, _) = people();
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::update_liquidation<BTC>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::update_liquidation<BTC>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         500, 
 //         300
 //       );
 
-//       let (penalty_fee, protocol_fee) = whirlpool::get_liquidation_info<BTC>(&whirlpool_storage);
+//       let (penalty_fee, protocol_fee) = money_market::get_liquidation_info<BTC>(&money_market_storage);
 
 //       assert_eq(penalty_fee, 500);
 //       assert_eq(protocol_fee, 300);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
-//       test::return_shared(whirlpool_storage);
+//       test::return_to_address(alice, money_market_admin_cap);
+//       test::return_shared(money_market_storage);
 //     };
 //     test::end(scenario);
 //   }
@@ -2673,29 +2633,29 @@ module money_market::ipx_money_market_test {
 //     let (alice, _) = people();
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::pause_market<BTC>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage
+//       money_market::pause_market<BTC>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage
 //       );
 
-//       let paused = whirlpool::is_market_paused<BTC>(&whirlpool_storage);
+//       let paused = money_market::is_market_paused<BTC>(&money_market_storage);
 
 //       assert_eq(paused, true);
 
-//       whirlpool::unpause_market<BTC>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage
+//       money_market::unpause_market<BTC>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage
 //       );
 
-//       let paused = whirlpool::is_market_paused<BTC>(&whirlpool_storage);
+//       let paused = money_market::is_market_paused<BTC>(&money_market_storage);
 
 //       assert_eq(paused, false);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
-//       test::return_shared(whirlpool_storage);    
+//       test::return_to_address(alice, money_market_admin_cap);
+//       test::return_shared(money_market_storage);    
 //     };
 //     test::end(scenario);
 //   }
@@ -2711,27 +2671,27 @@ module money_market::ipx_money_market_test {
 //     let (alice, _) = people();
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::set_borrow_cap<BTC>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::set_borrow_cap<BTC>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         2
 //       );
 
-//       let (_, _, borrow_cap, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirlpool::get_market_info<BTC>(&whirlpool_storage);
+//       let (_, _, borrow_cap, _, _, _, _, _, _, _, _, _, _, _, _, _) = money_market::get_market_info<BTC>(&money_market_storage);
 
 //       assert_eq(borrow_cap, 2);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
-//       test::return_shared(whirlpool_storage);    
+//       test::return_to_address(alice, money_market_admin_cap);
+//       test::return_shared(money_market_storage);    
 //     };
 //     test::end(scenario);
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_SUID_OPERATION_NOT_ALLOWED)]
 //   fun test_fail_update_reserve_factor_suid() {
 //     let scenario = scenario();
 
@@ -2743,23 +2703,23 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::update_reserve_factor<SUID>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::update_reserve_factor<SUID>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         &mut interest_rate_model_storage,
 //         &clock_object,
 //         10000,
 //       );
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -2778,30 +2738,30 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
 //       clock::increment_for_testing(&mut clock_object, 12000);
 
-//       whirlpool::update_reserve_factor<BTC>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::update_reserve_factor<BTC>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         &mut interest_rate_model_storage,
 //         &clock_object,
 //         10000
 //       );
 
-//       let (_, accrued_timestamp, _, _, _, _, _, reserve_factor, _, _, _, _, _, _, _, _) = whirlpool::get_market_info<BTC>(&whirlpool_storage);
+//       let (_, accrued_timestamp, _, _, _, _, _, reserve_factor, _, _, _, _, _, _, _, _) = money_market::get_market_info<BTC>(&money_market_storage);
 
 //       assert_eq(accrued_timestamp, 12000);
 //       assert_eq(reserve_factor, 10000);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -2820,13 +2780,13 @@ module money_market::ipx_money_market_test {
 //     let (alice, bob) = people();
 //     next_tx(test, alice);    
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2835,23 +2795,23 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage ,&mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage ,&mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2863,12 +2823,12 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
@@ -2876,8 +2836,8 @@ module money_market::ipx_money_market_test {
 
 //       let borrow_value = (10 * ETH_DECIMALS_FACTOR as u64);
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2893,24 +2853,24 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);       
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
 //       clock::increment_for_testing(&mut clock_object, 120000000);
 
-//       let borrow_rate_per_ms = whirlpool::get_borrow_rate_per_ms<ETH>(
-//         &whirlpool_storage,
+//       let borrow_rate_per_ms = money_market::get_borrow_rate_per_ms<ETH>(
+//         &money_market_storage,
 //         &interest_rate_model_storage
 //       );
 
@@ -2922,9 +2882,9 @@ module money_market::ipx_money_market_test {
 
 //       let reserve_amount = d_fmul_u256(interest_rate_amount, (INITIAL_RESERVE_FACTOR_MANTISSA as u256));
 
-//       whirlpool::withdraw_reserves<ETH>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::withdraw_reserves<ETH>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         &interest_rate_model_storage,
 //         &mut suid_storage,
 //         &clock_object,
@@ -2932,17 +2892,17 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       );
 
-//       let (total_reserves, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirlpool::get_market_info<ETH>(&whirlpool_storage);
+//       let (total_reserves, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = money_market::get_market_info<ETH>(&money_market_storage);
 
 //       assert_eq(accrued_timestamp, 120000000);
 //       assert_eq(total_reserves, 0);
       
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(suid_storage);
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);  
 //     };
 
@@ -2951,7 +2911,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_NOT_ENOUGH_CASH_TO_WITHDRAW)]
 //   fun test_fail_withdraw_reserves_no_cash() {
 //     let scenario = scenario();
 
@@ -2963,13 +2923,13 @@ module money_market::ipx_money_market_test {
 //     let (alice, bob) = people();
 //     next_tx(test, alice);    
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -2978,23 +2938,23 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3006,12 +2966,12 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
@@ -3019,8 +2979,8 @@ module money_market::ipx_money_market_test {
 
 //       let borrow_value = (10 * ETH_DECIMALS_FACTOR as u64);
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3036,20 +2996,20 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);       
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let suid_storage = test::take_shared<SuiDollarStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       let borrow_rate_per_ms = whirlpool::get_borrow_rate_per_ms<ETH>(
-//         &whirlpool_storage,
+//       let borrow_rate_per_ms = money_market::get_borrow_rate_per_ms<ETH>(
+//         &money_market_storage,
 //         &interest_rate_model_storage
 //       );
 
@@ -3062,9 +3022,9 @@ module money_market::ipx_money_market_test {
 
 //       let reserve_amount = d_fmul_u256(interest_rate_amount, (INITIAL_RESERVE_FACTOR_MANTISSA as u256));
 
-//       whirlpool::withdraw_reserves<ETH>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::withdraw_reserves<ETH>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         &interest_rate_model_storage,
 //         &mut suid_storage,
 //         &clock_object,
@@ -3072,11 +3032,11 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       );
     
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(suid_storage);
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -3084,7 +3044,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_NOT_ENOUGH_RESERVES)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_NOT_ENOUGH_RESERVES)]
 //   fun test_fail_withdraw_reserves_not_enough_reserves() {
 //     let scenario = scenario();
 
@@ -3096,13 +3056,13 @@ module money_market::ipx_money_market_test {
 //     let (alice, bob) = people();
 //     next_tx(test, alice);    
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3111,23 +3071,23 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<ETH>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3139,12 +3099,12 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage);
+//       test::return_shared(money_market_storage);
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
@@ -3152,8 +3112,8 @@ module money_market::ipx_money_market_test {
 
 //       let borrow_value = (10 * ETH_DECIMALS_FACTOR as u64);
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow<ETH>(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow<ETH>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3169,20 +3129,20 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);       
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let suid_storage = test::take_shared<SuiDollarStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       let borrow_rate_per_ms = whirlpool::get_borrow_rate_per_ms<ETH>(
-//         &whirlpool_storage,
+//       let borrow_rate_per_ms = money_market::get_borrow_rate_per_ms<ETH>(
+//         &money_market_storage,
 //         &interest_rate_model_storage
 //       );
 
@@ -3198,9 +3158,9 @@ module money_market::ipx_money_market_test {
 
 //       let reserve_amount = d_fmul_u256(interest_rate_amount, (INITIAL_RESERVE_FACTOR_MANTISSA as u256));
 
-//       whirlpool::withdraw_reserves<ETH>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::withdraw_reserves<ETH>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         &interest_rate_model_storage,
 //         &mut suid_storage,
 //         &clock_object,
@@ -3208,11 +3168,11 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       );
     
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(suid_storage);
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -3231,27 +3191,27 @@ module money_market::ipx_money_market_test {
 //     let (alice, _) = people();
 //     next_tx(test, alice);  
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::update_ltv<BTC>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::update_ltv<BTC>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         &interest_rate_model_storage,
 //         &clock_object,
 //         100
 //       );
 
-//       let (_, _, _, _, _, _, ltv, _, _, _, _, _, _, _, _, _) = whirlpool::get_market_info<BTC>(&whirlpool_storage);
+//       let (_, _, _, _, _, _, ltv, _, _, _, _, _, _, _, _, _) = money_market::get_market_info<BTC>(&money_market_storage);
 
 //       assert_eq(ltv, 100);
     
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     }; 
 
 //     clock::destroy_for_testing(clock_object);
@@ -3270,28 +3230,28 @@ module money_market::ipx_money_market_test {
 //     let (alice, _) = people();
 //     next_tx(test, alice); 
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
 //       let timestamp_delta = 292727282;
 
 //       clock::increment_for_testing(&mut clock_object, timestamp_delta);
 
-//       whirlpool::update_suid_interest_rate_per_ms(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::update_suid_interest_rate_per_ms(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         &clock_object,
 //         30000000
 //       );
 
-//       let suid_per_ms = whirlpool::get_interest_rate_per_ms(&whirlpool_storage);
-//       let (_, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirlpool::get_market_info<SUID>(&whirlpool_storage);
+//       let suid_per_ms = money_market::get_interest_rate_per_ms(&money_market_storage);
+//       let (_, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = money_market::get_market_info<SUID>(&money_market_storage);
 
 //       assert_eq(accrued_timestamp, timestamp_delta);
 //       assert_eq((suid_per_ms as u256), 30000000 / MS_PER_YEAR);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
-//       test::return_shared(whirlpool_storage);       
+//       test::return_to_address(alice, money_market_admin_cap);
+//       test::return_shared(money_market_storage);       
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -3310,30 +3270,30 @@ module money_market::ipx_money_market_test {
 //     let (alice, _) = people();
 //     next_tx(test, alice); 
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
 //       clock::increment_for_testing(&mut clock_object, 4);
 
-//       whirlpool::update_allocation_points<BTC>(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::update_allocation_points<BTC>(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         &interest_rate_model_storage,
 //         &clock_object,
 //         450
 //       );
 
-//       let (_, accrued_timestamp, _, _, _, _, _, _, allocation_points, _, _, _, _, _, _, _) = whirlpool::get_market_info<BTC>(&whirlpool_storage);
-//       let total_allocation_points = whirlpool::get_total_allocation_points(&whirlpool_storage);
+//       let (_, accrued_timestamp, _, _, _, _, _, _, allocation_points, _, _, _, _, _, _, _) = money_market::get_market_info<BTC>(&money_market_storage);
+//       let total_allocation_points = money_market::get_total_allocation_points(&money_market_storage);
 
 //       assert_eq(accrued_timestamp, 4);
 //       assert_eq(allocation_points, 450);
 //       assert_eq(total_allocation_points, 2550);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(interest_rate_model_storage);
-//       test::return_shared(whirlpool_storage);    
+//       test::return_shared(money_market_storage);    
 //     };
 
 //     clock::destroy_for_testing(clock_object);
@@ -3352,43 +3312,43 @@ module money_market::ipx_money_market_test {
 //     let (alice, _) = people();
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
 //       let timestame_increase = 2827261928;
 
 //       clock::increment_for_testing(&mut clock_object, timestame_increase);
 
-//       whirlpool::update_ipx_per_ms(
-//         &whirlpool_admin_cap,
-//         &mut whirlpool_storage,
+//       money_market::update_ipx_per_ms(
+//         &money_market_admin_cap,
+//         &mut money_market_storage,
 //         &interest_rate_model_storage,
 //         &clock_object,
 //         450
 //       );
 
-//       let (_, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirlpool::get_market_info<BTC>(&whirlpool_storage);
+//       let (_, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = money_market::get_market_info<BTC>(&money_market_storage);
 //       assert_eq(accrued_timestamp, timestame_increase);
 
-//       let (_, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirlpool::get_market_info<ETH>(&whirlpool_storage);
+//       let (_, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = money_market::get_market_info<ETH>(&money_market_storage);
 //       assert_eq(accrued_timestamp, timestame_increase);
       
-//       let (_, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirlpool::get_market_info<ADA>(&whirlpool_storage);
+//       let (_, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = money_market::get_market_info<ADA>(&money_market_storage);
 //       assert_eq(accrued_timestamp, timestame_increase);
 
-//       let (_, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = whirlpool::get_market_info<SUID>(&whirlpool_storage);
+//       let (_, accrued_timestamp, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = money_market::get_market_info<SUID>(&money_market_storage);
 //       assert_eq(accrued_timestamp, timestame_increase);
       
-//       let ipx_per_ms = whirlpool::get_ipx_per_ms(&whirlpool_storage);
+//       let ipx_per_ms = money_market::get_ipx_per_ms(&money_market_storage);
 //       assert_eq(ipx_per_ms, 450);
 
-//       let num_of_markets = whirlpool::get_total_num_of_markets(&whirlpool_storage);
+//       let num_of_markets = money_market::get_total_num_of_markets(&money_market_storage);
 //       assert_eq(num_of_markets, 4);
       
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(interest_rate_model_storage);
-//       test::return_shared(whirlpool_storage);   
+//       test::return_shared(money_market_storage);   
 //     }; 
 
 //     clock::destroy_for_testing(clock_object);
@@ -3406,15 +3366,15 @@ module money_market::ipx_money_market_test {
 //     let (alice, bob) = people();
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::transfer_admin_cap(whirlpool_admin_cap, bob);
+//       money_market::transfer_admin_cap(money_market_admin_cap, bob);
 //     };
 
 //     next_tx(test, bob);
 //     {
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, bob);
-//       test::return_to_address(bob, whirlpool_admin_cap);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, bob);
+//       test::return_to_address(bob, money_market_admin_cap);
 //     };
 //     test::end(scenario);
 //   }
@@ -3430,28 +3390,28 @@ module money_market::ipx_money_market_test {
 //     let (alice, _) = people();
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 
-//       let (_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, can_be_collateral) = whirlpool::get_market_info<BTC>(&whirlpool_storage);
+//       let (_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, can_be_collateral) = money_market::get_market_info<BTC>(&money_market_storage);
 
 //       assert_eq(can_be_collateral, true);
 
-//       whirlpool::update_can_be_collateral<BTC>(&whirlpool_admin_cap, &mut whirlpool_storage, false);
+//       money_market::update_can_be_collateral<BTC>(&money_market_admin_cap, &mut money_market_storage, false);
 
-//       let (_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, can_be_collateral) = whirlpool::get_market_info<BTC>(&whirlpool_storage);
+//       let (_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, can_be_collateral) = money_market::get_market_info<BTC>(&money_market_storage);
 
 //       assert_eq(can_be_collateral, false);
 
-//       test::return_shared(whirlpool_storage); 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_shared(money_market_storage); 
+//       test::return_to_address(alice, money_market_admin_cap);
 //     };
 
 //     test::end(scenario);
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_NO_ADDRESS_ZERO)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_NO_ADDRESS_ZERO)]
 //   fun test_fail_transfer_admin_cap() {
 //     let scenario = scenario();
 
@@ -3462,9 +3422,9 @@ module money_market::ipx_money_market_test {
 //     let (alice, _) = people();
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::transfer_admin_cap(whirlpool_admin_cap, @0x0);
+//       money_market::transfer_admin_cap(money_market_admin_cap, @0x0);
 //     };
 //     test::end(scenario);
 //   }
@@ -3481,13 +3441,13 @@ module money_market::ipx_money_market_test {
     
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3499,12 +3459,12 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
@@ -3514,10 +3474,10 @@ module money_market::ipx_money_market_test {
 //       // 60k
 //       let borrow_value = ( 60000 * SUID_DECIMALS_FACTOR as u64);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
-//       let (coin_suid, coin_ipx) = whirlpool::borrow_suid(
-//         &mut whirlpool_storage,
+//       let (coin_suid, coin_ipx) = money_market::borrow_suid(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3528,7 +3488,7 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //        );
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<SUID>(&account_storage, alice);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<SUID>(&account_storage, alice);
  
 //       assert_eq(burn(coin_suid), borrow_value);
 //       assert_eq(burn(coin_ipx), 0); 
@@ -3541,13 +3501,13 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
@@ -3556,8 +3516,8 @@ module money_market::ipx_money_market_test {
 
 //       let borrow_value = (5000 * SUID_DECIMALS_FACTOR as u64);
 
-//       let interest_rate_per_ms = whirlpool::get_borrow_rate_per_ms<SUID>(
-//         &whirlpool_storage,
+//       let interest_rate_per_ms = money_market::get_borrow_rate_per_ms<SUID>(
+//         &money_market_storage,
 //         &interest_rate_model_storage
 //       );
 
@@ -3565,7 +3525,7 @@ module money_market::ipx_money_market_test {
 
 //       clock::increment_for_testing(&mut clock_object, timestame_increase);
 
-//       let (_, _, _, _, _, _, _, _, _, _, _, _, _, total_principal, total_borrows, _) = whirlpool::get_market_info<SUID>(&whirlpool_storage);
+//       let (_, _, _, _, _, _, _, _, _, _, _, _, _, total_principal, total_borrows, _) = money_market::get_market_info<SUID>(&money_market_storage);
 
 //       let accumulated_interest_rate = interest_rate_per_ms * timestame_increase;
 //       let new_total_borrows = total_borrows + (d_fmul(total_borrows, accumulated_interest_rate) as u64);
@@ -3573,8 +3533,8 @@ module money_market::ipx_money_market_test {
 //       // round up
 //       let added_principal = (((borrow_value as u256) * (total_principal as u256)) / (new_total_borrows as u256)) + 1;
 
-//       let (coin_suid, coin_ipx) = whirlpool::borrow_suid(
-//         &mut whirlpool_storage,
+//       let (coin_suid, coin_ipx) = money_market::borrow_suid(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3588,7 +3548,7 @@ module money_market::ipx_money_market_test {
 //       // 5 epoch rewards
 //       let loan_rewards_per_share = calculate_suid_market_rewards((timestame_increase as u256), 60000 * SUID_DECIMALS_FACTOR);
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<SUID>(&account_storage, alice);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<SUID>(&account_storage, alice);
 //       let new_principal = 60000 * SUID_DECIMALS_FACTOR + (added_principal as u256);
 
 //       assert_eq(burn(coin_suid), borrow_value);  
@@ -3602,13 +3562,13 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
@@ -3617,8 +3577,8 @@ module money_market::ipx_money_market_test {
 
 //       let borrow_value = (1000 * SUID_DECIMALS_FACTOR as u64);
 
-//       let interest_rate_per_ms = whirlpool::get_borrow_rate_per_ms<SUID>(
-//         &whirlpool_storage,
+//       let interest_rate_per_ms = money_market::get_borrow_rate_per_ms<SUID>(
+//         &money_market_storage,
 //         &interest_rate_model_storage,
 //       );
 
@@ -3626,7 +3586,7 @@ module money_market::ipx_money_market_test {
 
 //       clock::increment_for_testing(&mut clock_object, timestame_increase);
 
-//       let (_, _, _, _, _, _, _, _, _, _, prev_loan_rewards_per_share, _, _, total_principal, total_borrows, _) = whirlpool::get_market_info<SUID>(&whirlpool_storage);
+//       let (_, _, _, _, _, _, _, _, _, _, prev_loan_rewards_per_share, _, _, total_principal, total_borrows, _) = money_market::get_market_info<SUID>(&money_market_storage);
 
 //       let accumulated_interest_rate = interest_rate_per_ms * timestame_increase;
 //       let new_total_borrows = total_borrows + (d_fmul(total_borrows, accumulated_interest_rate) as u64);
@@ -3634,10 +3594,10 @@ module money_market::ipx_money_market_test {
 //       // round up
 //       let added_principal = ((((borrow_value as u256) * (total_principal as u256)) / (new_total_borrows as u256)) + 1 as u64);
 
-//       let (_, prev_loan, _, prev_loan_rewards_paid) = whirlpool::get_account_info<SUID>(&account_storage, alice);
+//       let (_, prev_loan, _, prev_loan_rewards_paid) = money_market::get_account_info<SUID>(&account_storage, alice);
 
-//       let (coin_eth, coin_ipx) = whirlpool::borrow_suid(
-//         &mut whirlpool_storage,
+//       let (coin_eth, coin_ipx) = money_market::borrow_suid(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3651,7 +3611,7 @@ module money_market::ipx_money_market_test {
 //       // 5 epoch rewards
 //       let loan_rewards_per_share = calculate_suid_market_rewards((timestame_increase as u256), (total_principal as u256)) + prev_loan_rewards_per_share;
 
-//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = whirlpool::get_account_info<SUID>(&account_storage, alice);
+//       let (collateral, loan, collateral_rewards_paid, loan_rewards_paid) = money_market::get_account_info<SUID>(&account_storage, alice);
 //       let new_principal = prev_loan + added_principal;
 
 //       assert_eq(burn(coin_eth), borrow_value);  
@@ -3665,7 +3625,7 @@ module money_market::ipx_money_market_test {
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //     };
 
@@ -3675,7 +3635,7 @@ module money_market::ipx_money_market_test {
 
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_MARKET_IS_PAUSED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_MARKET_IS_PAUSED)]
 //   fun test_fail_borrow_suid_paused() {
 //     let scenario = scenario();
 
@@ -3688,14 +3648,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3704,30 +3664,30 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);       
 //     };
 
 //     next_tx(test, alice);
 //    {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
-//       whirlpool::pause_market<SUID>(&whirlpool_admin_cap, &mut whirlpool_storage);
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
+//       money_market::pause_market<SUID>(&money_market_admin_cap, &mut money_market_storage);
 
-//       let (coin_suid, coin_ipx) = whirlpool::borrow_suid(
-//         &mut whirlpool_storage,
+//       let (coin_suid, coin_ipx) = money_market::borrow_suid(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3741,12 +3701,12 @@ module money_market::ipx_money_market_test {
 //        burn(coin_suid);
 //        burn(coin_ipx);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(suid_storage);
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
@@ -3755,7 +3715,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_BORROW_CAP_LIMIT_REACHED)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_BORROW_CAP_LIMIT_REACHED)]
 //   fun test_fail_borrow_suid_cap_reached() {
 //     let scenario = scenario();
 
@@ -3768,14 +3728,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
 
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3784,30 +3744,30 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);       
 //     };
 
 //     next_tx(test, alice);
 //    {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
-//       whirlpool::set_borrow_cap<SUID>(&whirlpool_admin_cap, &mut whirlpool_storage, (SUID_DECIMALS_FACTOR as u64));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
+//       money_market::set_borrow_cap<SUID>(&money_market_admin_cap, &mut money_market_storage, (SUID_DECIMALS_FACTOR as u64));
 
-//       let (coin_suid, coin_ipx) = whirlpool::borrow_suid(
-//         &mut whirlpool_storage,
+//       let (coin_suid, coin_ipx) = money_market::borrow_suid(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3821,12 +3781,12 @@ module money_market::ipx_money_market_test {
 //        burn(coin_suid);
 //        burn(coin_ipx);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(suid_storage);
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
@@ -3835,7 +3795,7 @@ module money_market::ipx_money_market_test {
 //   }
 
 //   #[test]
-//   #[expected_failure(abort_code = whirlpool::core::ERROR_USER_IS_SOLVENT)]
+//   #[expected_failure(abort_code = money_market::core::ERROR_USER_IS_SOLVENT)]
 //   fun test_fail_borrow_suid_insolvent() {
 //     let scenario = scenario();
 
@@ -3848,14 +3808,14 @@ module money_market::ipx_money_market_test {
 
 //     next_tx(test, alice);
 //     {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
       
-//       burn(whirlpool::deposit<BTC>(
-//         &mut whirlpool_storage,
+//       burn(money_market::deposit<BTC>(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3864,29 +3824,29 @@ module money_market::ipx_money_market_test {
 //         ctx(test)
 //       ));
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage);       
 //     };
 
 //     next_tx(test, alice);
 //    {
-//       let whirlpool_storage = test::take_shared<WhirlpoolStorage>(test);
+//       let money_market_storage = test::take_shared<MoneyMarketStorage>(test);
 //       let account_storage = test::take_shared<AccountStorage>(test);
 //       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
 //       let ipx_storage = test::take_shared<IPXStorage>(test);
 //       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 //       let oracle_storage = test::take_shared<OracleStorage>(test);
-//       let whirlpool_admin_cap = test::take_from_address<WhirlpoolAdminCap>(test, alice);
+//       let money_market_admin_cap = test::take_from_address<MoneyMarketAdminCap>(test, alice);
 
-//       whirlpool::enter_market<BTC>(&whirlpool_storage, &mut account_storage, ctx(test));
+//       money_market::enter_market<BTC>(&money_market_storage, &mut account_storage, ctx(test));
 
-//       let (coin_suid, coin_ipx) = whirlpool::borrow_suid(
-//         &mut whirlpool_storage,
+//       let (coin_suid, coin_ipx) = money_market::borrow_suid(
+//         &mut money_market_storage,
 //         &mut account_storage,
 //         &interest_rate_model_storage,
 //         &mut ipx_storage,
@@ -3900,12 +3860,12 @@ module money_market::ipx_money_market_test {
 //        burn(coin_suid);
 //        burn(coin_ipx);
 
-//       test::return_to_address(alice, whirlpool_admin_cap);
+//       test::return_to_address(alice, money_market_admin_cap);
 //       test::return_shared(suid_storage);
 //       test::return_shared(ipx_storage);
 //       test::return_shared(interest_rate_model_storage);
 //       test::return_shared(account_storage);
-//       test::return_shared(whirlpool_storage); 
+//       test::return_shared(money_market_storage); 
 //       test::return_shared(oracle_storage); 
 //    };
 
