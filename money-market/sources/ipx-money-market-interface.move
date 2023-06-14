@@ -8,7 +8,7 @@ module money_market::ipx_money_market_interface {
 
   use sui_dollar::suid::{SUID, SuiDollarStorage};
 
-  use library::utils::{handle_coin_vector, public_transfer};
+  use library::utils::{handle_coin_vector, public_transfer_coin};
 
   use oracle::ipx_oracle::{Price as PricePotato};
 
@@ -39,7 +39,7 @@ module money_market::ipx_money_market_interface {
     asset_value: u64,
     ctx: &mut TxContext
   ) {
-      public_transfer(
+      public_transfer_coin(
         money_market::deposit<T>(
           money_market_storage,
           interest_rate_model_storage, 
@@ -73,8 +73,8 @@ module money_market::ipx_money_market_interface {
 
     let sender = tx_context::sender(ctx);
 
-    public_transfer(asset, sender);
-    public_transfer(coin_ipx, sender);
+    public_transfer_coin(asset, sender);
+    public_transfer_coin(coin_ipx, sender);
   }
 
   entry fun borrow<T>(
@@ -98,8 +98,8 @@ module money_market::ipx_money_market_interface {
 
     let sender = tx_context::sender(ctx);
 
-    public_transfer(asset, sender);
-    public_transfer(coin_ipx, sender);    
+    public_transfer_coin(asset, sender);
+    public_transfer_coin(coin_ipx, sender);    
   }
 
   entry fun repay<T>(
@@ -112,7 +112,7 @@ module money_market::ipx_money_market_interface {
     principal_to_repay: u64,
     ctx: &mut TxContext   
   ) {
-    public_transfer(
+    public_transfer_coin(
       money_market::repay<T>(
         money_market_storage,
         interest_rate_model_storage,
@@ -163,8 +163,8 @@ module money_market::ipx_money_market_interface {
 
     let sender = tx_context::sender(ctx);
 
-    public_transfer(coin_suid, sender);
-    public_transfer(coin_ipx, sender);
+    public_transfer_coin(coin_suid, sender);
+    public_transfer_coin(coin_ipx, sender);
   } 
 
 
@@ -178,7 +178,7 @@ module money_market::ipx_money_market_interface {
     principal_to_repay: u64,
     ctx: &mut TxContext 
   ) {
-    public_transfer(
+    public_transfer_coin(
       money_market::repay_suid(
         money_market_storage,
         ipx_storage,
@@ -199,7 +199,7 @@ module money_market::ipx_money_market_interface {
     clock_object: &Clock,
     ctx: &mut TxContext 
   ) {
-    public_transfer(
+    public_transfer_coin(
       money_market::get_rewards<T>(
         money_market_storage,
         interest_rate_model_storage,
@@ -218,7 +218,7 @@ module money_market::ipx_money_market_interface {
     clock_object: &Clock,
     ctx: &mut TxContext 
   ) {
-    public_transfer(
+    public_transfer_coin(
       money_market::get_all_rewards(
         money_market_storage,
         interest_rate_model_storage,

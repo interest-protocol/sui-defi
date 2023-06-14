@@ -7,6 +7,7 @@ module library::utils {
     use sui::coin::{Self, Coin};
     use sui::tx_context::{Self, TxContext};
     use sui::pay;
+    use sui::transfer;
 
     use library::comparator;
 
@@ -82,5 +83,13 @@ module library::utils {
       if (coin_x_value > coin_in_value) pay::split_and_transfer(&mut coin_x, coin_x_value - coin_in_value, tx_context::sender(ctx), ctx);
 
       coin_x
+    }
+
+    public fun public_transfer_coin<T>(asset: Coin<T>, recipient: address) {
+      if (coin::value(&asset) == 0) {
+        coin::destroy_zero(asset);
+      } else {
+        transfer::public_transfer(asset, recipient);
+      }
     }
 }

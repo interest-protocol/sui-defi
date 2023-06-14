@@ -1981,7 +1981,7 @@ module money_market::ipx_money_market {
   * @param clock_object The shared Clock object
   * @return Coin<IPX> It will mint IPX rewards to the user.
   */
-  fun get_all_rewards(
+  public fun get_all_rewards(
     money_market_storage: &mut MoneyMarketStorage, 
     interest_rate_model_storage: &InterestRateModelStorage,
     ipx_storage: &mut IPXStorage, 
