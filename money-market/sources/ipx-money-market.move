@@ -2690,18 +2690,13 @@ module money_market::ipx_money_market {
     let index = 0;
     let length = vector::length(user_markets_in);
 
-    // Need to make a copy to loop and then store the values again
-    let markets_in_copy = vector::empty<String>();
-
     // Will store the total value in usd for collateral and borrows.
     let total_collateral_in_usd = 0;
     let total_borrows_in_usd = 0;
     
     while(index < length) {
       // Get the key
-      let key = vector::pop_back(user_markets_in);
-      // Put it back in the copy
-      vector::push_back(&mut markets_in_copy, key);
+      let key = *vector::borrow(user_markets_in, index);
 
       // Get the user account
       let account = object_table::borrow(object_table::borrow(&money_market_storage.accounts_table, key), user);
@@ -2735,10 +2730,6 @@ module money_market::ipx_money_market {
       // increment the index 
       index = index + 1;
     };
-
-    // Restore the markets in
-    table::remove(&mut money_market_storage.markets_in_table, user);
-    table::add(&mut money_market_storage.markets_in_table, user, markets_in_copy);
 
     // Make sure the user is solvent
     total_collateral_in_usd > total_borrows_in_usd
