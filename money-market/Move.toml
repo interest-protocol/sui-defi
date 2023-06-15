@@ -2,10 +2,20 @@
 name = "MoneyMarket"
 version = "0.0.1"
 
+[dependencies.Sui]
+git = "https://github.com/MystenLabs/sui.git"
+subdir = "crates/sui-framework/packages/sui-framework"
+rev = "testnet"
+override = true
+
+[dependencies.MoveStdlib]
+git = "https://github.com/MystenLabs/sui.git"
+subdir = "crates/sui-framework/packages/move-stdlib"
+rev = "testnet"
+override = true
+
 [dependencies]
-MoveStdlib = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "testnet" }
-Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "testnet" }
-Oracle = { local = "./dependencies/oracle" }
+Oracle = { local = "../oracle"}
 Library = { local = "../library" }
 SuiDollar = { local = "../sui-dollar" }
 IPX = { local = "./dependencies/ipx" }
