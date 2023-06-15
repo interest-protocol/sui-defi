@@ -405,7 +405,7 @@ module money_market::ipx_money_market_test_2 {
 
       clock::increment_for_testing(&mut clock_object, timestame_increase);
 
-      let coin_ipx = money_market::repay_suid(
+      let (coin_suid, coin_ipx) = money_market::repay_suid(
         &mut money_market_storage,
         &mut ipx_storage,
         &mut suid_storage,
@@ -414,6 +414,8 @@ module money_market::ipx_money_market_test_2 {
         (5000 * SUID_DECIMALS_FACTOR as u64),
         ctx(test)
       );
+
+      burn(coin_suid);
 
       let loan_rewards_per_share = calculate_suid_market_rewards((timestame_increase as u256), 10000 * SUID_DECIMALS_FACTOR);
       let (_, loan, _, loan_rewards_paid) = money_market::get_account_info<SUID>(&money_market_storage, alice);
@@ -441,7 +443,7 @@ module money_market::ipx_money_market_test_2 {
 
       let (_, prev_loan, _, prev_loan_rewards_paid) = money_market::get_account_info<SUID>(&money_market_storage, alice);
 
-      let coin_ipx = money_market::repay_suid(
+        let (coin_suid, coin_ipx) = money_market::repay_suid(
         &mut money_market_storage,
         &mut ipx_storage,
         &mut suid_storage,
@@ -450,6 +452,8 @@ module money_market::ipx_money_market_test_2 {
         (5000 * SUID_DECIMALS_FACTOR as u64),
         ctx(test)
       );
+
+      burn(coin_suid);
 
       let loan_rewards_per_share = calculate_suid_market_rewards((timestame_increase as u256), 5000 * SUID_DECIMALS_FACTOR) + prev_loan_rewards_per_share;
       let (_, loan, _, loan_rewards_paid) = money_market::get_account_info<SUID>(&money_market_storage, alice);
@@ -548,7 +552,7 @@ module money_market::ipx_money_market_test_2 {
 
       money_market::pause_market<SUID>(&whirlpool_admin_cap, &mut money_market_storage);
 
-      let coin_ipx = money_market::repay_suid(
+      let (coin_suid, coin_ipx) = money_market::repay_suid(
         &mut money_market_storage,
         &mut ipx_storage,
         &mut suid_storage,
@@ -557,6 +561,8 @@ module money_market::ipx_money_market_test_2 {
         (5000 * SUID_DECIMALS_FACTOR as u64),
         ctx(test)
       );
+
+      burn(coin_suid);
 
       let loan_rewards_per_share = calculate_suid_market_rewards(5, 10000 * SUID_DECIMALS_FACTOR);
       let (_, loan, _, loan_rewards_paid) = money_market::get_account_info<SUID>(&money_market_storage, alice);
@@ -684,7 +690,7 @@ module money_market::ipx_money_market_test_2 {
       vector::push_back(&mut price_potato_vector, btc_price);
       vector::push_back(&mut price_potato_vector, eth_price);
 
-      money_market::liquidate<BTC, ETH>(
+      burn(money_market::liquidate<BTC, ETH>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -693,7 +699,7 @@ module money_market::ipx_money_market_test_2 {
         mint<ETH>(new_total_borrows, 0, ctx(test)),
         alice,
         ctx(test)
-      );
+      ));
 
       let (_, accrued_timestamp, _, _, _, _, _, _, _, btc_accrued_collateral_rewards_per_share, _, _, _, _, _, _) = money_market::get_market_info<BTC>(&money_market_storage);
       assert_eq(accrued_timestamp, timestame_increase);
@@ -897,7 +903,7 @@ module money_market::ipx_money_market_test_2 {
       vector::push_back(&mut price_potato_vector, eth_price);
       
 
-      money_market::liquidate<BTC, ETH>(
+      burn(money_market::liquidate<BTC, ETH>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -906,7 +912,7 @@ module money_market::ipx_money_market_test_2 {
         mint<ETH>(new_total_borrows, 0, ctx(test)),
         alice,
         ctx(test)
-      );
+      ));
 
       let (_, _, _, _, _, _, _, _, _, btc_accrued_collateral_rewards_per_share, _, _, elastic_collateral, _, _, _) = money_market::get_market_info<BTC>(&money_market_storage);
 
@@ -944,7 +950,7 @@ module money_market::ipx_money_market_test_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-      money_market::liquidate<BTC, ETH>(
+      burn(money_market::liquidate<BTC, ETH>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -953,7 +959,7 @@ module money_market::ipx_money_market_test_2 {
         mint<ETH>(1, 0, ctx(test)),
         alice,
         ctx(test)
-      );
+      ));
 
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -982,7 +988,7 @@ module money_market::ipx_money_market_test_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-      money_market::liquidate<SUID, ETH>(
+      burn(money_market::liquidate<SUID, ETH>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -991,7 +997,7 @@ module money_market::ipx_money_market_test_2 {
         mint<ETH>(1, 0, ctx(test)),
         bob,
         ctx(test)
-      );
+      ));
 
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -1020,7 +1026,7 @@ module money_market::ipx_money_market_test_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-      money_market::liquidate<ETH, SUID>(
+      burn(money_market::liquidate<ETH, SUID>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1029,7 +1035,7 @@ module money_market::ipx_money_market_test_2 {
         mint<SUID>(1, 0, ctx(test)),
         bob,
         ctx(test)
-      );
+      ));
 
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -1058,7 +1064,7 @@ module money_market::ipx_money_market_test_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-      money_market::liquidate<ETH, BTC>(
+      burn(money_market::liquidate<ETH, BTC>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1067,7 +1073,7 @@ module money_market::ipx_money_market_test_2 {
         mint<BTC>(1, 0, ctx(test)),
         bob,
         ctx(test)
-      );
+      ));
 
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -1116,7 +1122,7 @@ module money_market::ipx_money_market_test_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-      money_market::liquidate<ETH, BTC>(
+      burn(money_market::liquidate<ETH, BTC>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1125,7 +1131,7 @@ module money_market::ipx_money_market_test_2 {
         mint<BTC>(1, 0, ctx(test)),
         bob,
         ctx(test)
-      );
+      ));
 
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -1224,7 +1230,7 @@ module money_market::ipx_money_market_test_2 {
       let interest_rate_model_storage = test::take_shared<InterestRateModelStorage>(test);
       let ipx_storage = test::take_shared<IPXStorage>(test);
 
-      money_market::liquidate<BTC, ETH>(
+      burn(money_market::liquidate<BTC, ETH>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1233,7 +1239,7 @@ module money_market::ipx_money_market_test_2 {
         mint<ETH>(1, 0, ctx(test)),
         alice,
         ctx(test)
-      );
+      ));
 
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -1340,7 +1346,7 @@ module money_market::ipx_money_market_test_2 {
       vector::push_back(&mut price_potato_vector, btc_price);
       vector::push_back(&mut price_potato_vector, eth_price);
 
-      money_market::liquidate<BTC, ETH>(
+      burn(money_market::liquidate<BTC, ETH>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1349,7 +1355,7 @@ module money_market::ipx_money_market_test_2 {
         coin::zero<ETH>(ctx(test)),
         alice,
         ctx(test)
-      );
+      ));
 
       test::return_shared(ipx_storage);
       test::return_shared(interest_rate_model_storage);
@@ -1454,7 +1460,7 @@ module money_market::ipx_money_market_test_2 {
       vector::push_back(&mut price_potato_vector, btc_price);
       vector::push_back(&mut price_potato_vector, eth_price);
 
-      money_market::liquidate_suid<BTC>(
+      burn(money_market::liquidate_suid<BTC>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1464,7 +1470,7 @@ module money_market::ipx_money_market_test_2 {
         mint<SUID>(new_total_borrows, 0, ctx(test)),
         alice,
         ctx(test)
-      );
+      ));
 
       let (_, accrued_timestamp, _, _, _, _, _, _, _, btc_accrued_collateral_rewards_per_share, _, _, _, _, _, _) = money_market::get_market_info<BTC>(&money_market_storage);
       assert_eq(accrued_timestamp, timestame_increase);
@@ -1668,7 +1674,7 @@ module money_market::ipx_money_market_test_2 {
       vector::push_back(&mut price_potato_vector, eth_price);
       
 
-      money_market::liquidate_suid<BTC>(
+      burn(money_market::liquidate_suid<BTC>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1678,7 +1684,7 @@ module money_market::ipx_money_market_test_2 {
         mint<SUID>(new_total_borrows, 0, ctx(test)),
         alice,
         ctx(test)
-      );
+      ));
 
       let (_, _, _, _, _, _, _, _, _, btc_accrued_collateral_rewards_per_share, _, _, elastic_collateral, _, _, _) = money_market::get_market_info<BTC>(&money_market_storage);
 
@@ -1718,7 +1724,7 @@ module money_market::ipx_money_market_test_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 
-      money_market::liquidate_suid<BTC>(
+      burn(money_market::liquidate_suid<BTC>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1728,7 +1734,7 @@ module money_market::ipx_money_market_test_2 {
         mint<SUID>(1, 0, ctx(test)),
         alice,
         ctx(test)
-      );
+      ));
 
       test::return_shared(suid_storage);
       test::return_shared(ipx_storage);
@@ -1759,7 +1765,7 @@ module money_market::ipx_money_market_test_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 
-      money_market::liquidate_suid<SUID>(
+      burn(money_market::liquidate_suid<SUID>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1769,7 +1775,7 @@ module money_market::ipx_money_market_test_2 {
         mint<SUID>(1, 0, ctx(test)),
         bob,
         ctx(test)
-      );
+      ));
 
       test::return_shared(suid_storage);
       test::return_shared(ipx_storage);
@@ -1802,7 +1808,7 @@ module money_market::ipx_money_market_test_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 
-      money_market::liquidate_suid<BTC>(
+      burn(money_market::liquidate_suid<BTC>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1812,7 +1818,7 @@ module money_market::ipx_money_market_test_2 {
         mint<SUID>(1, 0, ctx(test)),
         bob,
         ctx(test)
-      );
+      ));
 
       test::return_shared(suid_storage);
       test::return_shared(ipx_storage);
@@ -1864,7 +1870,7 @@ module money_market::ipx_money_market_test_2 {
       let ipx_storage = test::take_shared<IPXStorage>(test);
       let suid_storage = test::take_shared<SuiDollarStorage>(test);
 
-      money_market::liquidate_suid<BTC>(
+      burn(money_market::liquidate_suid<BTC>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1874,7 +1880,7 @@ module money_market::ipx_money_market_test_2 {
         mint<SUID>(1, 0, ctx(test)),
         alice,
         ctx(test)
-      );
+      ));
 
       test::return_shared(suid_storage);
       test::return_shared(ipx_storage);
@@ -1979,7 +1985,7 @@ module money_market::ipx_money_market_test_2 {
 
       clock::increment_for_testing(&mut clock_object, timestame_increase);
       
-      money_market::liquidate_suid<BTC>(
+      burn(money_market::liquidate_suid<BTC>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -1989,7 +1995,7 @@ module money_market::ipx_money_market_test_2 {
         mint<SUID>(1, 0, ctx(test)),
         alice,
         ctx(test)
-      );
+      ));
 
       test::return_shared(suid_storage);
       test::return_shared(ipx_storage);
@@ -2103,7 +2109,7 @@ module money_market::ipx_money_market_test_2 {
       vector::push_back(&mut price_potato_vector, eth_price);
 
       
-      money_market::liquidate_suid<BTC>(
+      burn(money_market::liquidate_suid<BTC>(
         &mut money_market_storage,
         &interest_rate_model_storage,
         &mut ipx_storage,
@@ -2113,7 +2119,7 @@ module money_market::ipx_money_market_test_2 {
         coin::zero<SUID>(ctx(test)),
         alice,
         ctx(test)
-      );
+      ));
 
       test::return_shared(suid_storage);
       test::return_shared(ipx_storage);
