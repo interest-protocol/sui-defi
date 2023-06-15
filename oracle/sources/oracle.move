@@ -67,13 +67,14 @@ module oracle::ipx_oracle {
     coin_name: String
   }
 
-  struct GetPrice<phantom T> has copy, drop {
+  struct GetPrice has copy, drop {
     sender: address,
     switchboard_result: u256,
     switchboard_timestamp: u64,
     pyth_timestamp: u64,
     pyth_result: u256,
-    pyth_fee_value: u64
+    pyth_fee_value: u64,
+    coin_name: String
   }
 
   // Hot Potato to be passed. IMPORTANT DO NOT ADD ABILITIES
@@ -123,7 +124,7 @@ module oracle::ipx_oracle {
   * @switchboard_feed A price aggregator object from Switchboard
   * @return Price Hot Potato to be consumed
   */
-  public fun get_price<T>(
+  public fun get_price(
     storage: &mut OracleStorage, 
     wormhole_state: &WormholeState,
     pyth_state: &PythState,
@@ -132,12 +133,10 @@ module oracle::ipx_oracle {
     pyth_fee: Coin<SUI>,
     clock_object: &Clock,
     switchboard_feed: &Aggregator, 
+    coin_name: String,
     ctx: &mut TxContext
   ): Price {
     
-    // Get the coin type string name
-    // It is the key for the storage maps to get the authorized feeds
-    let coin_name = get_struct_name_string<T>();
     // Save the value of the pyth fee to pass to the event
     let pyth_fee_value = coin::value(&pyth_fee);
     
@@ -162,7 +161,7 @@ module oracle::ipx_oracle {
     assert!(average != 0, ERROR_IMPOSSIBLE_PRICE);
 
     // Emit the event
-    emit(GetPrice<T> { sender: tx_context::sender(ctx), switchboard_result, switchboard_timestamp, pyth_result, pyth_timestamp, pyth_fee_value });
+    emit(GetPrice { sender: tx_context::sender(ctx), switchboard_result, switchboard_timestamp, pyth_result, pyth_timestamp, pyth_fee_value, coin_name });
 
     // Create the Hot Potato
     Price {
