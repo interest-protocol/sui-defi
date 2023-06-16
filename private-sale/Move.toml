@@ -1,10 +1,12 @@
 [package]
-name = "launchpad"
+name = "private_sale"
 version = "0.0.1"
 
 [dependencies]
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "testnet" }
+Library = { git = "https://github.com/interest-protocol/sui-defi", subdir = "library", rev = "main" }
 
 [addresses]
-launchpad =  "0x0"
+private_sale =  "0x0"
 sui =  "0000000000000000000000000000000000000000000000000000000000000002"
+treasury = "0xCAFE"

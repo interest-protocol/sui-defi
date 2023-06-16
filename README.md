@@ -36,6 +36,12 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 - **i256** A library to
 - **clamm** UniswapV3 in Move (WIP)
 
+## Security
+
+Even though the code is tested, please use the code at your own risk. Only the directories below are audited.
+
+- **dex:** Audited by Movebit.
+
 ## Functionality
 
 ### CLAMM
