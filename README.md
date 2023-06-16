@@ -16,45 +16,35 @@ Make sure you have the latest version of the Sui binaries installed on your mach
 **To run the tests on the dex directory**
 
 ```bash
-  cd money-market
+  cd clamm
   sui move test
 ```
 
 ### Publish
 
 ```bash
-  cd money-market
+  cd clamm
   sui client publish --gas-budget 500000000
 ```
 
 ## Repo Structure
 
-- **money-market:** It contains the logic for users to borrow and lend coins
-- **sui-dollar:** The stable coin of Interest Protocol
 - **library:** It contains utility functions that are used by other modules
 - **airdrop:** It contains the module to airdrop the IPX governance token to whitelisted accounts
 - **examples:** A myriad of examples on how to interact with various modules
 - **audits** It contains code audits
 - **i256** A library to
 - **clamm** UniswapV3 in Move (WIP)
-- **oracle** An oracle that fetches the prices from Pyth and Switchboard
 
 ## Functionality
 
-### Money Market
+### CLAMM
 
-The Interest Protocol Lending Protocol allows users to borrow and lend cryptocurrencies.
+The Interest Protocol Concentrated Liquidity AMM
 
-The lending protocol providers the following core functions
+Users will be able to perform all traditional functions of an AMM
 
-- **deposit:** it allows users to put collateral to start earning interest rate + rewards
-- **withdraw:** it allows users to remove their collateral
-- **borrow:** it allows users to borrow crypto using their deposits as collateral. This allows them to open short/long positions
-- **repay:** it allows users to repay their loans
-
-### SUID Coin
-
-It is a stablecoin created by the lending module. It is pegged to he USD dollars. Users pay a constant interest rate to borrow it.
+**Innovation**: LP providers will be able to automatically list their out of money liquidity positions on a Money Market to earn yield. The protocol will withdraw the collateral once the liquidity becomes on the money.
 
 ### Airdrop
 
